@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.setBackgroundDrawableResource(R.color.card_black)
         setContentView(R.layout.activity_main)
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
