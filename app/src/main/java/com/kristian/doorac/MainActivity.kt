@@ -19,6 +19,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var acButton: Button
     private lateinit var doorRing: NeonRingView
     private lateinit var acRing: NeonRingView
+    private lateinit var screenRing: NeonRingView
 
     private var doorUnlocked = false
     private var acOn = false
@@ -40,6 +41,10 @@ class MainActivity : AppCompatActivity() {
         acButton = findViewById(R.id.acButton)
         doorRing = findViewById(R.id.doorRing)
         acRing = findViewById(R.id.acRing)
+        screenRing = findViewById(R.id.screenRing)
+        screenRing.strokeWidthDp = 6f
+        screenRing.cornerRadiusDp = 48f
+        screenRing.ringColor = ResourcesCompat.getColor(resources, R.color.white, theme)
 
         NotificationHelper.createChannel(this)
         requestNotificationPermissionIfNeeded()

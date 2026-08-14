@@ -6,6 +6,8 @@
     <ImageView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="@drawable/bg_rounded_mask"
+        android:clipToOutline="true"
         android:contentDescription="@null"
         android:scaleType="centerCrop"
         android:src="@drawable/bg_pastel" />
@@ -18,31 +20,33 @@
         android:padding="24dp">
 
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
             android:fontFamily="sans-serif-medium"
+            android:gravity="center"
             android:letterSpacing="0.08"
             android:shadowColor="#CCFFFFFF"
             android:shadowDx="0"
             android:shadowDy="0"
             android:shadowRadius="10"
             android:text="@string/title_text"
-            android:textColor="@color/pastel_pink"
-            android:textSize="30sp" />
+            android:textColor="@color/card_black"
+            android:textSize="28sp" />
 
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="44dp"
             android:fontFamily="sans-serif"
+            android:gravity="center"
             android:letterSpacing="0.04"
             android:shadowColor="#CCFFFFFF"
             android:shadowDx="0"
             android:shadowDy="0"
             android:shadowRadius="8"
             android:text="@string/hint_text"
-            android:textColor="@color/pastel_pink"
+            android:textColor="@color/card_black"
             android:textSize="15sp"
             android:alpha="0.8" />
 
@@ -94,5 +98,13 @@
         </FrameLayout>
 
     </LinearLayout>
+
+    <com.kristian.doorac.NeonRingView
+        android:id="@+id/screenRing"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="false"
+        android:focusable="false"
+        android:importantForAccessibility="no" />
 
 </FrameLayout>

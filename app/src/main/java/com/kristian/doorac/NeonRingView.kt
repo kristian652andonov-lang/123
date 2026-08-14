@@ -24,8 +24,23 @@ class NeonRingView @JvmOverloads constructor(
             invalidate()
         }
 
-    private val strokeWidthPx = resources.displayMetrics.density * 7f
-    private val cornerRadiusPx = resources.displayMetrics.density * 36f
+    var strokeWidthDp: Float = 7f
+        set(value) {
+            field = value
+            strokeWidthPx = resources.displayMetrics.density * value
+            paint.strokeWidth = strokeWidthPx
+            recomputeRect()
+        }
+
+    var cornerRadiusDp: Float = 36f
+        set(value) {
+            field = value
+            cornerRadiusPx = resources.displayMetrics.density * value
+            invalidate()
+        }
+
+    private var strokeWidthPx = resources.displayMetrics.density * strokeWidthDp
+    private var cornerRadiusPx = resources.displayMetrics.density * cornerRadiusDp
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -50,9 +65,15 @@ class NeonRingView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
+        recomputeRect()
+    }
+
+    private fun recomputeRect() {
+        if (width == 0 || height == 0) return
         val inset = strokeWidthPx / 2f
-        rect.set(inset, inset, w - inset, h - inset)
+        rect.set(inset, inset, width - inset, height - inset)
         shader = null
+        invalidate()
     }
 
     private fun buildShader() {
