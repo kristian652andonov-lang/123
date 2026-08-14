@@ -1,6 +1,7 @@
 package com.kristian.doorac
 
 import android.Manifest
+import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
@@ -16,12 +17,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var doorButton: Button
     private lateinit var acButton: Button
 
-    private var doorLocked = true
-    private var acOff = true
+    private var doorUnlocked = false
+    private var acOn = false
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-            NotificationHelper.updateNotification(this, doorLocked, acOff)
+            NotificationHelper.updateNotification(this, doorUnlocked, acOn)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,8 +30,8 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-        doorLocked = prefs.getBoolean(KEY_DOOR_LOCKED, true)
-        acOff = prefs.getBoolean(KEY_AC_OFF, true)
+        doorUnlocked = prefs.getBoolean(KEY_DOOR_UNLOCKED, false)
+        acOn = prefs.getBoolean(KEY_AC_ON, false)
 
         doorButton = findViewById(R.id.doorButton)
         acButton = findViewById(R.id.acButton)
@@ -40,21 +41,26 @@ class MainActivity : AppCompatActivity() {
 
         updateDoorUI()
         updateAcUI()
-        NotificationHelper.updateNotification(this, doorLocked, acOff)
+        startStatusService()
 
         doorButton.setOnClickListener {
-            doorLocked = !doorLocked
-            prefs.edit().putBoolean(KEY_DOOR_LOCKED, doorLocked).apply()
+            doorUnlocked = !doorUnlocked
+            prefs.edit().putBoolean(KEY_DOOR_UNLOCKED, doorUnlocked).apply()
             updateDoorUI()
-            NotificationHelper.updateNotification(this, doorLocked, acOff)
+            NotificationHelper.updateNotification(this, doorUnlocked, acOn)
         }
 
         acButton.setOnClickListener {
-            acOff = !acOff
-            prefs.edit().putBoolean(KEY_AC_OFF, acOff).apply()
+            acOn = !acOn
+            prefs.edit().putBoolean(KEY_AC_ON, acOn).apply()
             updateAcUI()
-            NotificationHelper.updateNotification(this, doorLocked, acOff)
+            NotificationHelper.updateNotification(this, doorUnlocked, acOn)
         }
+    }
+
+    private fun startStatusService() {
+        val intent = Intent(this, StatusService::class.java)
+        ContextCompat.startForegroundService(this, intent)
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -69,28 +75,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateDoorUI() {
-        if (doorLocked) {
-            doorButton.text = "Врата\nЗаключена 🔒"
-            doorButton.setBackgroundResource(R.drawable.bg_button_safe)
+        if (doorUnlocked) {
+            doorButton.text = "${getString(R.string.door_label)}\n${getString(R.string.door_unlocked)}"
+            doorButton.setBackgroundResource(R.drawable.bg_button_on)
         } else {
-            doorButton.text = "Врата\nОтключена 🔓"
-            doorButton.setBackgroundResource(R.drawable.bg_button_warning)
+            doorButton.text = "${getString(R.string.door_label)}\n${getString(R.string.door_locked)}"
+            doorButton.setBackgroundResource(R.drawable.bg_button_off)
         }
     }
 
     private fun updateAcUI() {
-        if (acOff) {
-            acButton.text = "Климатик\nИзключен ❄️"
-            acButton.setBackgroundResource(R.drawable.bg_button_safe)
+        if (acOn) {
+            acButton.text = "${getString(R.string.ac_label)}\n${getString(R.string.ac_on)}"
+            acButton.setBackgroundResource(R.drawable.bg_button_on)
         } else {
-            acButton.text = "Климатик\nВключен 🔥"
-            acButton.setBackgroundResource(R.drawable.bg_button_warning)
+            acButton.text = "${getString(R.string.ac_label)}\n${getString(R.string.ac_off)}"
+            acButton.setBackgroundResource(R.drawable.bg_button_off)
         }
     }
 
     companion object {
-        private const val PREFS_NAME = "status"
-        private const val KEY_DOOR_LOCKED = "door_locked"
-        private const val KEY_AC_OFF = "ac_off"
+        const val PREFS_NAME = "status"
+        const val KEY_DOOR_UNLOCKED = "door_unlocked"
+        const val KEY_AC_ON = "ac_on"
     }
 }

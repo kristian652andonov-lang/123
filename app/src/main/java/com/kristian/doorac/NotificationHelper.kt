@@ -1,5 +1,6 @@
 package com.kristian.doorac
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -12,8 +13,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 
 object NotificationHelper {
-    private const val CHANNEL_ID = "door_ac_status"
-    private const val NOTIFICATION_ID = 1001
+    const val CHANNEL_ID = "door_ac_status"
+    const val NOTIFICATION_ID = 1001
 
     fun createChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -30,10 +31,10 @@ object NotificationHelper {
         }
     }
 
-    fun updateNotification(context: Context, doorLocked: Boolean, acOff: Boolean) {
-        val doorText = if (doorLocked) "Врата: заключена ✅" else "Врата: ОТКЛЮЧЕНА ⚠️"
-        val acText = if (acOff) "Климатик: изключен ✅" else "Климатик: ВКЛЮЧЕН ⚠️"
-        val allSafe = doorLocked && acOff
+    fun buildNotification(context: Context, doorUnlocked: Boolean, acOn: Boolean): Notification {
+        val doorText = if (doorUnlocked) "Врата: отключена" else "Врата: заключена"
+        val acText = if (acOn) "Климатик: включен" else "Климатик: изключен"
+        val allClear = !doorUnlocked && !acOn
 
         val contentIntent = PendingIntent.getActivity(
             context,
@@ -42,23 +43,27 @@ object NotificationHelper {
             PendingIntent.FLAG_IMMUTABLE
         )
 
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(if (allSafe) R.drawable.ic_status_ok else R.drawable.ic_status_warning)
-            .setContentTitle(if (allSafe) "Всичко е ОК" else "Провери преди да тръгнеш!")
+        return NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(if (allClear) R.drawable.ic_status_ok else R.drawable.ic_status_warning)
+            .setContentTitle(if (allClear) "Всичко е готово" else "Провери преди да тръгнеш")
             .setContentText("$doorText   $acText")
             .setStyle(NotificationCompat.BigTextStyle().bigText("$doorText\n$acText"))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(contentIntent)
+            .build()
+    }
 
+    fun updateNotification(context: Context, doorUnlocked: Boolean, acOn: Boolean) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(
                 context,
                 android.Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
         ) {
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, builder.build())
+            NotificationManagerCompat.from(context)
+                .notify(NOTIFICATION_ID, buildNotification(context, doorUnlocked, acOn))
         }
     }
 }

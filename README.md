@@ -5,8 +5,14 @@ Tap a button to mark it locked/unlocked or off/on. The app keeps an ongoing
 notification in your notification shade at all times, showing the current
 status of both, so you can check without opening the app.
 
-Neon pink and black theme. State is saved on the phone (SharedPreferences),
-so it's remembered even after closing the app or restarting the phone.
+Black cards with a glowing edge overlay — green when a button is on, red when
+it's off — over a generated chill pastel background, with an intro-style
+display font (Bebas Neue, open source/SIL license) for the text.
+
+State is saved on the phone (SharedPreferences), so it's remembered even
+after closing the app or restarting the phone. The status notification is
+backed by a small foreground service, so it survives closing or swiping away
+the app — it doesn't disappear until you actually change a status.
 
 ## Getting the app on your phone (no computer needed)
 
@@ -25,8 +31,9 @@ push. To get it:
 
 ## How it works
 
-- Tap **Врата** to toggle заключена (locked) / отключена (unlocked).
-- Tap **Климатик** to toggle изключен (off) / включен (on).
+- Tap **Врата** to toggle ЗАКЛЮЧЕНА (locked, red edge) / ОТКЛЮЧЕНА (unlocked,
+  green edge).
+- Tap **Климатик** to toggle ИЗКЛЮЧЕН (off, red edge) / ВКЛЮЧЕН (on, green
+  edge).
 - The notification updates immediately and stays pinned at the top of your
-  notification shade until you change the status again — it does not need
-  the app to stay open in the background.
+  notification shade — closing or swiping away the app does not remove it.

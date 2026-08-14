@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">Врата и Климатик</string>
+    <string name="title_text">ПРОВЕРИ ПРЕДИ ДА ТРЪГНЕШ</string>
+    <string name="hint_text">Докосни бутон, за да смениш статуса</string>
+
+    <string name="door_label">ВРАТА</string>
+    <string name="door_unlocked">ОТКЛЮЧЕНА</string>
+    <string name="door_locked">ЗАКЛЮЧЕНА</string>
+
+    <string name="ac_label">КЛИМАТИК</string>
+    <string name="ac_on">ВКЛЮЧЕН</string>
+    <string name="ac_off">ИЗКЛЮЧЕН</string>
 </resources>
