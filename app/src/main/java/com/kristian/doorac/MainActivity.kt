@@ -42,7 +42,7 @@ class MainActivity : AppCompatActivity() {
         doorRing = findViewById(R.id.doorRing)
         acRing = findViewById(R.id.acRing)
         screenRing = findViewById(R.id.screenRing)
-        screenRing.strokeWidthDp = 6f
+        screenRing.strokeWidthDp = 9f
         screenRing.cornerRadiusDp = 48f
         screenRing.ringColor = ResourcesCompat.getColor(resources, R.color.white, theme)
 
