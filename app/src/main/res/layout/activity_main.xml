@@ -21,30 +21,30 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="6dp"
-            android:fontFamily="@font/intro_font"
+            android:fontFamily="sans-serif-medium"
             android:letterSpacing="0.08"
             android:shadowColor="#CCFFFFFF"
             android:shadowDx="0"
             android:shadowDy="0"
             android:shadowRadius="10"
             android:text="@string/title_text"
-            android:textColor="@color/card_black"
-            android:textSize="34sp" />
+            android:textColor="@color/pastel_pink"
+            android:textSize="30sp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="44dp"
-            android:fontFamily="@font/intro_font"
+            android:fontFamily="sans-serif"
             android:letterSpacing="0.04"
             android:shadowColor="#CCFFFFFF"
             android:shadowDx="0"
             android:shadowDy="0"
             android:shadowRadius="8"
             android:text="@string/hint_text"
-            android:textColor="@color/card_black"
-            android:textSize="16sp"
-            android:alpha="0.75" />
+            android:textColor="@color/pastel_pink"
+            android:textSize="15sp"
+            android:alpha="0.8" />
 
         <FrameLayout
             android:layout_width="wrap_content"
@@ -63,11 +63,11 @@
                 android:layout_gravity="center"
                 android:background="@drawable/bg_card_black"
                 android:elevation="10dp"
-                android:fontFamily="@font/intro_font"
+                android:fontFamily="sans-serif-medium"
                 android:letterSpacing="0.06"
                 android:textAllCaps="false"
-                android:textColor="@color/white"
-                android:textSize="20sp" />
+                android:textColor="@color/pastel_pink"
+                android:textSize="22sp" />
         </FrameLayout>
 
         <FrameLayout
@@ -86,11 +86,11 @@
                 android:layout_gravity="center"
                 android:background="@drawable/bg_card_black"
                 android:elevation="10dp"
-                android:fontFamily="@font/intro_font"
+                android:fontFamily="sans-serif-medium"
                 android:letterSpacing="0.06"
                 android:textAllCaps="false"
-                android:textColor="@color/white"
-                android:textSize="20sp" />
+                android:textColor="@color/pastel_pink"
+                android:textSize="22sp" />
         </FrameLayout>
 
     </LinearLayout>

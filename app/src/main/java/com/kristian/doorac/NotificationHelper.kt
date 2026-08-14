@@ -20,10 +20,10 @@ object NotificationHelper {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Статус на Врата и Климатик",
+                "Door & AC status",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Постоянно показва дали вратата е заключена и климатикът изключен"
+                description = "Ongoing status of whether the door is locked and the AC is off"
                 setShowBadge(false)
             }
             val manager = context.getSystemService(NotificationManager::class.java)
@@ -32,8 +32,8 @@ object NotificationHelper {
     }
 
     fun buildNotification(context: Context, doorUnlocked: Boolean, acOn: Boolean): Notification {
-        val doorText = if (doorUnlocked) "Врата: отключена" else "Врата: заключена"
-        val acText = if (acOn) "Климатик: включен" else "Климатик: изключен"
+        val doorText = if (doorUnlocked) "Door: unlocked" else "Door: locked"
+        val acText = if (acOn) "AC: on" else "AC: off"
         val allClear = !doorUnlocked && !acOn
 
         val contentIntent = PendingIntent.getActivity(
@@ -45,7 +45,7 @@ object NotificationHelper {
 
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(if (allClear) R.drawable.ic_status_ok else R.drawable.ic_status_warning)
-            .setContentTitle(if (allClear) "Всичко е готово" else "Провери преди да тръгнеш")
+            .setContentTitle(if (allClear) "All clear" else "Check before you leave")
             .setContentText("$doorText   $acText")
             .setStyle(NotificationCompat.BigTextStyle().bigText("$doorText\n$acText"))
             .setOngoing(true)

@@ -1,13 +1,13 @@
-# Врата и Климатик — Door / AC Reminder
+# Door & AC — Reminder App
 
-Small Android app with two buttons — **Врата** (door) and **Климатик** (AC).
-Tap a button to mark it locked/unlocked or off/on. The app keeps an ongoing
-notification in your notification shade at all times, showing the current
-status of both, so you can check without opening the app.
+Small Android app with two buttons — **Door** and **AC**. Tap a button to
+mark it locked/unlocked or off/on. The app keeps an ongoing notification in
+your notification shade at all times, showing the current status of both, so
+you can check without opening the app.
 
 Solid black cards with a spinning neon ring around the edge — green when a
-button is on, red when it's off — over a pastel beach background, with an
-intro-style display font (Bebas Neue, open source/SIL license) for the text.
+button is on, red when it's off — over a pastel beach background, with
+pastel pink small-caps text.
 
 State is saved on the phone (SharedPreferences), so it's remembered even
 after closing the app or restarting the phone. The status notification is
@@ -31,9 +31,7 @@ push. To get it:
 
 ## How it works
 
-- Tap **Врата** to toggle ЗАКЛЮЧЕНА (locked, red edge) / ОТКЛЮЧЕНА (unlocked,
-  green edge).
-- Tap **Климатик** to toggle ИЗКЛЮЧЕН (off, red edge) / ВКЛЮЧЕН (on, green
-  edge).
+- Tap **Door** to toggle LOCKED (red edge) / UNLOCKED (green edge).
+- Tap **AC** to toggle OFF (red edge) / ON (green edge).
 - The notification updates immediately and stays pinned at the top of your
   notification shade — closing or swiping away the app does not remove it.
