@@ -5,9 +5,9 @@ Tap a button to mark it locked/unlocked or off/on. The app keeps an ongoing
 notification in your notification shade at all times, showing the current
 status of both, so you can check without opening the app.
 
-Black cards with a glowing edge overlay — green when a button is on, red when
-it's off — over a generated chill pastel background, with an intro-style
-display font (Bebas Neue, open source/SIL license) for the text.
+Solid black cards with a spinning neon ring around the edge — green when a
+button is on, red when it's off — over a pastel beach background, with an
+intro-style display font (Bebas Neue, open source/SIL license) for the text.
 
 State is saved on the phone (SharedPreferences), so it's remembered even
 after closing the app or restarting the phone. The status notification is

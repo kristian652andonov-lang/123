@@ -10,12 +10,15 @@ import android.widget.Button
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: SharedPreferences
     private lateinit var doorButton: Button
     private lateinit var acButton: Button
+    private lateinit var doorRing: NeonRingView
+    private lateinit var acRing: NeonRingView
 
     private var doorUnlocked = false
     private var acOn = false
@@ -35,6 +38,8 @@ class MainActivity : AppCompatActivity() {
 
         doorButton = findViewById(R.id.doorButton)
         acButton = findViewById(R.id.acButton)
+        doorRing = findViewById(R.id.doorRing)
+        acRing = findViewById(R.id.acRing)
 
         NotificationHelper.createChannel(this)
         requestNotificationPermissionIfNeeded()
@@ -77,20 +82,20 @@ class MainActivity : AppCompatActivity() {
     private fun updateDoorUI() {
         if (doorUnlocked) {
             doorButton.text = "${getString(R.string.door_label)}\n${getString(R.string.door_unlocked)}"
-            doorButton.setBackgroundResource(R.drawable.bg_button_on)
+            doorRing.ringColor = ResourcesCompat.getColor(resources, R.color.neon_green, theme)
         } else {
             doorButton.text = "${getString(R.string.door_label)}\n${getString(R.string.door_locked)}"
-            doorButton.setBackgroundResource(R.drawable.bg_button_off)
+            doorRing.ringColor = ResourcesCompat.getColor(resources, R.color.neon_red, theme)
         }
     }
 
     private fun updateAcUI() {
         if (acOn) {
             acButton.text = "${getString(R.string.ac_label)}\n${getString(R.string.ac_on)}"
-            acButton.setBackgroundResource(R.drawable.bg_button_on)
+            acRing.ringColor = ResourcesCompat.getColor(resources, R.color.neon_green, theme)
         } else {
             acButton.text = "${getString(R.string.ac_label)}\n${getString(R.string.ac_off)}"
-            acButton.setBackgroundResource(R.drawable.bg_button_off)
+            acRing.ringColor = ResourcesCompat.getColor(resources, R.color.neon_red, theme)
         }
     }
 
