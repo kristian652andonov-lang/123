@@ -1,3 +1,14 @@
+# Apps in this repo
+
+Two Android apps, both built by the same GitHub Action on every push.
+
+- **[Jarvis](jarvis/README.md)** — a voice assistant powered by Claude that can
+  actually operate the phone. Artifact: `jarvis-debug-apk`.
+- **Door & AC** — the reminder app described below. Artifact:
+  `door-ac-reminder-debug-apk`.
+
+---
+
 # Door & AC — Reminder App
 
 Small Android app with two buttons — **Door** and **AC**. Tap a button to

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Jarvis</string>
+    <string name="wake_channel_name">Wake word listening</string>
+    <string name="wake_notice_title">Jarvis is listening</string>
+    <string name="wake_notice_text">Say \"Jarvis\" followed by your request.</string>
+</resources>

@@ -25,8 +25,14 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Upload Door & AC APK
         uses: actions/upload-artifact@v4
         with:
           name: door-ac-reminder-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload Jarvis APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-debug-apk
+          path: jarvis/build/outputs/apk/debug/*.apk

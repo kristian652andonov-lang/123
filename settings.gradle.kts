@@ -12,5 +12,6 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "DoorAcReminder"
+rootProject.name = "KristianApps"
 include(":app")
+include(":jarvis")
