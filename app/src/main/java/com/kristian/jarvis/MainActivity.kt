@@ -4,18 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
-import com.kristian.jarvis.ui.theme.JarvisPalette
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.kristian.jarvis.ui.AssistantState
+import com.kristian.jarvis.ui.ChatMessage
+import com.kristian.jarvis.ui.JarvisScreen
 import com.kristian.jarvis.ui.theme.JarvisTheme
-import androidx.compose.material3.MaterialTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,32 +21,50 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             JarvisTheme {
-                BootScreen()
+                JarvisShellDemo()
             }
         }
     }
 }
 
-/** Placeholder shell. The real HUD lands in the next step. */
+/**
+ * Temporary local wiring so the shell can be exercised on-device before the
+ * speech, Claude and service layers exist. Replaced by the real ViewModel in
+ * the orchestration step: sending echoes back, and the mic button just walks
+ * through the states so each animation can be checked.
+ */
 @Composable
-private fun BootScreen() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(JarvisPalette.Void),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "J A R V I S",
-            style = MaterialTheme.typography.titleLarge,
-            color = JarvisPalette.Cyan,
-            textAlign = TextAlign.Center
+private fun JarvisShellDemo() {
+    val messages = remember {
+        mutableStateListOf(
+            ChatMessage(
+                ChatMessage.Role.SYSTEM,
+                "Shell online. Voice, Claude and the background service are not wired up yet."
+            )
         )
     }
-}
+    var input by remember { mutableStateOf("") }
+    var state by remember { mutableStateOf(AssistantState.IDLE) }
 
-@Preview
-@Composable
-private fun BootScreenPreview() {
-    JarvisTheme { BootScreen() }
+    JarvisScreen(
+        state = state,
+        messages = messages,
+        inputText = input,
+        onInputChange = { input = it },
+        onSend = {
+            val text = input.trim()
+            if (text.isNotEmpty()) {
+                messages += ChatMessage(ChatMessage.Role.USER, text)
+                messages += ChatMessage(
+                    ChatMessage.Role.ASSISTANT,
+                    "Noted, sir. I'm not yet connected to anything that can act on that."
+                )
+                input = ""
+            }
+        },
+        onMicTap = {
+            state = AssistantState.entries[(state.ordinal + 1) % AssistantState.entries.size]
+        },
+        micEnabled = true
+    )
 }
