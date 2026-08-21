@@ -32,14 +32,34 @@ class JarvisPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_SPEECH_ENABLED, true)
         set(value) = prefs.edit().putBoolean(KEY_SPEECH_ENABLED, value).apply()
 
+    /** Whether the always-on wake word is armed. */
+    var wakeWordEnabled: Boolean
+        get() = prefs.getBoolean(KEY_WAKE_ENABLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_WAKE_ENABLED, value).apply()
+
+    /** Which wake-word implementation to run; see WakeWordEngineType. */
+    var wakeWordEngine: String
+        get() = prefs.getString(KEY_WAKE_ENGINE, DEFAULT_WAKE_ENGINE) ?: DEFAULT_WAKE_ENGINE
+        set(value) = prefs.edit().putString(KEY_WAKE_ENGINE, value).apply()
+
+    /** The word that wakes it. Only used by the SpeechRecognizer engine. */
+    var wakeWord: String
+        get() = prefs.getString(KEY_WAKE_WORD, DEFAULT_WAKE_WORD) ?: DEFAULT_WAKE_WORD
+        set(value) = prefs.edit().putString(KEY_WAKE_WORD, value.lowercase().trim()).apply()
+
     companion object {
         private const val KEY_VOICE = "tts_voice_name"
         private const val KEY_RATE = "tts_rate"
         private const val KEY_PITCH = "tts_pitch"
         private const val KEY_SPEECH_ENABLED = "speech_enabled"
+        private const val KEY_WAKE_ENABLED = "wake_enabled"
+        private const val KEY_WAKE_ENGINE = "wake_engine"
+        private const val KEY_WAKE_WORD = "wake_word"
 
         /** Composed and unhurried, without dragging. */
         const val DEFAULT_RATE = 0.92f
         const val DEFAULT_PITCH = 0.95f
+        const val DEFAULT_WAKE_WORD = "jarvis"
+        const val DEFAULT_WAKE_ENGINE = "SPEECH_RECOGNIZER"
     }
 }
