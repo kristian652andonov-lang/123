@@ -24,17 +24,23 @@ sealed interface ClaudeEvent {
     /** Claude wants a tool run. Handled by the tool loop. */
     data class ToolUse(val id: String, val name: String, val input: JSONObject) : ClaudeEvent
 
+}
+
+/** How one request/response turn ended. */
+sealed interface TurnResult {
     /**
-     * Turn finished. [content] is the assistant turn in wire format, to be put
-     * straight back into the conversation.
+     * [content] is the assistant turn in wire format, to be put straight back
+     * into the conversation - including any blocks this client doesn't model,
+     * which are echoed verbatim.
      */
     data class Completed(
         val stopReason: String?,
         val content: JSONArray,
+        val toolUses: List<ClaudeEvent.ToolUse>,
         val refusalExplanation: String? = null
-    ) : ClaudeEvent
+    ) : TurnResult
 
-    data class Failed(val message: String, val retryable: Boolean) : ClaudeEvent
+    data class Failed(val message: String, val retryable: Boolean) : TurnResult
 }
 
 /**
@@ -66,12 +72,12 @@ class AnthropicClient(
         tools: JSONArray?,
         narrate: Boolean,
         onEvent: (ClaudeEvent) -> Unit
-    ) = withContext(Dispatchers.IO) {
+    ): TurnResult = withContext(Dispatchers.IO) {
         val apiKey = keys.apiKey
-        if (apiKey == null) {
-            onEvent(ClaudeEvent.Failed("No Anthropic API key is stored yet.", retryable = false))
-            return@withContext
-        }
+            ?: return@withContext TurnResult.Failed(
+                "No Anthropic API key is stored yet.",
+                retryable = false
+            )
 
         val model = prefs.model
         val body = buildRequestBody(messages, systemPrompt, tools, narrate, model)
@@ -88,26 +94,24 @@ class AnthropicClient(
             .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        try {
+        return@withContext try {
             http.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    onEvent(describeHttpFailure(response.code, response.body?.string()))
-                    return@use
+                    describeHttpFailure(response.code, response.body?.string())
+                } else {
+                    val source = response.body?.source()
+                    if (source == null) {
+                        TurnResult.Failed("Empty response from Claude.", retryable = true)
+                    } else {
+                        parseStream(readLine = { source.readUtf8Line() }, onEvent = onEvent)
+                    }
                 }
-                val source = response.body?.source()
-                if (source == null) {
-                    onEvent(ClaudeEvent.Failed("Empty response from Claude.", retryable = true))
-                    return@use
-                }
-                parseStream(readLines = { source.readUtf8Line() }, onEvent = onEvent)
             }
         } catch (e: IOException) {
             Log.w(TAG, "Request failed", e)
-            onEvent(
-                ClaudeEvent.Failed(
-                    "I couldn't reach Claude - the connection failed. Check your network, sir.",
-                    retryable = true
-                )
+            TurnResult.Failed(
+                "I couldn't reach Claude - the connection failed. Check your network, sir.",
+                retryable = true
             )
         }
     }
@@ -157,16 +161,24 @@ class AnthropicClient(
 
     /**
      * Consumes the SSE stream, rebuilding the assistant turn block by block so
-     * it can be stored verbatim - thinking signatures included, which the API
-     * requires when the history is sent back.
+     * it can be stored verbatim - thinking signatures and server-tool blocks
+     * included, which the API requires when the history is sent back.
      */
-    private fun parseStream(readLines: () -> String?, onEvent: (ClaudeEvent) -> Unit) {
+    private fun parseStream(
+        readLine: () -> String?,
+        onEvent: (ClaudeEvent) -> Unit
+    ): TurnResult {
         val blocks = sortedMapOf<Int, BlockBuilder>()
+        val toolUses = mutableListOf<ClaudeEvent.ToolUse>()
         var stopReason: String? = null
         var refusalExplanation: String? = null
 
+        fun assembled(): JSONArray = JSONArray().also { array ->
+            blocks.values.mapNotNull { it.toWireBlock() }.forEach { array.put(it) }
+        }
+
         while (true) {
-            val line = readLines() ?: break
+            val line = readLine() ?: break
             if (!line.startsWith("data:")) continue
             val payload = line.removePrefix("data:").trim()
             if (payload.isEmpty()) continue
@@ -179,7 +191,10 @@ class AnthropicClient(
                     blocks[index] = BlockBuilder(
                         type = block?.optString("type").orEmpty(),
                         id = block?.optString("id").orEmpty(),
-                        name = block?.optString("name").orEmpty()
+                        name = block?.optString("name").orEmpty(),
+                        // Kept so block types this client doesn't model - server
+                        // tool calls and their results - survive the round trip.
+                        raw = block
                     ).also { builder ->
                         block?.optString("text")?.let { builder.text.append(it) }
                     }
@@ -211,13 +226,13 @@ class AnthropicClient(
                 "content_block_stop" -> {
                     val builder = blocks[json.optInt("index")] ?: continue
                     if (builder.type == "tool_use") {
-                        onEvent(
-                            ClaudeEvent.ToolUse(
-                                id = builder.id,
-                                name = builder.name,
-                                input = builder.parsedInput()
-                            )
+                        val use = ClaudeEvent.ToolUse(
+                            id = builder.id,
+                            name = builder.name,
+                            input = builder.parsedInput()
                         )
+                        toolUses += use
+                        onEvent(use)
                     }
                 }
 
@@ -226,65 +241,56 @@ class AnthropicClient(
                     delta?.optString("stop_reason")?.takeIf { it.isNotEmpty() }?.let {
                         stopReason = it
                     }
-                    json.optJSONObject("stop_details")?.let {
-                        refusalExplanation = it.optString("explanation").takeIf { e -> e.isNotEmpty() }
+                    delta?.optJSONObject("stop_details")?.let {
+                        refusalExplanation = it.optString("explanation")
+                            .takeIf { explanation -> explanation.isNotEmpty() }
                     }
                 }
 
-                "message_stop" -> {
-                    val content = JSONArray()
-                    blocks.values.mapNotNull { it.toWireBlock() }.forEach { content.put(it) }
-                    onEvent(ClaudeEvent.Completed(stopReason, content, refusalExplanation))
-                    return
-                }
+                "message_stop" ->
+                    return TurnResult.Completed(stopReason, assembled(), toolUses, refusalExplanation)
 
                 "error" -> {
-                    val error = json.optJSONObject("error")
-                    val message = error?.optString("message").orEmpty()
-                    onEvent(
-                        ClaudeEvent.Failed(
-                            message.ifEmpty { "Claude reported an error mid-response." },
-                            retryable = true
-                        )
+                    val message = json.optJSONObject("error")?.optString("message").orEmpty()
+                    return TurnResult.Failed(
+                        message.ifEmpty { "Claude reported an error mid-response." },
+                        retryable = true
                     )
-                    return
                 }
             }
         }
 
-        // Stream ended without a message_stop - deliver whatever was built.
-        val content = JSONArray()
-        blocks.values.mapNotNull { it.toWireBlock() }.forEach { content.put(it) }
-        onEvent(ClaudeEvent.Completed(stopReason, content, refusalExplanation))
+        // Stream ended without a message_stop - keep whatever was assembled.
+        return TurnResult.Completed(stopReason, assembled(), toolUses, refusalExplanation)
     }
 
-    private fun describeHttpFailure(code: Int, rawBody: String?): ClaudeEvent.Failed {
+    private fun describeHttpFailure(code: Int, rawBody: String?): TurnResult.Failed {
         val apiMessage = rawBody
             ?.let { runCatching { JSONObject(it).optJSONObject("error")?.optString("message") }.getOrNull() }
             ?.takeIf { it.isNotBlank() }
 
         return when (code) {
-            401, 403 -> ClaudeEvent.Failed(
+            401, 403 -> TurnResult.Failed(
                 "That API key was rejected. Check it in settings, sir.",
                 retryable = false
             )
 
-            404 -> ClaudeEvent.Failed(
+            404 -> TurnResult.Failed(
                 apiMessage ?: "That model isn't available to this key.",
                 retryable = false
             )
 
-            429 -> ClaudeEvent.Failed(
+            429 -> TurnResult.Failed(
                 "Rate limited by the API. Give it a moment.",
                 retryable = true
             )
 
-            in 500..599 -> ClaudeEvent.Failed(
+            in 500..599 -> TurnResult.Failed(
                 "The API is having trouble at its end. Worth retrying.",
                 retryable = true
             )
 
-            else -> ClaudeEvent.Failed(
+            else -> TurnResult.Failed(
                 apiMessage ?: "The request was rejected (HTTP $code).",
                 retryable = false
             )
@@ -295,7 +301,8 @@ class AnthropicClient(
     private class BlockBuilder(
         var type: String = "text",
         var id: String = "",
-        var name: String = ""
+        var name: String = "",
+        val raw: JSONObject? = null
     ) {
         val text = StringBuilder()
         val thinking = StringBuilder()
@@ -323,7 +330,9 @@ class AnthropicClient(
                 .put("name", name)
                 .put("input", parsedInput())
 
-            else -> null
+            // Anything else (server tool calls, their results) goes back
+            // exactly as it arrived rather than being silently dropped.
+            else -> raw
         }
     }
 

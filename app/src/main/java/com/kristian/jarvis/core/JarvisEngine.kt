@@ -7,7 +7,9 @@ import com.kristian.jarvis.claude.ClaudeEvent
 import com.kristian.jarvis.claude.Conversation
 import com.kristian.jarvis.claude.Persona
 import com.kristian.jarvis.claude.SecureKeyStore
+import com.kristian.jarvis.claude.TurnResult
 import com.kristian.jarvis.settings.JarvisPrefs
+import com.kristian.jarvis.tools.ToolRegistry
 import com.kristian.jarvis.ui.AssistantState
 import com.kristian.jarvis.ui.ChatMessage
 import com.kristian.jarvis.voice.JarvisTts
@@ -21,7 +23,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 
 /**
  * The brain stem: wires ears, Claude and voice into one loop.
@@ -43,6 +44,7 @@ class JarvisEngine(
     private val voice = VoiceController(appContext, prefs)
     private val claude = AnthropicClient(keys, prefs)
     private val conversation = Conversation()
+    private val tools = ToolRegistry(appContext, prefs)
 
     private val _uiState = MutableStateFlow(JarvisUiState(narrate = prefs.narrateMode))
     val uiState: StateFlow<JarvisUiState> = _uiState.asStateFlow()
@@ -146,8 +148,11 @@ class JarvisEngine(
     }
 
     /**
-     * One request/response cycle. Tool calls are collected here so the loop in
-     * the next step can execute them and continue the same turn.
+     * The turn loop: request, and if Claude asked for tools, run them and go
+     * back round with the results until it has nothing left to call.
+     *
+     * A hard iteration cap stops a tool that keeps provoking another call from
+     * looping forever on someone's phone battery.
      */
     private suspend fun runTurn() {
         setState(AssistantState.THINKING)
@@ -159,47 +164,84 @@ class JarvisEngine(
         val base = prefs.personaPrompt.ifBlank { Persona.DEFAULT_SYSTEM_PROMPT }
         val system = Persona.systemPrompt(base, narrate)
 
-        var failed = false
-        claude.stream(
-            messages = conversation.snapshot(),
-            systemPrompt = system,
-            tools = toolDefinitions(),
-            narrate = narrate
-        ) { event ->
-            // Stream callbacks arrive on a network thread.
-            scope.launch(Dispatchers.Main) {
-                when (event) {
-                    is ClaudeEvent.TextDelta -> onTextDelta(event.text)
-                    is ClaudeEvent.ThinkingDelta -> onThinkingDelta(event.text)
-                    is ClaudeEvent.ToolUse -> Log.d(TAG, "Tool requested: ${event.name}")
-                    is ClaudeEvent.Completed -> {
-                        conversation.addAssistantContent(event.content)
-                        event.refusalExplanation?.let {
+        var iterations = 0
+        while (iterations++ < MAX_TOOL_ITERATIONS) {
+            val result = claude.stream(
+                messages = conversation.snapshot(),
+                systemPrompt = system,
+                tools = tools.definitions(),
+                narrate = narrate
+            ) { event ->
+                // Stream callbacks arrive on a network thread.
+                scope.launch(Dispatchers.Main) {
+                    when (event) {
+                        is ClaudeEvent.TextDelta -> onTextDelta(event.text)
+                        is ClaudeEvent.ThinkingDelta -> onThinkingDelta(event.text)
+                        is ClaudeEvent.ToolUse -> Log.d(TAG, "Tool requested: ${event.name}")
+                    }
+                }
+            }
+
+            when (result) {
+                is TurnResult.Failed -> {
+                    withContext(Dispatchers.Main) {
+                        tts.stop()
+                        say(ChatMessage.Role.SYSTEM, result.message)
+                        setState(AssistantState.ERROR)
+                        _uiState.value = _uiState.value.copy(busy = false)
+                    }
+                    return
+                }
+
+                is TurnResult.Completed -> {
+                    withContext(Dispatchers.Main) {
+                        conversation.addAssistantContent(result.content)
+                        result.refusalExplanation?.let {
                             say(ChatMessage.Role.SYSTEM, "Declined: $it")
                         }
-                        finishStreamedReply()
                     }
 
-                    is ClaudeEvent.Failed -> {
-                        failed = true
-                        say(ChatMessage.Role.SYSTEM, event.message)
-                        setState(AssistantState.ERROR)
+                    if (result.toolUses.isNotEmpty()) {
+                        runTools(result.toolUses)
+                        // Speak what was said before the tool ran, then continue.
+                        withContext(Dispatchers.Main) {
+                            tts.endStream()
+                            liveReplyId?.let { id -> updateMessage(id) { it.copy(partial = false) } }
+                            liveReplyId = null
+                            setState(AssistantState.THINKING)
+                        }
+                        continue
                     }
+
+                    // A server-side tool paused the turn; resend to let it finish.
+                    if (result.stopReason == "pause_turn") continue
+
+                    withContext(Dispatchers.Main) { finishStreamedReply() }
+                    break
                 }
             }
         }
 
         withContext(Dispatchers.Main) {
             _uiState.value = _uiState.value.copy(busy = false)
-            if (failed) {
-                tts.stop()
-                setState(AssistantState.ERROR)
+            if (_uiState.value.state == AssistantState.THINKING) {
+                finishStreamedReply()
             }
         }
     }
 
-    /** Hook for the tool step; no tools are offered yet. */
-    private fun toolDefinitions(): JSONArray? = null
+    /** Runs every tool call from one assistant turn and returns the results together. */
+    private suspend fun runTools(calls: List<ClaudeEvent.ToolUse>) {
+        val results = mutableListOf<org.json.JSONObject>()
+        for (call in calls) {
+            val (result, notice) = tools.execute(call.id, call.name, call.input)
+            results += result
+            notice?.let { withContext(Dispatchers.Main) { say(ChatMessage.Role.SYSTEM, it) } }
+        }
+        // All results go back in one message - splitting them teaches Claude to
+        // stop calling tools in parallel.
+        withContext(Dispatchers.Main) { conversation.addToolResults(results) }
+    }
 
     private fun onTextDelta(delta: String) {
         val id = liveReplyId
@@ -317,5 +359,8 @@ class JarvisEngine(
 
     companion object {
         private const val TAG = "JarvisEngine"
+
+        /** Ceiling on tool round-trips within a single turn. */
+        private const val MAX_TOOL_ITERATIONS = 6
     }
 }

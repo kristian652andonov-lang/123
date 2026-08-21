@@ -48,6 +48,10 @@
             </intent-filter>
         </activity>
 
+        <receiver
+            android:name=".tools.ReminderReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>

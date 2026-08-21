@@ -71,6 +71,14 @@ class JarvisPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_NARRATE, false)
         set(value) = prefs.edit().putBoolean(KEY_NARRATE, value).apply()
 
+    /**
+     * Server-side web search. Off by default: it is billed to the same API key
+     * per search, so it should be a deliberate choice.
+     */
+    var webSearchEnabled: Boolean
+        get() = prefs.getBoolean(KEY_WEB_SEARCH, false)
+        set(value) = prefs.edit().putBoolean(KEY_WEB_SEARCH, value).apply()
+
     /** Persona override; blank means use the built-in prompt. */
     var personaPrompt: String
         get() = prefs.getString(KEY_PERSONA, "") ?: ""
@@ -89,6 +97,7 @@ class JarvisPrefs(context: Context) {
         private const val KEY_MAX_TOKENS = "claude_max_tokens"
         private const val KEY_NARRATE = "narrate_mode"
         private const val KEY_PERSONA = "persona_prompt"
+        private const val KEY_WEB_SEARCH = "web_search_enabled"
 
         /** Composed and unhurried, without dragging. */
         const val DEFAULT_RATE = 0.92f
