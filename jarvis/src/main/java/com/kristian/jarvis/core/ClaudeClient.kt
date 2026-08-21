@@ -62,6 +62,14 @@ class ClaudeClient(
     @Volatile
     private var activeCall: Call? = null
 
+    /**
+     * Set if the API rejects the server-side web search tool — some keys and models cannot
+     * use it. We drop it for the rest of the session rather than failing every request,
+     * and leave the user's own setting alone.
+     */
+    @Volatile
+    private var webSearchBlocked = false
+
     /** True while a turn is in flight. */
     @Volatile
     var busy: Boolean = false
@@ -112,42 +120,39 @@ class ClaudeClient(
                     return@flow
                 }
 
-                val assistant = if (turn.stopReason == "tool_use") {
-                    turn.content
-                } else {
-                    // A turn cut short can leave a tool_use block that will never get a
-                    // result. The API rejects that pairing on the next request, so drop it.
-                    withoutPendingToolUse(turn.content)
+                if (turn.stopReason == "tool_use") {
+                    val results = JSONArray()
+                    for (i in 0 until turn.content.length()) {
+                        val block = turn.content.optJSONObject(i) ?: continue
+                        if (block.optString("type") != "tool_use") continue
+                        val name = block.optString("name")
+                        if (!ToolCatalog.isClientTool(name)) continue
+
+                        emit(Event.Working(describe(name)))
+                        val outcome = tools.run(name, block.optJSONObject("input") ?: JSONObject())
+                        results.put(
+                            JSONObject()
+                                .put("type", "tool_result")
+                                .put("tool_use_id", block.optString("id"))
+                                .put("content", outcome.text)
+                                .apply { if (outcome.isError) put("is_error", true) },
+                        )
+                    }
+                    // Only keep the tool calls in the history if they are answered on the
+                    // very next message — the API rejects an unpaired tool_use block.
+                    if (results.length() > 0) {
+                        messages.put(message("assistant", turn.content))
+                        messages.put(message("user", results))
+                        trimHistory()
+                        continue
+                    }
                 }
+
+                val assistant = withoutPendingToolUse(turn.content)
                 if (assistant.length() > 0) messages.put(message("assistant", assistant))
                 trimHistory()
 
                 when (turn.stopReason) {
-                    "tool_use" -> {
-                        val results = JSONArray()
-                        for (i in 0 until turn.content.length()) {
-                            val block = turn.content.optJSONObject(i) ?: continue
-                            if (block.optString("type") != "tool_use") continue
-                            val name = block.optString("name")
-                            if (!ToolCatalog.isClientTool(name)) continue
-
-                            emit(Event.Working(describe(name)))
-                            val outcome = tools.run(name, block.optJSONObject("input") ?: JSONObject())
-                            results.put(
-                                JSONObject()
-                                    .put("type", "tool_result")
-                                    .put("tool_use_id", block.optString("id"))
-                                    .put("content", outcome.text)
-                                    .apply { if (outcome.isError) put("is_error", true) },
-                            )
-                        }
-                        if (results.length() == 0) {
-                            emit(Event.Finished(spoken.toString().trim()))
-                            return@flow
-                        }
-                        messages.put(message("user", results))
-                    }
-
                     // A server-side tool (web search) needs another round trip to continue.
                     "pause_turn" -> Unit
 
@@ -306,6 +311,10 @@ class ClaudeClient(
 
         return when {
             code == 400 && sentBetas && mentionsBeta -> BetaRejected()
+            code == 400 && !webSearchBlocked && detail.contains("web_search", ignoreCase = true) -> {
+                webSearchBlocked = true
+                Retryable("Retrying without web search.", 0L)
+            }
             code == 400 -> ApiFailure("The request was rejected: ${detail.ifBlank { "bad request" }}")
             code == 401 || code == 403 ->
                 ApiFailure("That API key was rejected. Check it in settings.")
@@ -342,7 +351,12 @@ class ClaudeClient(
             .put("max_tokens", 16_000)
             .put("stream", true)
             .put("system", system)
-            .put("tools", ToolCatalog.definitions(settings))
+            .put(
+                "tools",
+                ToolCatalog.definitions(
+                    settings.copy(webSearch = settings.webSearch && !webSearchBlocked),
+                ),
+            )
             .put("messages", messages)
 
         // Adaptive thinking and effort exist on the current Opus/Sonnet models but not on
