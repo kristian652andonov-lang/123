@@ -5,6 +5,9 @@ on:
     branches: [ "**" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,8 +28,29 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon
 
+      - name: Name the APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk jarvis.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: jarvis-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: jarvis.apk
+
+      # A release asset is a direct .apk link - tap it on a phone and it
+      # installs. The Actions artifact is a zip that has to be unpacked first,
+      # which is painful on Android.
+      - name: Publish the latest APK as a release
+        if: github.ref == 'refs/heads/claude/jarvis-android-app-e3yapu'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: jarvis-latest
+          name: JARVIS - latest build
+          prerelease: true
+          files: jarvis.apk
+          body: |
+            Debug build of JARVIS from `${{ github.sha }}`.
+
+            Tap `jarvis.apk` below on your phone to install. Android will warn
+            about an unknown source - allow it for your browser just for this
+            install.
