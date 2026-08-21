@@ -124,7 +124,9 @@ class AnthropicClient(
         model: String
     ): JSONObject = JSONObject().apply {
         put("model", model)
-        put("max_tokens", prefs.maxTokens)
+        // Thinking tokens count against max_tokens, and narrate mode asks for a
+        // lot of them, so the spoken-answer ceiling is lifted for that case.
+        put("max_tokens", if (narrate) maxOf(prefs.maxTokens, 16000) else prefs.maxTokens)
         put("stream", true)
         // System prompt as a cacheable block: it is stable across the whole
         // conversation, so it should be a cache prefix rather than re-read every turn.
