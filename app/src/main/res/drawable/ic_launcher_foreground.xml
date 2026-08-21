@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Arc-reactor style dial: outer ring, ticked mid ring, solid core -->
+    <path
+        android:strokeColor="#3FD0FF"
+        android:strokeWidth="2.5"
+        android:fillColor="#00000000"
+        android:pathData="M54,26 A28,28 0 1,1 53.9,26" />
+    <path
+        android:strokeColor="#7FE4FF"
+        android:strokeWidth="1.2"
+        android:fillColor="#00000000"
+        android:pathData="M54,34 A20,20 0 1,1 53.9,34" />
+    <path
+        android:strokeColor="#3FD0FF"
+        android:strokeWidth="3"
+        android:fillColor="#00000000"
+        android:pathData="M54,20 L54,28 M88,54 L80,54 M54,88 L54,80 M20,54 L28,54" />
+    <path
+        android:fillColor="#8FEBFF"
+        android:pathData="M54,44 A10,10 0 1,1 53.9,44 Z" />
+</vector>

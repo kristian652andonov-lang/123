@@ -1,15 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="black">#0D0D0D</color>
-    <color name="card_black">#0A0A0A</color>
-    <color name="neon_pink">#FF3FA4</color>
-    <color name="pastel_pink">#FFB3DA</color>
-    <color name="white">#FFFFFF</color>
-
-    <color name="neon_green">#39FF88</color>
-    <color name="neon_green_mid">#66FFA3</color>
-    <color name="neon_green_soft">#8CFFC0</color>
-
-    <color name="neon_red">#FF3B4E</color>
-    <color name="neon_red_mid">#FF6675</color>
-    <color name="neon_red_soft">#FF95A0</color>
+    <color name="jarvis_void">#FF04070D</color>
+    <color name="jarvis_cyan">#FF3FD0FF</color>
 </resources>

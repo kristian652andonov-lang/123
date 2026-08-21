@@ -1,37 +1,47 @@
-# Door & AC — Reminder App
+# JARVIS
 
-Small Android app with two buttons — **Door** and **AC**. Tap a button to
-mark it locked/unlocked or off/on. The app keeps an ongoing notification in
-your notification shade at all times, showing the current status of both, so
-you can check without opening the app.
+A native Android personal assistant — wake word, voice in, Claude in the
+middle, spoken answers out, behind a dark arc-reactor HUD.
 
-Solid black cards with a spinning neon ring around the edge — green when a
-button is on, red when it's off — over a pastel beach background, with
-pastel pink small-caps text.
+Built for a Poco X8 Pro (Android 14/15, HyperOS), but nothing in it is
+device-specific: minSdk 26, targetSdk 35.
 
-State is saved on the phone (SharedPreferences), so it's remembered even
-after closing the app or restarting the phone. The status notification is
-backed by a small foreground service, so it survives closing or swiping away
-the app — it doesn't disappear until you actually change a status.
+## Stack
+
+- Kotlin + Jetpack Compose (Material 3), single dark theme
+- Foreground service for always-on listening and speech playback
+- Android `SpeechRecognizer` for wake word + commands, `TextToSpeech` for voice
+- Anthropic Messages API called straight from the device — no backend
+
+## Status
+
+Being built in reviewable steps:
+
+1. **Project scaffold** — Gradle, manifest, permissions, Compose shell ✅
+2. Core UI shell — HUD screen, status states, transcript, input bar
+3. TTS module
+4. STT + wake-word module
+5. Claude API client + secure API key storage
+6. Orchestration (voice/text → Claude → speech)
+7. Tool use
+8. Foreground service
+9. Polish
 
 ## Getting the app on your phone (no computer needed)
 
-This repo has a GitHub Action that automatically builds the APK on every
-push. To get it:
+Every push builds an APK in GitHub Actions:
 
-1. On GitHub, open this repo's **Actions** tab.
-2. Open the latest run of **Build APK** (should have a green check).
-3. Scroll down to **Artifacts** and download `door-ac-reminder-debug-apk`
-   (downloads as a `.zip` containing `app-debug.apk`).
-4. Unzip it (most Android file managers / "Files by Google" can unzip
-   directly), then tap `app-debug.apk` to install.
-5. Android will warn about installing from an unknown source — allow it for
-   your browser/files app just for this install.
-6. Open the app, allow notifications when asked, and you're set.
+1. Open this repo's **Actions** tab.
+2. Open the latest **Build APK** run (green check).
+3. Under **Artifacts**, download `jarvis-debug-apk` (a `.zip`).
+4. Unzip and tap `app-debug.apk` to install; allow "install from unknown
+   sources" for your browser/files app when asked.
 
-## How it works
+With a computer: `adb install -r app-debug.apk`.
 
-- Tap **Door** to toggle LOCKED (red edge) / UNLOCKED (green edge).
-- Tap **AC** to toggle OFF (red edge) / ON (green edge).
-- The notification updates immediately and stays pinned at the top of your
-  notification shade — closing or swiping away the app does not remove it.
+## Your API key
+
+JARVIS talks to Claude with **your own** Anthropic API key, entered on first
+launch and stored in `EncryptedSharedPreferences` (Android Keystore-backed).
+It is never hardcoded, never logged, and never sent anywhere except
+`api.anthropic.com`.
