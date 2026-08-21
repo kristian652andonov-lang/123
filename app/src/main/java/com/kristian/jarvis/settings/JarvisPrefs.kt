@@ -47,6 +47,35 @@ class JarvisPrefs(context: Context) {
         get() = prefs.getString(KEY_WAKE_WORD, DEFAULT_WAKE_WORD) ?: DEFAULT_WAKE_WORD
         set(value) = prefs.edit().putString(KEY_WAKE_WORD, value.lowercase().trim()).apply()
 
+    /** Claude model id used for every request. */
+    var model: String
+        get() = prefs.getString(KEY_MODEL, DEFAULT_MODEL) ?: DEFAULT_MODEL
+        set(value) = prefs.edit().putString(KEY_MODEL, value).apply()
+
+    /**
+     * How hard Claude works per request: low/medium/high/xhigh/max. Spoken
+     * answers want speed, so this sits low by default and is raised
+     * automatically in narrate mode.
+     */
+    var effort: String
+        get() = prefs.getString(KEY_EFFORT, DEFAULT_EFFORT) ?: DEFAULT_EFFORT
+        set(value) = prefs.edit().putString(KEY_EFFORT, value).apply()
+
+    /** Ceiling on one reply. Deliberately modest: these get read aloud. */
+    var maxTokens: Int
+        get() = prefs.getInt(KEY_MAX_TOKENS, DEFAULT_MAX_TOKENS)
+        set(value) = prefs.edit().putInt(KEY_MAX_TOKENS, value).apply()
+
+    /** Sticky "walk me through it" mode. */
+    var narrateMode: Boolean
+        get() = prefs.getBoolean(KEY_NARRATE, false)
+        set(value) = prefs.edit().putBoolean(KEY_NARRATE, value).apply()
+
+    /** Persona override; blank means use the built-in prompt. */
+    var personaPrompt: String
+        get() = prefs.getString(KEY_PERSONA, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_PERSONA, value).apply()
+
     companion object {
         private const val KEY_VOICE = "tts_voice_name"
         private const val KEY_RATE = "tts_rate"
@@ -55,11 +84,19 @@ class JarvisPrefs(context: Context) {
         private const val KEY_WAKE_ENABLED = "wake_enabled"
         private const val KEY_WAKE_ENGINE = "wake_engine"
         private const val KEY_WAKE_WORD = "wake_word"
+        private const val KEY_MODEL = "claude_model"
+        private const val KEY_EFFORT = "claude_effort"
+        private const val KEY_MAX_TOKENS = "claude_max_tokens"
+        private const val KEY_NARRATE = "narrate_mode"
+        private const val KEY_PERSONA = "persona_prompt"
 
         /** Composed and unhurried, without dragging. */
         const val DEFAULT_RATE = 0.92f
         const val DEFAULT_PITCH = 0.95f
         const val DEFAULT_WAKE_WORD = "jarvis"
         const val DEFAULT_WAKE_ENGINE = "SPEECH_RECOGNIZER"
+        const val DEFAULT_MODEL = "claude-opus-5"
+        const val DEFAULT_EFFORT = "low"
+        const val DEFAULT_MAX_TOKENS = 4096
     }
 }

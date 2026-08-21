@@ -14,6 +14,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.kristian.jarvis.claude.SecureKeyStore
+import com.kristian.jarvis.ui.ApiKeyScreen
 import com.kristian.jarvis.ui.AssistantState
 import com.kristian.jarvis.ui.ChatMessage
 import com.kristian.jarvis.ui.JarvisScreen
@@ -29,9 +31,28 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             JarvisTheme {
-                JarvisShellDemo()
+                JarvisRoot()
             }
         }
+    }
+}
+
+/** Key entry stands in front of everything until a key is stored. */
+@Composable
+private fun JarvisRoot() {
+    val context = LocalContext.current
+    val keys = remember { SecureKeyStore(context) }
+    var hasKey by remember { mutableStateOf(keys.hasApiKey) }
+
+    if (hasKey) {
+        JarvisShellDemo()
+    } else {
+        ApiKeyScreen(
+            onSave = { key ->
+                keys.apiKey = key
+                hasKey = keys.hasApiKey
+            }
+        )
     }
 }
 
