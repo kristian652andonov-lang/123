@@ -38,6 +38,7 @@ import com.kristian.jarvis.ui.AssistantState
 import com.kristian.jarvis.ui.ChatMessage
 import com.kristian.jarvis.ui.HudDial
 import com.kristian.jarvis.ui.JarvisScreen
+import com.kristian.jarvis.ui.SettingsScreen
 import com.kristian.jarvis.ui.rememberJarvisPermissions
 import com.kristian.jarvis.ui.theme.JarvisPalette
 import com.kristian.jarvis.ui.theme.JarvisTheme
@@ -79,6 +80,7 @@ private fun JarvisApp(viewModel: JarvisViewModel = viewModel()) {
     val permissions = rememberJarvisPermissions()
     var boundEngine by remember { mutableStateOf<JarvisEngine?>(null) }
     var input by remember { mutableStateOf("") }
+    var showSettings by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { permissions.request() }
 
@@ -131,6 +133,25 @@ private fun JarvisApp(viewModel: JarvisViewModel = viewModel()) {
 
     val state by engine.uiState.collectAsState()
 
+    if (showSettings) {
+        SettingsScreen(
+            prefs = engine.settings,
+            voices = engine.voiceOptions(),
+            maskedApiKey = engine.maskedApiKey,
+            onBack = { showSettings = false },
+            onVoiceSelected = { engine.applyVoice(it) },
+            onRateAndPitch = { rate, pitch -> engine.applyRateAndPitch(rate, pitch) },
+            onPreviewVoice = { engine.previewVoice() },
+            onApiKeyChanged = { engine.updateApiKey(it) },
+            onWakeWordEnabled = { engine.setWakeWordEnabled(it) },
+            onClearConversation = {
+                engine.clearConversation()
+                showSettings = false
+            }
+        )
+        return
+    }
+
     // While you speak, show the running transcription as a provisional line.
     val messages = if (state.partialTranscript.isNotBlank()) {
         state.messages + ChatMessage(
@@ -161,6 +182,7 @@ private fun JarvisApp(viewModel: JarvisViewModel = viewModel()) {
         micEnabled = permissions.microphone,
         narrate = state.narrate,
         onNarrateToggle = { engine.setNarrate(!state.narrate) },
+        onOpenSettings = { showSettings = true },
         amplitude = state.amplitude
     )
 }

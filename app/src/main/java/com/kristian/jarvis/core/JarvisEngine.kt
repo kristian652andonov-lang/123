@@ -1,6 +1,8 @@
 package com.kristian.jarvis.core
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import com.kristian.jarvis.claude.AnthropicClient
 import com.kristian.jarvis.claude.ClaudeEvent
@@ -56,6 +58,12 @@ class JarvisEngine(
     private var liveThinkingId: Long? = null
 
     private var started = false
+
+    /** Settings are read and written straight through; nothing is cached here. */
+    val settings: JarvisPrefs get() = prefs
+
+    /** True when a stored key exists, for the settings screen. */
+    val maskedApiKey: String? get() = keys.maskedApiKey()
 
     fun start(micGranted: Boolean) {
         if (!started) {
@@ -128,6 +136,15 @@ class JarvisEngine(
         if (text.isEmpty()) return
         if (!keys.hasApiKey) {
             say(ChatMessage.Role.SYSTEM, "No API key is stored. Add one in settings, sir.")
+            return
+        }
+        if (!isOnline()) {
+            append(ChatMessage(ChatMessage.Role.USER, text))
+            say(
+                ChatMessage.Role.SYSTEM,
+                "There's no network connection, so I can't reach Claude. I'll be here when there is."
+            )
+            setState(AssistantState.ERROR)
             return
         }
 
@@ -350,12 +367,51 @@ class JarvisEngine(
         )
     }
 
+    /** British-first voice list for the settings picker. */
+    fun voiceOptions(): List<VoiceOption> = tts.availableVoices().map { voice ->
+        VoiceOption(
+            name = voice.name,
+            label = buildString {
+                append(voice.locale.displayName)
+                append(if (voice.isNetworkConnectionRequired) " · online" else " · on-device")
+            },
+            selected = voice.name == prefs.voiceName
+        )
+    }
+
+    fun applyVoice(name: String?) {
+        tts.selectVoice(name)
+        previewVoice()
+    }
+
+    fun applyRateAndPitch(rate: Float, pitch: Float) {
+        tts.setRateAndPitch(rate, pitch)
+    }
+
+    fun previewVoice() {
+        tts.speak("Voice check, sir. This is how I shall sound.")
+    }
+
+    fun updateApiKey(key: String) {
+        keys.apiKey = key
+        say(ChatMessage.Role.SYSTEM, "API key updated.")
+    }
+
+    private fun isOnline(): Boolean {
+        val manager = appContext.getSystemService(ConnectivityManager::class.java) ?: return true
+        val capabilities = manager.getNetworkCapabilities(manager.activeNetwork) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
     fun release() {
         turnJob?.cancel()
         voice.release()
         tts.shutdown()
         started = false
     }
+
+    /** One installed voice, as shown in settings. */
+    data class VoiceOption(val name: String, val label: String, val selected: Boolean)
 
     companion object {
         private const val TAG = "JarvisEngine"

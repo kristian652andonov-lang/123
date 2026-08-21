@@ -20,7 +20,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,6 +55,7 @@ fun JarvisScreen(
     micEnabled: Boolean,
     narrate: Boolean,
     onNarrateToggle: () -> Unit,
+    onOpenSettings: () -> Unit,
     amplitude: Float = 0f,
     modifier: Modifier = Modifier
 ) {
@@ -76,6 +81,16 @@ fun JarvisScreen(
             contentAlignment = Alignment.Center
         ) {
             HudDial(state = state, amplitude = amplitude, size = 200.dp)
+            IconButton(
+                onClick = onOpenSettings,
+                modifier = Modifier.align(Alignment.TopEnd)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Tune,
+                    contentDescription = "Settings",
+                    tint = JarvisPalette.TextSecondary
+                )
+            }
         }
 
         StatusReadout(
@@ -204,7 +219,8 @@ private fun JarvisScreenPreview() {
             onMicTap = {},
             micEnabled = true,
             narrate = true,
-            onNarrateToggle = {}
+            onNarrateToggle = {},
+            onOpenSettings = {}
         )
     }
 }
