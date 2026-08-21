@@ -5,11 +5,14 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Log
 import com.kristian.jarvis.claude.AnthropicClient
-import com.kristian.jarvis.claude.ClaudeEvent
 import com.kristian.jarvis.claude.Conversation
 import com.kristian.jarvis.claude.Persona
 import com.kristian.jarvis.claude.SecureKeyStore
-import com.kristian.jarvis.claude.TurnResult
+import com.kristian.jarvis.llm.GeminiClient
+import com.kristian.jarvis.llm.LlmClient
+import com.kristian.jarvis.llm.LlmEvent
+import com.kristian.jarvis.llm.LlmProvider
+import com.kristian.jarvis.llm.TurnResult
 import com.kristian.jarvis.settings.JarvisPrefs
 import com.kristian.jarvis.tools.ToolRegistry
 import com.kristian.jarvis.ui.AssistantState
@@ -44,7 +47,8 @@ class JarvisEngine(
 
     private val tts = JarvisTts(appContext, prefs)
     private val voice = VoiceController(appContext, prefs)
-    private val claude = AnthropicClient(keys, prefs)
+    /** Rebuilt whenever the provider changes, so a switch takes effect at once. */
+    private var llm: LlmClient = buildClient()
     private val conversation = Conversation()
     private val tools = ToolRegistry(appContext, prefs)
 
@@ -134,8 +138,12 @@ class JarvisEngine(
     fun submit(rawText: String) {
         val text = rawText.trim()
         if (text.isEmpty()) return
-        if (!keys.hasApiKey) {
-            say(ChatMessage.Role.SYSTEM, "No API key is stored. Add one in settings, sir.")
+        if (!hasKeyForProvider()) {
+            say(
+                ChatMessage.Role.SYSTEM,
+                "No API key is stored for ${LlmProvider.fromName(prefs.provider).label}. " +
+                    "Add one in settings, sir."
+            )
             return
         }
         if (!isOnline()) {
@@ -183,7 +191,7 @@ class JarvisEngine(
 
         var iterations = 0
         while (iterations++ < MAX_TOOL_ITERATIONS) {
-            val result = claude.stream(
+            val result = llm.stream(
                 messages = conversation.snapshot(),
                 systemPrompt = system,
                 tools = tools.definitions(),
@@ -192,9 +200,9 @@ class JarvisEngine(
                 // Stream callbacks arrive on a network thread.
                 scope.launch(Dispatchers.Main) {
                     when (event) {
-                        is ClaudeEvent.TextDelta -> onTextDelta(event.text)
-                        is ClaudeEvent.ThinkingDelta -> onThinkingDelta(event.text)
-                        is ClaudeEvent.ToolUse -> Log.d(TAG, "Tool requested: ${event.name}")
+                        is LlmEvent.TextDelta -> onTextDelta(event.text)
+                        is LlmEvent.ThinkingDelta -> onThinkingDelta(event.text)
+                        is LlmEvent.ToolUse -> Log.d(TAG, "Tool requested: ${event.name}")
                     }
                 }
             }
@@ -248,7 +256,7 @@ class JarvisEngine(
     }
 
     /** Runs every tool call from one assistant turn and returns the results together. */
-    private suspend fun runTools(calls: List<ClaudeEvent.ToolUse>) {
+    private suspend fun runTools(calls: List<LlmEvent.ToolUse>) {
         val results = mutableListOf<org.json.JSONObject>()
         for (call in calls) {
             val (result, notice) = tools.execute(call.id, call.name, call.input)
@@ -349,6 +357,18 @@ class JarvisEngine(
         }
     }
 
+    private fun buildClient(): LlmClient = when (LlmProvider.fromName(prefs.provider)) {
+        LlmProvider.ANTHROPIC -> AnthropicClient(keys, prefs)
+        LlmProvider.GEMINI -> GeminiClient(keys, prefs)
+    }
+
+    /** True when the active provider has a key stored. */
+    private fun hasKeyForProvider(): Boolean =
+        when (LlmProvider.fromName(prefs.provider)) {
+            LlmProvider.ANTHROPIC -> keys.hasApiKey
+            LlmProvider.GEMINI -> keys.hasGeminiKey
+        }
+
     private fun setState(state: AssistantState) {
         _uiState.value = _uiState.value.copy(state = state)
     }
@@ -392,10 +412,41 @@ class JarvisEngine(
         tts.speak("Voice check, sir. This is how I shall sound.")
     }
 
+    /**
+     * Stores a pasted key against whichever service it belongs to, and makes
+     * that the active provider - one paste box beats a picker to get wrong.
+     */
     fun updateApiKey(key: String) {
-        keys.apiKey = key
-        say(ChatMessage.Role.SYSTEM, "API key updated.")
+        when (LlmProvider.detectFromKey(key)) {
+            LlmProvider.ANTHROPIC -> {
+                keys.apiKey = key
+                setProvider(LlmProvider.ANTHROPIC)
+            }
+
+            LlmProvider.GEMINI -> {
+                keys.geminiApiKey = key
+                setProvider(LlmProvider.GEMINI)
+            }
+
+            null -> {
+                say(ChatMessage.Role.SYSTEM, "That key isn't in a format I recognise.")
+                return
+            }
+        }
+        say(
+            ChatMessage.Role.SYSTEM,
+            "Key stored. I'm using ${LlmProvider.fromName(prefs.provider).label}."
+        )
     }
+
+    fun setProvider(provider: LlmProvider) {
+        prefs.provider = provider.name
+        llm = buildClient()
+    }
+
+    fun activeProvider(): LlmProvider = LlmProvider.fromName(prefs.provider)
+
+    val maskedGeminiKey: String? get() = keys.maskedGeminiKey()
 
     private fun isOnline(): Boolean {
         val manager = appContext.getSystemService(ConnectivityManager::class.java) ?: return true

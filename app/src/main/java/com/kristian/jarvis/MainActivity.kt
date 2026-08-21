@@ -32,6 +32,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kristian.jarvis.claude.SecureKeyStore
 import com.kristian.jarvis.core.JarvisEngine
 import com.kristian.jarvis.core.JarvisViewModel
+import com.kristian.jarvis.llm.LlmProvider
+import com.kristian.jarvis.settings.JarvisPrefs
 import com.kristian.jarvis.service.JarvisService
 import com.kristian.jarvis.ui.ApiKeyScreen
 import com.kristian.jarvis.ui.AssistantState
@@ -60,15 +62,30 @@ class MainActivity : ComponentActivity() {
 private fun JarvisRoot() {
     val context = LocalContext.current
     val keys = remember { SecureKeyStore(context) }
-    var hasKey by remember { mutableStateOf(keys.hasApiKey) }
+    val prefs = remember { JarvisPrefs(context) }
+    var hasKey by remember { mutableStateOf(keys.hasApiKey || keys.hasGeminiKey) }
 
     if (hasKey) {
         JarvisApp()
     } else {
         ApiKeyScreen(
             onSave = { key ->
-                keys.apiKey = key
-                hasKey = keys.hasApiKey
+                // Store against whichever service the key belongs to, and make
+                // that the active provider.
+                when (LlmProvider.detectFromKey(key)) {
+                    LlmProvider.ANTHROPIC -> {
+                        keys.apiKey = key
+                        prefs.provider = LlmProvider.ANTHROPIC.name
+                    }
+
+                    LlmProvider.GEMINI -> {
+                        keys.geminiApiKey = key
+                        prefs.provider = LlmProvider.GEMINI.name
+                    }
+
+                    null -> Unit
+                }
+                hasKey = keys.hasApiKey || keys.hasGeminiKey
             }
         )
     }
@@ -141,6 +158,9 @@ private fun JarvisApp(viewModel: JarvisViewModel = viewModel()) {
             prefs = engine.settings,
             voices = voices,
             maskedApiKey = engine.maskedApiKey,
+            maskedGeminiKey = engine.maskedGeminiKey,
+            provider = engine.activeProvider(),
+            onProviderChange = { engine.setProvider(it) },
             onBack = { showSettings = false },
             onVoiceSelected = { engine.applyVoice(it) },
             onRateAndPitch = { rate, pitch -> engine.applyRateAndPitch(rate, pitch) },

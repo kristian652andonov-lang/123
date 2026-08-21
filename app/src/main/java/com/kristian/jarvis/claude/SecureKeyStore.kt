@@ -56,6 +56,15 @@ class SecureKeyStore(context: Context) {
             prefs?.edit()?.putString(KEY_ANTHROPIC, value?.trim().orEmpty())?.apply()
         }
 
+    /** Google AI Studio key - the free-tier path. */
+    var geminiApiKey: String?
+        get() = prefs?.getString(KEY_GEMINI, null)?.takeIf { it.isNotBlank() }
+        set(value) {
+            prefs?.edit()?.putString(KEY_GEMINI, value?.trim().orEmpty())?.apply()
+        }
+
+    val hasGeminiKey: Boolean get() = geminiApiKey != null
+
     /** Optional; enables the web search tool when present. */
     var searchApiKey: String?
         get() = prefs?.getString(KEY_SEARCH, null)?.takeIf { it.isNotBlank() }
@@ -66,8 +75,12 @@ class SecureKeyStore(context: Context) {
     val hasApiKey: Boolean get() = apiKey != null
 
     /** For display only - never render the whole key. */
-    fun maskedApiKey(): String? {
-        val key = apiKey ?: return null
+    fun maskedApiKey(): String? = mask(apiKey)
+
+    fun maskedGeminiKey(): String? = mask(geminiApiKey)
+
+    private fun mask(key: String?): String? {
+        if (key == null) return null
         if (key.length <= 12) return "****"
         return "${key.take(8)}…${key.takeLast(4)}"
     }
@@ -81,9 +94,17 @@ class SecureKeyStore(context: Context) {
         private const val FILE_NAME = "jarvis_secrets"
         private const val KEY_ANTHROPIC = "anthropic_api_key"
         private const val KEY_SEARCH = "search_api_key"
+        private const val KEY_GEMINI = "gemini_api_key"
 
         /** Cheap sanity check so an obvious paste error is caught before a 401. */
         fun looksLikeAnthropicKey(candidate: String): Boolean =
             candidate.trim().startsWith("sk-ant-") && candidate.trim().length > 20
+
+        /** Google AI Studio keys start with AIza and are ~39 characters. */
+        fun looksLikeGeminiKey(candidate: String): Boolean =
+            candidate.trim().startsWith("AIza") && candidate.trim().length > 20
+
+        fun looksLikeAnyKey(candidate: String): Boolean =
+            looksLikeAnthropicKey(candidate) || looksLikeGeminiKey(candidate)
     }
 }

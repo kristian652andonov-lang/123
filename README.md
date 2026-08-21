@@ -10,8 +10,10 @@ device-specific. minSdk 26, targetSdk 35.
 
 - **Wake word.** Say "Jarvis" and it starts listening for a command. Also a
   mic button, and a text field that's always available if you'd rather type.
-- **Talks to Claude directly.** The Anthropic Messages API, called from the
-  phone. No backend, no middleman. Your own API key, stored encrypted.
+- **Talks to the model directly.** No backend, no middleman. Two providers:
+  Google Gemini (has a genuine free tier - a Google account and a key, no
+  card) or Anthropic Claude (pay per token). Paste either key; the app works
+  out which it is. Stored encrypted on the device.
 - **Speaks.** Android's own text-to-speech, set to the best British English
   voice on the device, at a rate and pitch tuned to sound unhurried. Replies
   are spoken sentence by sentence as they stream in, so it starts talking
@@ -41,9 +43,20 @@ With a computer: `adb install -r app-debug.apk`.
 
 ## First run
 
-1. Paste your Anthropic API key (starts with `sk-ant-`). It goes into
-   EncryptedSharedPreferences, with its master key in the Android Keystore.
-   It is never logged and goes nowhere except `api.anthropic.com`.
+1. Paste an API key. Two options:
+   - **Free** - open [aistudio.google.com](https://aistudio.google.com), sign
+     in with any Google account, tap **Get API key**. No card, no credits. The
+     key starts with `AIza`. This is the default.
+   - **Paid** - an Anthropic key from
+     [console.anthropic.com](https://console.anthropic.com) (`sk-ant-…`), which
+     bills per token against prepaid credit.
+
+   Either way it goes into EncryptedSharedPreferences, with its master key in
+   the Android Keystore. It is never logged and is sent only to the provider
+   it belongs to.
+
+   One thing worth knowing: on Google's free tier, prompts and responses may be
+   used to improve Google's products. The Anthropic path does not do that.
 2. Allow the microphone and notifications when asked. Notifications aren't
    optional decoration — Android requires an ongoing notification for the
    always-listening service.
@@ -56,7 +69,8 @@ Tap the slider icon at the top right.
 - **Voice** — pick from the British English voices installed, adjust rate and
   pitch, preview, or turn spoken replies off entirely.
 - **Wake word** — turn continuous listening on or off, change the word.
-- **Claude** — model, web search, replace the API key.
+- **Model** — switch between Gemini and Claude, change the model, toggle web
+  search, paste a new key.
 - **Persona** — replace the system prompt with your own. Blank restores the
   built-in one. It's also in `Persona.kt` if you'd rather edit code.
 - **Conversation** — clear the history.
@@ -81,14 +95,17 @@ For it to survive the screen being off:
 - Lock the app in Recents (drag the card down until the padlock shows)
 - Settings → Apps → JARVIS → **Autostart → on**
 
-**Latency.** Roughly a second for the wake word, then speech recognition,
-then the model. `claude-opus-5` is the default; `claude-sonnet-5` in settings
-noticeably shortens the wait, and `claude-haiku-4-5` more so.
+**Latency.** Roughly a second for the wake word, then speech recognition, then
+the model. `gemini-2.5-flash` (the default) is quick. On the Claude side,
+`claude-opus-5` is the most capable and the slowest; `claude-sonnet-5` and
+`claude-haiku-4-5` shorten the wait.
 
-**Cost.** Every reply is billed to your key. Effort is set to `low` for
-ordinary spoken answers and raised only in narrate mode, and the system prompt
-is sent as a cached prefix, so a normal exchange stays cheap. Web search bills
-per search, which is why it's off by default.
+**Cost and limits.** On Gemini's free tier you pay nothing but are rate
+limited — roughly 10 requests a minute and a few hundred a day on
+`gemini-2.5-flash`, more on `flash-lite`. Hitting that shows up as a
+rate-limit message, never a charge. On the Claude side every reply bills your
+key: effort is set to `low` for ordinary spoken answers and raised only in
+narrate mode, so a typical exchange is a fraction of a penny.
 
 **The HUD image.** The dial is drawn in code, so it animates and scales. If
 you drop a `jarvis_hud.png` into `app/src/main/res/drawable/`, it is picked up
@@ -105,8 +122,8 @@ MainActivity (Compose)  ──binds──►  JarvisService (foreground, microph
                                              │
               ┌──────────────────────────────┼──────────────────────────┐
               ▼                              ▼                          ▼
-      VoiceController              AnthropicClient                  JarvisTts
-   (wake word + commands)      (streaming /v1/messages)     (British TTS, chunked)
+      VoiceController                 LlmClient                     JarvisTts
+   (wake word + commands)     (Gemini or Anthropic, SSE)    (British TTS, chunked)
               │                              │
      WakeWordEngine                   ToolRegistry
   (SpeechRecognizer today,        (open_url, set_reminder,

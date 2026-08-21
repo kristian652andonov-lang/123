@@ -81,7 +81,7 @@ fun ApiKeyScreen(
         )
 
         Text(
-            text = "I need your Anthropic API key before I can think, sir.",
+            text = "I need an API key before I can think, sir.",
             style = MaterialTheme.typography.bodyMedium,
             color = JarvisPalette.TextSecondary,
             textAlign = TextAlign.Center,
@@ -89,10 +89,29 @@ fun ApiKeyScreen(
         )
 
         Text(
-            text = "It is stored encrypted on this device, in the Android Keystore. " +
-                "It is never logged and goes nowhere except api.anthropic.com.",
+            text = "Free: open aistudio.google.com, sign in with any Google account, " +
+                "tap Get API key. No card, no credits. The key starts with AIza.",
             style = MaterialTheme.typography.bodySmall,
-            color = JarvisPalette.TextSecondary.copy(alpha = 0.8f),
+            color = JarvisPalette.TextPrimary.copy(alpha = 0.9f),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 12.dp)
+        )
+
+        Text(
+            text = "Paid: an Anthropic key from console.anthropic.com (sk-ant-…) uses Claude " +
+                "instead. Paste either one - I'll work out which it is.",
+            style = MaterialTheme.typography.bodySmall,
+            color = JarvisPalette.TextSecondary.copy(alpha = 0.85f),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+
+        Text(
+            text = "Stored encrypted on this device in the Android Keystore, never logged, " +
+                "and sent only to the provider it belongs to. Note that Google's free tier " +
+                "may use your prompts to improve their products.",
+            style = MaterialTheme.typography.bodySmall,
+            color = JarvisPalette.TextSecondary.copy(alpha = 0.7f),
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp)
         )
@@ -117,7 +136,7 @@ fun ApiKeyScreen(
                 .padding(top = 20.dp),
             label = {
                 Text(
-                    text = "sk-ant-…",
+                    text = "AIza… or sk-ant-…",
                     style = MaterialTheme.typography.labelSmall,
                     color = JarvisPalette.TextSecondary
                 )
@@ -167,8 +186,9 @@ fun ApiKeyScreen(
         Button(
             onClick = {
                 val trimmed = key.trim()
-                if (!SecureKeyStore.looksLikeAnthropicKey(trimmed)) {
-                    localError = "That doesn't look like an Anthropic key - they start with sk-ant-."
+                if (!SecureKeyStore.looksLikeAnyKey(trimmed)) {
+                    localError = "That doesn't look like either kind of key - " +
+                        "Google keys start with AIza, Anthropic keys with sk-ant-."
                 } else {
                     onSave(trimmed)
                 }

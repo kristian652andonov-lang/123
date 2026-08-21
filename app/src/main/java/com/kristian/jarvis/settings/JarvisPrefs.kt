@@ -47,6 +47,16 @@ class JarvisPrefs(context: Context) {
         get() = prefs.getString(KEY_WAKE_WORD, DEFAULT_WAKE_WORD) ?: DEFAULT_WAKE_WORD
         set(value) = prefs.edit().putString(KEY_WAKE_WORD, value.lowercase().trim()).apply()
 
+    /** Which service answers: ANTHROPIC or GEMINI. */
+    var provider: String
+        get() = prefs.getString(KEY_PROVIDER, DEFAULT_PROVIDER) ?: DEFAULT_PROVIDER
+        set(value) = prefs.edit().putString(KEY_PROVIDER, value).apply()
+
+    /** Gemini model id; the default sits inside the free tier. */
+    var geminiModel: String
+        get() = prefs.getString(KEY_GEMINI_MODEL, DEFAULT_GEMINI_MODEL) ?: DEFAULT_GEMINI_MODEL
+        set(value) = prefs.edit().putString(KEY_GEMINI_MODEL, value).apply()
+
     /** Claude model id used for every request. */
     var model: String
         get() = prefs.getString(KEY_MODEL, DEFAULT_MODEL) ?: DEFAULT_MODEL
@@ -98,6 +108,8 @@ class JarvisPrefs(context: Context) {
         private const val KEY_NARRATE = "narrate_mode"
         private const val KEY_PERSONA = "persona_prompt"
         private const val KEY_WEB_SEARCH = "web_search_enabled"
+        private const val KEY_PROVIDER = "llm_provider"
+        private const val KEY_GEMINI_MODEL = "gemini_model"
 
         /** Composed and unhurried, without dragging. */
         const val DEFAULT_RATE = 0.92f
@@ -105,6 +117,10 @@ class JarvisPrefs(context: Context) {
         const val DEFAULT_WAKE_WORD = "jarvis"
         const val DEFAULT_WAKE_ENGINE = "SPEECH_RECOGNIZER"
         const val DEFAULT_MODEL = "claude-opus-5"
+
+        /** Free tier by default - no card, no credits. */
+        const val DEFAULT_PROVIDER = "GEMINI"
+        const val DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
         const val DEFAULT_EFFORT = "low"
         const val DEFAULT_MAX_TOKENS = 4096
     }

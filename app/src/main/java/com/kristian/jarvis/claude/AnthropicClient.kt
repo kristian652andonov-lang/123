@@ -1,6 +1,9 @@
 package com.kristian.jarvis.claude
 
 import android.util.Log
+import com.kristian.jarvis.llm.LlmClient
+import com.kristian.jarvis.llm.LlmEvent
+import com.kristian.jarvis.llm.TurnResult
 import com.kristian.jarvis.settings.JarvisPrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -13,36 +16,6 @@ import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-/** What the stream produces as a reply comes in. */
-sealed interface ClaudeEvent {
-    /** A piece of the spoken/visible answer. */
-    data class TextDelta(val text: String) : ClaudeEvent
-
-    /** A piece of summarised reasoning; only sent in narrate mode. */
-    data class ThinkingDelta(val text: String) : ClaudeEvent
-
-    /** Claude wants a tool run. Handled by the tool loop. */
-    data class ToolUse(val id: String, val name: String, val input: JSONObject) : ClaudeEvent
-
-}
-
-/** How one request/response turn ended. */
-sealed interface TurnResult {
-    /**
-     * [content] is the assistant turn in wire format, to be put straight back
-     * into the conversation - including any blocks this client doesn't model,
-     * which are echoed verbatim.
-     */
-    data class Completed(
-        val stopReason: String?,
-        val content: JSONArray,
-        val toolUses: List<ClaudeEvent.ToolUse>,
-        val refusalExplanation: String? = null
-    ) : TurnResult
-
-    data class Failed(val message: String, val retryable: Boolean) : TurnResult
-}
-
 /**
  * Talks to the Anthropic Messages API directly from the phone - no backend in
  * between, and the key never leaves the device except as the x-api-key header
@@ -54,7 +27,9 @@ sealed interface TurnResult {
 class AnthropicClient(
     private val keys: SecureKeyStore,
     private val prefs: JarvisPrefs
-) {
+) : LlmClient {
+
+    override val displayName: String = "Claude"
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -66,12 +41,12 @@ class AnthropicClient(
      * Runs one turn. [onEvent] fires on a background thread as the response
      * streams; callers marshal to the main thread themselves.
      */
-    suspend fun stream(
+    override suspend fun stream(
         messages: JSONArray,
         systemPrompt: String,
         tools: JSONArray?,
         narrate: Boolean,
-        onEvent: (ClaudeEvent) -> Unit
+        onEvent: (LlmEvent) -> Unit
     ): TurnResult = withContext(Dispatchers.IO) {
         val apiKey = keys.apiKey
             ?: return@withContext TurnResult.Failed(
@@ -168,10 +143,10 @@ class AnthropicClient(
      */
     private fun parseStream(
         readLine: () -> String?,
-        onEvent: (ClaudeEvent) -> Unit
+        onEvent: (LlmEvent) -> Unit
     ): TurnResult {
         val blocks = sortedMapOf<Int, BlockBuilder>()
-        val toolUses = mutableListOf<ClaudeEvent.ToolUse>()
+        val toolUses = mutableListOf<LlmEvent.ToolUse>()
         var stopReason: String? = null
         var refusalExplanation: String? = null
 
@@ -209,12 +184,12 @@ class AnthropicClient(
                     when (delta.optString("type")) {
                         "text_delta" -> delta.optString("text").let {
                             builder.text.append(it)
-                            if (it.isNotEmpty()) onEvent(ClaudeEvent.TextDelta(it))
+                            if (it.isNotEmpty()) onEvent(LlmEvent.TextDelta(it))
                         }
 
                         "thinking_delta" -> delta.optString("thinking").let {
                             builder.thinking.append(it)
-                            if (it.isNotEmpty()) onEvent(ClaudeEvent.ThinkingDelta(it))
+                            if (it.isNotEmpty()) onEvent(LlmEvent.ThinkingDelta(it))
                         }
 
                         "signature_delta" -> builder.signature.append(delta.optString("signature"))
@@ -228,7 +203,7 @@ class AnthropicClient(
                 "content_block_stop" -> {
                     val builder = blocks[json.optInt("index")] ?: continue
                     if (builder.type == "tool_use") {
-                        val use = ClaudeEvent.ToolUse(
+                        val use = LlmEvent.ToolUse(
                             id = builder.id,
                             name = builder.name,
                             input = builder.parsedInput()

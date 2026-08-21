@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.kristian.jarvis.claude.Persona
 import com.kristian.jarvis.claude.SecureKeyStore
 import com.kristian.jarvis.core.JarvisEngine
+import com.kristian.jarvis.llm.LlmProvider
 import com.kristian.jarvis.settings.JarvisPrefs
 import com.kristian.jarvis.ui.theme.JarvisPalette
 import com.kristian.jarvis.ui.theme.JarvisTheme
@@ -53,6 +54,9 @@ fun SettingsScreen(
     prefs: JarvisPrefs,
     voices: List<JarvisEngine.VoiceOption>,
     maskedApiKey: String?,
+    maskedGeminiKey: String?,
+    provider: LlmProvider,
+    onProviderChange: (LlmProvider) -> Unit,
     onBack: () -> Unit,
     onVoiceSelected: (String) -> Unit,
     onRateAndPitch: (Float, Float) -> Unit,
@@ -64,6 +68,7 @@ fun SettingsScreen(
 ) {
     var persona by remember { mutableStateOf(prefs.personaPrompt) }
     var model by remember { mutableStateOf(prefs.model) }
+    var geminiModel by remember { mutableStateOf(prefs.geminiModel) }
     var wakeWord by remember { mutableStateOf(prefs.wakeWord) }
     var wakeEnabled by remember { mutableStateOf(prefs.wakeWordEnabled) }
     var speechEnabled by remember { mutableStateOf(prefs.speechEnabled) }
@@ -161,19 +166,56 @@ fun SettingsScreen(
             )
         }
 
-        Section("Claude") {
-            Field(
-                value = model,
-                onChange = {
-                    model = it
-                    prefs.model = it
-                },
-                label = "Model"
+        Section("Model") {
+            SelectableRow(
+                label = LlmProvider.GEMINI.label,
+                sublabel = maskedGeminiKey?.let { "free tier · key $it" }
+                    ?: "free tier · no key stored",
+                selected = provider == LlmProvider.GEMINI,
+                onClick = { onProviderChange(LlmProvider.GEMINI) }
             )
-            Hint(
-                "claude-opus-5 is the default. claude-sonnet-5 replies faster and costs less; " +
-                    "claude-haiku-4-5 is faster still."
+            SelectableRow(
+                label = LlmProvider.ANTHROPIC.label,
+                sublabel = maskedApiKey?.let { "pay per token · key $it" }
+                    ?: "pay per token · no key stored",
+                selected = provider == LlmProvider.ANTHROPIC,
+                onClick = { onProviderChange(LlmProvider.ANTHROPIC) }
             )
+
+            if (provider == LlmProvider.GEMINI) {
+                Field(
+                    value = geminiModel,
+                    onChange = {
+                        geminiModel = it
+                        prefs.geminiModel = it
+                    },
+                    label = "Gemini model"
+                )
+                Hint(
+                    "gemini-2.5-flash is the default. gemini-2.5-flash-lite has a much higher " +
+                        "daily free allowance; gemini-2.5-pro is smarter but only ~100 requests " +
+                        "a day free. Hitting a limit shows up as a rate-limit message, not a " +
+                        "charge."
+                )
+                Hint(
+                    "On Google's free tier your prompts and replies may be used to improve " +
+                        "their products. The Anthropic path does not do that."
+                )
+            } else {
+                Field(
+                    value = model,
+                    onChange = {
+                        model = it
+                        prefs.model = it
+                    },
+                    label = "Claude model"
+                )
+                Hint(
+                    "claude-opus-5 is the default. claude-sonnet-5 replies faster and costs " +
+                        "less; claude-haiku-4-5 is faster and cheaper still."
+                )
+            }
+
             SwitchRow(
                 label = "Allow web search",
                 checked = webSearch,
@@ -182,29 +224,36 @@ fun SettingsScreen(
                     prefs.webSearchEnabled = it
                 }
             )
-            Hint("Runs on Anthropic's side and is billed to the same key, per search.")
+            Hint(
+                if (provider == LlmProvider.GEMINI) {
+                    "Uses Google Search grounding, inside the same free quota."
+                } else {
+                    "Runs on Anthropic's side and is billed to the same key, per search."
+                }
+            )
 
             Field(
                 value = newKey,
                 onChange = { newKey = it },
-                label = maskedApiKey?.let { "Replace API key (current: $it)" } ?: "API key",
+                label = "Paste a key (AIza… or sk-ant-…)",
                 secret = true
             )
             if (newKey.isNotBlank()) {
                 TextButtonRow(
-                    label = if (SecureKeyStore.looksLikeAnthropicKey(newKey)) {
-                        "Save key"
+                    label = if (SecureKeyStore.looksLikeAnyKey(newKey)) {
+                        "Save key and switch to it"
                     } else {
-                        "That doesn't look like an sk-ant- key"
+                        "That doesn't look like either kind of key"
                     },
                     onClick = {
-                        if (SecureKeyStore.looksLikeAnthropicKey(newKey)) {
+                        if (SecureKeyStore.looksLikeAnyKey(newKey)) {
                             onApiKeyChanged(newKey.trim())
                             newKey = ""
                         }
                     }
                 )
             }
+            Hint("Free key: aistudio.google.com → Get API key. No card needed.")
         }
 
         Section("Persona") {
@@ -413,6 +462,9 @@ private fun SettingsPreview() {
             prefs = JarvisPrefs(androidx.compose.ui.platform.LocalContext.current),
             voices = emptyList(),
             maskedApiKey = "sk-ant-a…9f2c",
+            maskedGeminiKey = null,
+            provider = LlmProvider.GEMINI,
+            onProviderChange = {},
             onBack = {},
             onVoiceSelected = {},
             onRateAndPitch = { _, _ -> },
