@@ -6,6 +6,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -45,6 +49,8 @@ fun JarvisScreen(
     onSend: () -> Unit,
     onMicTap: () -> Unit,
     micEnabled: Boolean,
+    narrate: Boolean,
+    onNarrateToggle: () -> Unit,
     amplitude: Float = 0f,
     modifier: Modifier = Modifier
 ) {
@@ -74,6 +80,8 @@ fun JarvisScreen(
 
         StatusReadout(
             state = state,
+            narrate = narrate,
+            onNarrateToggle = onNarrateToggle,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 4.dp, bottom = 8.dp)
@@ -102,7 +110,12 @@ fun JarvisScreen(
 }
 
 @Composable
-private fun StatusReadout(state: AssistantState, modifier: Modifier = Modifier) {
+private fun StatusReadout(
+    state: AssistantState,
+    narrate: Boolean,
+    onNarrateToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val transition = rememberInfiniteTransition(label = "status")
     val blink by transition.animateFloat(
         initialValue = 0.35f,
@@ -140,6 +153,34 @@ private fun StatusReadout(state: AssistantState, modifier: Modifier = Modifier) 
                 color = state.accent
             )
         }
+
+        // "Walk me through it" mode - also togglable by saying so.
+        Text(
+            text = if (narrate) "NARRATE ON" else "NARRATE OFF",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (narrate) JarvisPalette.CyanBright else JarvisPalette.TextSecondary,
+            modifier = Modifier
+                .padding(top = 8.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(
+                    if (narrate) {
+                        JarvisPalette.Cyan.copy(alpha = 0.14f)
+                    } else {
+                        JarvisPalette.Panel.copy(alpha = 0.6f)
+                    }
+                )
+                .border(
+                    width = 1.dp,
+                    color = if (narrate) {
+                        JarvisPalette.Cyan.copy(alpha = 0.6f)
+                    } else {
+                        JarvisPalette.PanelEdge
+                    },
+                    shape = RoundedCornerShape(10.dp)
+                )
+                .clickable { onNarrateToggle() }
+                .padding(horizontal = 12.dp, vertical = 5.dp)
+        )
     }
 }
 
@@ -161,7 +202,9 @@ private fun JarvisScreenPreview() {
             onInputChange = {},
             onSend = {},
             onMicTap = {},
-            micEnabled = true
+            micEnabled = true,
+            narrate = true,
+            onNarrateToggle = {}
         )
     }
 }
