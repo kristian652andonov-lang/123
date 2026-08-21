@@ -134,9 +134,12 @@ private fun JarvisApp(viewModel: JarvisViewModel = viewModel()) {
     val state by engine.uiState.collectAsState()
 
     if (showSettings) {
+        // Querying the speech engine is a binder call - do it once per visit,
+        // not on every slider drag.
+        val voices = remember(showSettings) { engine.voiceOptions() }
         SettingsScreen(
             prefs = engine.settings,
-            voices = engine.voiceOptions(),
+            voices = voices,
             maskedApiKey = engine.maskedApiKey,
             onBack = { showSettings = false },
             onVoiceSelected = { engine.applyVoice(it) },
