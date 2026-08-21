@@ -48,6 +48,11 @@
             </intent-filter>
         </activity>
 
+        <service
+            android:name=".service.JarvisService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
         <receiver
             android:name=".tools.ReminderReceiver"
             android:exported="false" />

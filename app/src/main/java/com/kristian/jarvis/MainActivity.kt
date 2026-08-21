@@ -1,24 +1,45 @@
 package com.kristian.jarvis
 
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.os.Bundle
+import android.os.IBinder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kristian.jarvis.claude.SecureKeyStore
+import com.kristian.jarvis.core.JarvisEngine
 import com.kristian.jarvis.core.JarvisViewModel
+import com.kristian.jarvis.service.JarvisService
 import com.kristian.jarvis.ui.ApiKeyScreen
+import com.kristian.jarvis.ui.AssistantState
 import com.kristian.jarvis.ui.ChatMessage
+import com.kristian.jarvis.ui.HudDial
 import com.kristian.jarvis.ui.JarvisScreen
 import com.kristian.jarvis.ui.rememberJarvisPermissions
+import com.kristian.jarvis.ui.theme.JarvisPalette
 import com.kristian.jarvis.ui.theme.JarvisTheme
 
 class MainActivity : ComponentActivity() {
@@ -54,16 +75,61 @@ private fun JarvisRoot() {
 
 @Composable
 private fun JarvisApp(viewModel: JarvisViewModel = viewModel()) {
+    val context = LocalContext.current
     val permissions = rememberJarvisPermissions()
-    val state by viewModel.uiState.collectAsState()
+    var boundEngine by remember { mutableStateOf<JarvisEngine?>(null) }
     var input by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) { permissions.request() }
 
-    // Start (and keep in step with) whatever the microphone permission is now.
-    LaunchedEffect(permissions.resolved, permissions.microphone) {
-        if (permissions.resolved) viewModel.engine.start(permissions.microphone)
+    // With the microphone granted the service owns the engine, so listening
+    // keeps working once this screen goes away. The UI just binds to it.
+    val useService = permissions.resolved && permissions.microphone
+    DisposableEffect(useService) {
+        if (!useService) return@DisposableEffect onDispose { }
+
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                boundEngine = (service as? JarvisService.LocalBinder)?.service?.engine
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) {
+                boundEngine = null
+            }
+        }
+
+        JarvisService.start(context)
+        context.bindService(
+            Intent(context, JarvisService::class.java),
+            connection,
+            Context.BIND_AUTO_CREATE
+        )
+
+        onDispose {
+            // Unbind only - the service stays up on purpose.
+            runCatching { context.unbindService(connection) }
+            boundEngine = null
+        }
     }
+
+    val engine = when {
+        useService -> boundEngine
+        permissions.resolved -> viewModel.localEngine
+        else -> null
+    }
+
+    // The no-microphone fallback engine has to be started by hand; the
+    // service starts its own.
+    LaunchedEffect(engine, permissions.microphone) {
+        if (engine != null && !useService) engine.start(micGranted = false)
+    }
+
+    if (engine == null) {
+        BootingScreen()
+        return
+    }
+
+    val state by engine.uiState.collectAsState()
 
     // While you speak, show the running transcription as a provisional line.
     val messages = if (state.partialTranscript.isNotBlank()) {
@@ -85,16 +151,36 @@ private fun JarvisApp(viewModel: JarvisViewModel = viewModel()) {
         onSend = {
             val text = input.trim()
             if (text.isNotEmpty()) {
-                viewModel.engine.submit(text)
+                engine.submit(text)
                 input = ""
             }
         },
         onMicTap = {
-            if (permissions.microphone) viewModel.engine.onMicTap() else permissions.request()
+            if (permissions.microphone) engine.onMicTap() else permissions.request()
         },
         micEnabled = permissions.microphone,
         narrate = state.narrate,
-        onNarrateToggle = { viewModel.engine.setNarrate(!state.narrate) },
+        onNarrateToggle = { engine.setNarrate(!state.narrate) },
         amplitude = state.amplitude
     )
+}
+
+/** Shown for the moment between launch and the service handing over its engine. */
+@Composable
+private fun BootingScreen() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(JarvisPalette.Void),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        HudDial(state = AssistantState.IDLE, size = 180.dp)
+        Text(
+            text = "COMING ONLINE",
+            style = MaterialTheme.typography.titleMedium,
+            color = JarvisPalette.TextSecondary,
+            modifier = Modifier.padding(top = 16.dp)
+        )
+    }
 }

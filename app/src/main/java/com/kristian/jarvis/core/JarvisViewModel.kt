@@ -5,17 +5,21 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 
 /**
- * Holds the engine across configuration changes so a rotation doesn't drop the
- * conversation or restart the microphone.
+ * Fallback owner of the engine for the one case the service can't cover:
+ * microphone permission denied, where an always-listening service would be
+ * both rejected by Android 14+ and pointless. Typing still works.
+ *
+ * With the microphone granted, the service owns the engine and this is never
+ * touched - hence the lazy construction.
  */
 class JarvisViewModel(application: Application) : AndroidViewModel(application) {
 
-    val engine = JarvisEngine(application, viewModelScope)
+    private val lazyEngine = lazy { JarvisEngine(getApplication(), viewModelScope) }
 
-    val uiState = engine.uiState
+    val localEngine: JarvisEngine by lazyEngine
 
     override fun onCleared() {
-        engine.release()
+        if (lazyEngine.isInitialized()) localEngine.release()
         super.onCleared()
     }
 }
