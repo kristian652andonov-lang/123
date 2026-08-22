@@ -52,7 +52,18 @@ class GeminiClient(
             )
 
         val body = buildRequestBody(messages, systemPrompt, tools, narrate).toString()
+        streamWithRetries(apiKey, body, onEvent)
+    }
 
+    /**
+     * Sends the request, adjusting and retrying for the two things that can be
+     * wrong in a way we can fix ourselves: the auth style and a retired model.
+     */
+    private fun streamWithRetries(
+        apiKey: String,
+        body: String,
+        onEvent: (LlmEvent) -> Unit
+    ): TurnResult {
         var model = prefs.geminiModel
         var useBearer = false
         var triedOtherAuth = false
@@ -82,9 +93,8 @@ class GeminiClient(
                 continue
             }
 
-            return@withContext last.result
+            return last.result
         }
-        // while(true) only exits by returning above.
     }
 
     /** One HTTP attempt, and what (if anything) is worth changing before a retry. */
