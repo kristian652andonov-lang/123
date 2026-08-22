@@ -25,7 +25,13 @@ import androidx.core.content.ContextCompat
  */
 class SpeechRecognizerWakeWordEngine(
     context: Context,
-    private val keyword: String = "jarvis"
+    private val keyword: String = "jarvis",
+    /**
+     * When true, listen exactly once and report back instead of restarting.
+     * Used by [EnergyGatedWakeWordEngine], which only wants a single check
+     * after it has heard something worth checking.
+     */
+    private val singleShot: Boolean = false
 ) : WakeWordEngine {
 
     private val appContext = context.applicationContext
@@ -40,6 +46,9 @@ class SpeechRecognizerWakeWordEngine(
     override var onDetected: (() -> Unit)? = null
     override var onAmplitude: ((Float) -> Unit)? = null
     override var onError: ((String) -> Unit)? = null
+
+    /** Single-shot mode only: this listen is over and the mic is free. */
+    var onFinished: (() -> Unit)? = null
 
     override fun isAvailable(): Boolean =
         SpeechRecognizer.isRecognitionAvailable(appContext) && hasMicPermission()
@@ -108,13 +117,26 @@ class SpeechRecognizerWakeWordEngine(
         // Prefer offline so standby doesn't stream audio anywhere.
         putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         // Short windows: we only need one word, and shorter windows restart faster.
-        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
-        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
-        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 500L)
+        // Longer windows mean fewer restarts, and every restart re-opens the
+        // microphone - which is what makes the privacy indicator blink.
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1800L)
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1800L)
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 800L)
+    }
+
+    /** Ends a single-shot listen without scheduling anything further. */
+    private fun finishSingleShot() {
+        running = false
+        recognizer?.let { runCatching { it.cancel() } }
+        onFinished?.invoke()
     }
 
     /** Restart with a small backoff so a persistently failing engine can't spin. */
     private fun scheduleRestart(immediate: Boolean = false) {
+        if (singleShot) {
+            finishSingleShot()
+            return
+        }
         if (!running) return
         val delay = if (immediate) {
             RESTART_DELAY_MS
@@ -184,6 +206,7 @@ class SpeechRecognizerWakeWordEngine(
                 if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
                     onError?.invoke("Microphone permission is required for the wake word.")
                     running = false
+                    if (singleShot) onFinished?.invoke()
                     return
                 }
                 Log.d(TAG, "Recogniser error $error (streak $consecutiveFailures)")

@@ -37,7 +37,18 @@ interface WakeWordEngine {
 
 /** Which wake-word implementation to run. */
 enum class WakeWordEngineType {
-    /** Free, no keys, uses Android's recogniser in a restart loop. */
+    /**
+     * Default. Holds one microphone session and watches the audio level,
+     * waking the recogniser only when it hears something. Steady mic
+     * indicator, far less battery.
+     */
+    ENERGY_GATED,
+
+    /**
+     * Android's recogniser restarted in a loop. Simple and dependency-free,
+     * but it re-opens the microphone every couple of seconds - which makes the
+     * privacy indicator blink and costs real battery.
+     */
     SPEECH_RECOGNIZER,
 
     /**
@@ -56,6 +67,7 @@ object WakeWordEngines {
      */
     fun create(context: Context, type: WakeWordEngineType, keyword: String): WakeWordEngine {
         val engine = when (type) {
+            WakeWordEngineType.ENERGY_GATED -> EnergyGatedWakeWordEngine(context, keyword)
             WakeWordEngineType.SPEECH_RECOGNIZER -> SpeechRecognizerWakeWordEngine(context, keyword)
             WakeWordEngineType.PORCUPINE -> PorcupineWakeWordEngine(context, keyword)
         }

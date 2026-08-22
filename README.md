@@ -77,12 +77,21 @@ Tap the slider icon at the top right.
 
 ## Real-world notes for the Poco X8 Pro
 
-**Battery.** Continuous wake-word detection is the expensive part: Android's
-recogniser is restarted in a loop the whole time JARVIS is on standby. Expect
-a noticeable drain if you leave it armed all day. Three ways to deal with it:
+**Listening and battery.** Standby uses "quiet listening" by default: one
+continuous microphone session, watching only the audio level against a noise
+floor that follows the room, and waking the speech recogniser only when it
+hears something. The mic indicator stays steady rather than blinking, and in a
+quiet room the recogniser barely runs.
 
-- Turn the wake word off in settings and use the mic button. Standby then
-  costs essentially nothing.
+The older "continuous recognition" mode is still there in settings — Android's
+recogniser restarted in a loop. It re-opens the mic every couple of seconds,
+which makes the privacy indicator blink and costs real battery. Switch to it
+if quiet listening stops hearing you.
+
+Beyond that:
+
+- Turn the wake word off entirely and use the mic button. Standby then costs
+  nothing at all.
 - Use "Stand down" on the ongoing notification when you don't need it.
 - Swap in a dedicated hotword engine. `PorcupineWakeWordEngine` is a
   documented stub with the four steps written down; nothing above the
@@ -123,7 +132,7 @@ MainActivity (Compose)  ──binds──►  JarvisService (foreground, microph
               ┌──────────────────────────────┼──────────────────────────┐
               ▼                              ▼                          ▼
       VoiceController                 LlmClient                     JarvisTts
-   (wake word + commands)     (Gemini or Anthropic, SSE)    (British TTS, chunked)
+   (level gate + recogniser)  (Gemini or Anthropic, SSE)    (British TTS, chunked)
               │                              │
      WakeWordEngine                   ToolRegistry
   (SpeechRecognizer today,        (open_url, set_reminder,

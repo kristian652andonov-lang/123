@@ -52,9 +52,22 @@ class JarvisPrefs(context: Context) {
         get() = prefs.getString(KEY_PROVIDER, DEFAULT_PROVIDER) ?: DEFAULT_PROVIDER
         set(value) = prefs.edit().putString(KEY_PROVIDER, value).apply()
 
-    /** Gemini model id; the default sits inside the free tier. */
+    /**
+     * Gemini model id; the default sits inside the free tier.
+     *
+     * Google retires models for new accounts fairly briskly, so a stored id
+     * from an older build is migrated forward rather than left to fail on
+     * every request.
+     */
     var geminiModel: String
-        get() = prefs.getString(KEY_GEMINI_MODEL, DEFAULT_GEMINI_MODEL) ?: DEFAULT_GEMINI_MODEL
+        get() {
+            val stored = prefs.getString(KEY_GEMINI_MODEL, null) ?: return DEFAULT_GEMINI_MODEL
+            if (RETIRED_GEMINI_PREFIXES.any { stored.startsWith(it) }) {
+                geminiModel = DEFAULT_GEMINI_MODEL
+                return DEFAULT_GEMINI_MODEL
+            }
+            return stored
+        }
         set(value) = prefs.edit().putString(KEY_GEMINI_MODEL, value).apply()
 
     /** Claude model id used for every request. */
@@ -115,12 +128,15 @@ class JarvisPrefs(context: Context) {
         const val DEFAULT_RATE = 0.92f
         const val DEFAULT_PITCH = 0.95f
         const val DEFAULT_WAKE_WORD = "jarvis"
-        const val DEFAULT_WAKE_ENGINE = "SPEECH_RECOGNIZER"
+        const val DEFAULT_WAKE_ENGINE = "ENERGY_GATED"
         const val DEFAULT_MODEL = "claude-opus-5"
 
         /** Free tier by default - no card, no credits. */
         const val DEFAULT_PROVIDER = "GEMINI"
-        const val DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+        const val DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
+
+        /** Model families Google has closed to new accounts. */
+        private val RETIRED_GEMINI_PREFIXES = listOf("gemini-1.", "gemini-2.")
         const val DEFAULT_EFFORT = "low"
         const val DEFAULT_MAX_TOKENS = 4096
     }

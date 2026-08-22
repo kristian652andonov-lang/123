@@ -53,15 +53,27 @@ class VoiceController(
     private var wakeWordArmed = false
     private var mutedForSpeech = false
 
-    private val wakeEngine: WakeWordEngine = WakeWordEngines.create(
+    private var wakeEngine: WakeWordEngine = createWakeEngine()
+
+    private fun createWakeEngine(): WakeWordEngine = WakeWordEngines.create(
         context = appContext,
         type = runCatching { WakeWordEngineType.valueOf(prefs.wakeWordEngine) }
-            .getOrDefault(WakeWordEngineType.SPEECH_RECOGNIZER),
+            .getOrDefault(WakeWordEngineType.ENERGY_GATED),
         keyword = prefs.wakeWord
     ).apply {
         onDetected = { handleWakeWord() }
         onAmplitude = { if (_state.value == VoiceState.WAKE_LISTENING) _amplitude.value = it }
         onError = { message -> onNotice?.invoke(message) }
+    }
+
+    /** Swaps the listening implementation without restarting the service. */
+    fun setEngineType(type: WakeWordEngineType) {
+        prefs.wakeWordEngine = type.name
+        val wasArmed = wakeWordArmed
+        runCatching { wakeEngine.release() }
+        wakeEngine = createWakeEngine()
+        _state.value = VoiceState.OFF
+        if (wasArmed) resumeWakeWord()
     }
 
     private val commandRecognizer = CommandRecognizer(appContext).apply {

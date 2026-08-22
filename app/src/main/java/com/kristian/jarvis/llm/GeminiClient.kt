@@ -53,29 +53,55 @@ class GeminiClient(
 
         val body = buildRequestBody(messages, systemPrompt, tools, narrate).toString()
 
-        // Google has shipped more than one key format, and it isn't obvious from
-        // a key which header it wants. Rather than guess, try the standard one
-        // and fall back to a bearer token if - and only if - the request is
-        // rejected as unauthenticated before any of the response has streamed.
-        val first = attempt(apiKey, body, useBearer = false, onEvent = onEvent)
-        if (!first.retryWithOtherAuth) return@withContext first.result
+        var model = prefs.geminiModel
+        var useBearer = false
+        var triedOtherAuth = false
+        var triedSuggestedModel = false
 
-        val second = attempt(apiKey, body, useBearer = true, onEvent = onEvent)
-        // If the fallback also failed on auth, the first message is the more
-        // useful one to show.
-        return@withContext if (second.retryWithOtherAuth) first.result else second.result
+        while (true) {
+            val last = attempt(apiKey, body, model, useBearer, onEvent)
+
+            // Google has shipped more than one key format and it isn't obvious
+            // from a key which header it wants, so try the standard one and
+            // fall back to a bearer token rather than guessing.
+            if (last.retryWithOtherAuth && !triedOtherAuth) {
+                useBearer = true
+                triedOtherAuth = true
+                continue
+            }
+
+            // Models get retired for new accounts, and the error names the
+            // replacement - so take it, remember it, and carry on instead of
+            // making the user go and edit a setting.
+            val suggested = last.suggestedModel
+            if (suggested != null && suggested != model && !triedSuggestedModel) {
+                Log.i(TAG, "Model $model retired; switching to $suggested")
+                model = suggested
+                prefs.geminiModel = suggested
+                triedSuggestedModel = true
+                continue
+            }
+
+            return@withContext last.result
+        }
+        // while(true) only exits by returning above.
     }
 
-    /** One HTTP attempt, and whether it is worth retrying with the other auth style. */
-    private class Attempt(val result: TurnResult, val retryWithOtherAuth: Boolean = false)
+    /** One HTTP attempt, and what (if anything) is worth changing before a retry. */
+    private class Attempt(
+        val result: TurnResult,
+        val retryWithOtherAuth: Boolean = false,
+        /** Replacement model id, when the API told us this one is retired. */
+        val suggestedModel: String? = null
+    )
 
     private fun attempt(
         apiKey: String,
         body: String,
+        model: String,
         useBearer: Boolean,
         onEvent: (LlmEvent) -> Unit
     ): Attempt {
-        val model = prefs.geminiModel
         val builder = Request.Builder()
             .url("$ENDPOINT_BASE/$model:streamGenerateContent?alt=sse")
             .addHeader("content-type", "application/json")
@@ -100,7 +126,8 @@ class GeminiClient(
                     val raw = response.body?.string()
                     Attempt(
                         result = describeHttpFailure(response.code, raw),
-                        retryWithOtherAuth = !useBearer && isAuthRejection(response.code, raw)
+                        retryWithOtherAuth = !useBearer && isAuthRejection(response.code, raw),
+                        suggestedModel = suggestedModelFrom(raw, model)
                     )
                 }
             }
@@ -113,6 +140,26 @@ class GeminiClient(
                 )
             )
         }
+    }
+
+    /**
+     * Pulls a replacement model id out of a retirement error, e.g. "This model
+     * models/gemini-2.5-flash is no longer available… use models/gemini-3.6-flash".
+     * The last id mentioned is the replacement; the first is the dead one.
+     */
+    private fun suggestedModelFrom(rawBody: String?, currentModel: String): String? {
+        val body = rawBody ?: return null
+        if (!body.contains("no longer available", ignoreCase = true) &&
+            !body.contains("is not found", ignoreCase = true) &&
+            !body.contains("not supported", ignoreCase = true)
+        ) {
+            return null
+        }
+        val mentioned = Regex("models/([A-Za-z0-9._-]+)")
+            .findAll(body)
+            .map { it.groupValues[1] }
+            .toList()
+        return mentioned.lastOrNull()?.takeIf { it != currentModel }
     }
 
     /** Google reports a bad or wrongly-presented key as 400/401/403, not just 401. */

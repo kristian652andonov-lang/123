@@ -19,6 +19,7 @@ import com.kristian.jarvis.ui.AssistantState
 import com.kristian.jarvis.ui.ChatMessage
 import com.kristian.jarvis.voice.JarvisTts
 import com.kristian.jarvis.voice.VoiceController
+import com.kristian.jarvis.voice.WakeWordEngineType
 import com.kristian.jarvis.voice.VoiceState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -96,6 +97,26 @@ class JarvisEngine(
     fun setWakeWordEnabled(enabled: Boolean) {
         voice.setWakeWordEnabled(enabled && _uiState.value.micAvailable)
         _uiState.value = _uiState.value.copy(wakeWordArmed = voice.isWakeWordEnabled())
+    }
+
+    /** Which listening implementation is running. */
+    fun wakeEngineType(): WakeWordEngineType =
+        runCatching { WakeWordEngineType.valueOf(prefs.wakeWordEngine) }
+            .getOrDefault(WakeWordEngineType.ENERGY_GATED)
+
+    fun setWakeEngineType(type: WakeWordEngineType) {
+        voice.setEngineType(type)
+        say(
+            ChatMessage.Role.SYSTEM,
+            when (type) {
+                WakeWordEngineType.ENERGY_GATED ->
+                    "Listening quietly now - the mic stays open but the recogniser only wakes " +
+                        "when I hear something."
+                WakeWordEngineType.SPEECH_RECOGNIZER ->
+                    "Back to continuous recognition. The mic indicator will blink."
+                WakeWordEngineType.PORCUPINE -> "Porcupine isn't installed in this build."
+            }
+        )
     }
 
     fun setNarrate(enabled: Boolean) {

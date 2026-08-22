@@ -41,6 +41,7 @@ import com.kristian.jarvis.claude.Persona
 import com.kristian.jarvis.claude.SecureKeyStore
 import com.kristian.jarvis.core.JarvisEngine
 import com.kristian.jarvis.llm.LlmProvider
+import com.kristian.jarvis.voice.WakeWordEngineType
 import com.kristian.jarvis.settings.JarvisPrefs
 import com.kristian.jarvis.ui.theme.JarvisPalette
 import com.kristian.jarvis.ui.theme.JarvisTheme
@@ -57,6 +58,8 @@ fun SettingsScreen(
     maskedGeminiKey: String?,
     provider: LlmProvider,
     onProviderChange: (LlmProvider) -> Unit,
+    wakeEngine: WakeWordEngineType,
+    onWakeEngineChange: (WakeWordEngineType) -> Unit,
     onBack: () -> Unit,
     onVoiceSelected: (String) -> Unit,
     onRateAndPitch: (Float, Float) -> Unit,
@@ -160,9 +163,27 @@ fun SettingsScreen(
                 },
                 label = "Wake word"
             )
+            SelectableRow(
+                label = "Quiet listening",
+                sublabel = "mic stays open, recogniser wakes only on sound",
+                selected = wakeEngine == WakeWordEngineType.ENERGY_GATED,
+                onClick = { onWakeEngineChange(WakeWordEngineType.ENERGY_GATED) }
+            )
+            SelectableRow(
+                label = "Continuous recognition",
+                sublabel = "always transcribing · mic indicator blinks",
+                selected = wakeEngine == WakeWordEngineType.SPEECH_RECOGNIZER,
+                onClick = { onWakeEngineChange(WakeWordEngineType.SPEECH_RECOGNIZER) }
+            )
             Hint(
-                "Continuous listening is the biggest battery cost in this app. Turning it off " +
-                    "leaves the mic button and typing, and costs almost nothing."
+                "Quiet listening keeps one microphone session open and only runs speech " +
+                    "recognition when the room gets louder than its background - so the mic " +
+                    "indicator stays steady instead of blinking, and the battery cost drops a " +
+                    "lot. If it stops hearing you, switch to continuous recognition."
+            )
+            Hint(
+                "Either way, turning the wake word off entirely leaves the mic button and " +
+                    "typing, and costs nothing at all."
             )
         }
 
@@ -465,6 +486,8 @@ private fun SettingsPreview() {
             maskedGeminiKey = null,
             provider = LlmProvider.GEMINI,
             onProviderChange = {},
+            wakeEngine = WakeWordEngineType.ENERGY_GATED,
+            onWakeEngineChange = {},
             onBack = {},
             onVoiceSelected = {},
             onRateAndPitch = { _, _ -> },

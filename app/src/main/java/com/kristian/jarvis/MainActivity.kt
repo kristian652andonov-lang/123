@@ -161,6 +161,8 @@ private fun JarvisApp(viewModel: JarvisViewModel = viewModel()) {
             maskedGeminiKey = engine.maskedGeminiKey,
             provider = engine.activeProvider(),
             onProviderChange = { engine.setProvider(it) },
+            wakeEngine = engine.wakeEngineType(),
+            onWakeEngineChange = { engine.setWakeEngineType(it) },
             onBack = { showSettings = false },
             onVoiceSelected = { engine.applyVoice(it) },
             onRateAndPitch = { rate, pitch -> engine.applyRateAndPitch(rate, pitch) },
