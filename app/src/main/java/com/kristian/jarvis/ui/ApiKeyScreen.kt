@@ -90,7 +90,8 @@ fun ApiKeyScreen(
 
         Text(
             text = "Free: open aistudio.google.com, sign in with any Google account, " +
-                "tap Get API key. No card, no credits. The key starts with AIza.",
+                "tap Get API key. No card, no credits. Paste whatever it gives you - " +
+                "current keys look like AIza… or AQ.…",
             style = MaterialTheme.typography.bodySmall,
             color = JarvisPalette.TextPrimary.copy(alpha = 0.9f),
             textAlign = TextAlign.Center,
@@ -136,7 +137,7 @@ fun ApiKeyScreen(
                 .padding(top = 20.dp),
             label = {
                 Text(
-                    text = "AIza… or sk-ant-…",
+                    text = "Paste your API key",
                     style = MaterialTheme.typography.labelSmall,
                     color = JarvisPalette.TextSecondary
                 )
@@ -187,8 +188,8 @@ fun ApiKeyScreen(
             onClick = {
                 val trimmed = key.trim()
                 if (!SecureKeyStore.looksLikeAnyKey(trimmed)) {
-                    localError = "That doesn't look like either kind of key - " +
-                        "Google keys start with AIza, Anthropic keys with sk-ant-."
+                    localError = "That doesn't look like an API key - it's too short, " +
+                        "or something got cut off in the copy."
                 } else {
                     onSave(trimmed)
                 }

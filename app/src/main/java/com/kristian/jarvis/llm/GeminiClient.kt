@@ -51,36 +51,78 @@ class GeminiClient(
                 retryable = false
             )
 
+        val body = buildRequestBody(messages, systemPrompt, tools, narrate).toString()
+
+        // Google has shipped more than one key format, and it isn't obvious from
+        // a key which header it wants. Rather than guess, try the standard one
+        // and fall back to a bearer token if - and only if - the request is
+        // rejected as unauthenticated before any of the response has streamed.
+        val first = attempt(apiKey, body, useBearer = false, onEvent = onEvent)
+        if (!first.retryWithOtherAuth) return@withContext first.result
+
+        val second = attempt(apiKey, body, useBearer = true, onEvent = onEvent)
+        // If the fallback also failed on auth, the first message is the more
+        // useful one to show.
+        return@withContext if (second.retryWithOtherAuth) first.result else second.result
+    }
+
+    /** One HTTP attempt, and whether it is worth retrying with the other auth style. */
+    private class Attempt(val result: TurnResult, val retryWithOtherAuth: Boolean = false)
+
+    private fun attempt(
+        apiKey: String,
+        body: String,
+        useBearer: Boolean,
+        onEvent: (LlmEvent) -> Unit
+    ): Attempt {
         val model = prefs.geminiModel
-        val body = buildRequestBody(messages, systemPrompt, tools, narrate)
-
-        val request = Request.Builder()
+        val builder = Request.Builder()
             .url("$ENDPOINT_BASE/$model:streamGenerateContent?alt=sse")
-            .addHeader("x-goog-api-key", apiKey)
             .addHeader("content-type", "application/json")
-            .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
-            .build()
+        if (useBearer) {
+            builder.addHeader("Authorization", "Bearer $apiKey")
+        } else {
+            builder.addHeader("x-goog-api-key", apiKey)
+        }
+        val request = builder.post(body.toRequestBody(JSON_MEDIA_TYPE)).build()
 
-        return@withContext try {
+        return try {
             http.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    describeHttpFailure(response.code, response.body?.string())
-                } else {
+                if (response.isSuccessful) {
                     val source = response.body?.source()
                     if (source == null) {
-                        TurnResult.Failed("Empty response from Gemini.", retryable = true)
+                        Attempt(TurnResult.Failed("Empty response from Gemini.", retryable = true))
                     } else {
-                        parseStream(readLine = { source.readUtf8Line() }, onEvent = onEvent)
+                        // Streaming has begun - never retry past this point.
+                        Attempt(parseStream(readLine = { source.readUtf8Line() }, onEvent = onEvent))
                     }
+                } else {
+                    val raw = response.body?.string()
+                    Attempt(
+                        result = describeHttpFailure(response.code, raw),
+                        retryWithOtherAuth = !useBearer && isAuthRejection(response.code, raw)
+                    )
                 }
             }
         } catch (e: IOException) {
             Log.w(TAG, "Request failed", e)
-            TurnResult.Failed(
-                "I couldn't reach Gemini - the connection failed. Check your network, sir.",
-                retryable = true
+            Attempt(
+                TurnResult.Failed(
+                    "I couldn't reach Gemini - the connection failed. Check your network, sir.",
+                    retryable = true
+                )
             )
         }
+    }
+
+    /** Google reports a bad or wrongly-presented key as 400/401/403, not just 401. */
+    private fun isAuthRejection(code: Int, rawBody: String?): Boolean {
+        if (code == 401 || code == 403) return true
+        if (code != 400) return false
+        val body = rawBody.orEmpty()
+        return body.contains("API key", ignoreCase = true) ||
+            body.contains("API_KEY_INVALID", ignoreCase = true) ||
+            body.contains("authentication", ignoreCase = true)
     }
 
     private fun buildRequestBody(

@@ -100,9 +100,19 @@ class SecureKeyStore(context: Context) {
         fun looksLikeAnthropicKey(candidate: String): Boolean =
             candidate.trim().startsWith("sk-ant-") && candidate.trim().length > 20
 
-        /** Google AI Studio keys start with AIza and are ~39 characters. */
-        fun looksLikeGeminiKey(candidate: String): Boolean =
-            candidate.trim().startsWith("AIza") && candidate.trim().length > 20
+        /**
+         * Deliberately permissive. Google has shipped at least two key formats
+         * (`AIza…` and `AQ.…`) and will ship more; pinning the prefix means a
+         * perfectly good key gets rejected by a validation rule that has gone
+         * stale. Anything long enough that isn't an Anthropic key is treated as
+         * a Google key and allowed through - the API is the real judge.
+         */
+        fun looksLikeGeminiKey(candidate: String): Boolean {
+            val trimmed = candidate.trim()
+            return trimmed.length >= 20 &&
+                !trimmed.startsWith("sk-ant-") &&
+                trimmed.none { it.isWhitespace() }
+        }
 
         fun looksLikeAnyKey(candidate: String): Boolean =
             looksLikeAnthropicKey(candidate) || looksLikeGeminiKey(candidate)

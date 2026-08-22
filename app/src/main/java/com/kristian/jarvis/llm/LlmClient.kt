@@ -63,7 +63,7 @@ enum class LlmProvider(val label: String, val keyHint: String) {
     ANTHROPIC("Claude (Anthropic)", "sk-ant-…"),
 
     /** Has a genuine free tier; a Google account is all that's needed. */
-    GEMINI("Gemini (Google)", "AIza…");
+    GEMINI("Gemini (Google)", "AIza… or AQ.…");
 
     companion object {
         fun fromName(name: String?): LlmProvider =
@@ -77,7 +77,10 @@ enum class LlmProvider(val label: String, val keyHint: String) {
             val trimmed = key.trim()
             return when {
                 trimmed.startsWith("sk-ant-") -> ANTHROPIC
-                trimmed.startsWith("AIza") -> GEMINI
+                // Everything else long enough is assumed to be a Google key:
+                // that format has changed before (AIza… then AQ.…) and a
+                // hardcoded prefix would reject a valid key.
+                trimmed.length >= 20 && trimmed.none { it.isWhitespace() } -> GEMINI
                 else -> null
             }
         }

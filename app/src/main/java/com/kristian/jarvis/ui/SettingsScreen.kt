@@ -235,7 +235,7 @@ fun SettingsScreen(
             Field(
                 value = newKey,
                 onChange = { newKey = it },
-                label = "Paste a key (AIza… or sk-ant-…)",
+                label = "Paste a key (Google, or sk-ant-… for Claude)",
                 secret = true
             )
             if (newKey.isNotBlank()) {
@@ -243,7 +243,7 @@ fun SettingsScreen(
                     label = if (SecureKeyStore.looksLikeAnyKey(newKey)) {
                         "Save key and switch to it"
                     } else {
-                        "That doesn't look like either kind of key"
+                        "That looks too short to be a key"
                     },
                     onClick = {
                         if (SecureKeyStore.looksLikeAnyKey(newKey)) {
