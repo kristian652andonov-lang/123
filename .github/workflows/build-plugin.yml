@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -30,3 +32,76 @@ jobs:
           name: CombatLog-jar
           path: combat-log-plugin/target/CombatLog-*.jar
           if-no-files-found: error
+
+      # Compiling is not the same as loading. Boot a real Paper 1.20.1 server
+      # with WorldGuard installed and make sure the plugin enables, renders its
+      # messages and shuts down without throwing.
+      - name: Smoke test on Paper 1.20.1 + WorldGuard
+        run: |
+          set -euo pipefail
+          mkdir -p server/plugins
+          cp combat-log-plugin/target/CombatLog-*.jar server/plugins/
+          cd server
+
+          BUILD=$(curl -sSfL https://api.papermc.io/v2/projects/paper/versions/1.20.1 \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['builds'][-1])")
+          echo "Using Paper 1.20.1 build $BUILD"
+          curl -sSfL -o paper.jar \
+            "https://api.papermc.io/v2/projects/paper/versions/1.20.1/builds/$BUILD/downloads/paper-1.20.1-$BUILD.jar"
+
+          curl -sSfL -o plugins/worldedit.jar \
+            "https://maven.enginehub.org/repo/com/sk89q/worldedit/worldedit-bukkit/7.2.15/worldedit-bukkit-7.2.15-dist.jar"
+          curl -sSfL -o plugins/worldguard.jar \
+            "https://maven.enginehub.org/repo/com/sk89q/worldguard/worldguard-bukkit/7.0.9/worldguard-bukkit-7.0.9-dist.jar"
+
+          echo "eula=true" > eula.txt
+          cat > server.properties <<'PROPS'
+          online-mode=false
+          level-type=flat
+          view-distance=4
+          simulation-distance=4
+          spawn-protection=0
+          max-players=5
+          PROPS
+
+          ( sleep 75
+            echo "combatlog"
+            sleep 3
+            echo "combatlog zones"
+            sleep 3
+            echo "combatlog reload"
+            sleep 3
+            echo "stop"
+            sleep 40 ) | timeout 260 java -Xmx2G -jar paper.jar --nogui > console.log 2>&1 || true
+
+          echo "───────── server log ─────────"
+          tail -n 60 console.log
+
+          echo "───────── checks ─────────"
+          grep -q "CombatLog enabled" console.log \
+            || { echo "FAIL: the plugin never finished enabling"; exit 1; }
+          grep -q "active via WorldGuard" console.log \
+            || { echo "FAIL: the WorldGuard hook did not come up"; exit 1; }
+          if grep -Eq "Error occurred while enabling CombatLog|Could not load 'plugins/CombatLog" console.log; then
+            echo "FAIL: the plugin threw while loading"; exit 1
+          fi
+          if grep -in "combatlog" console.log | grep -qi "exception\|caused by"; then
+            echo "FAIL: an exception mentions the plugin"; exit 1
+          fi
+          echo "OK: enabled, hooked WorldGuard, commands and reload ran clean"
+
+      - name: Publish the built jar into the repository
+        run: |
+          set -euo pipefail
+          mkdir -p combat-log-plugin/dist
+          rm -f combat-log-plugin/dist/*.jar
+          cp combat-log-plugin/target/CombatLog-*.jar combat-log-plugin/dist/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add combat-log-plugin/dist
+          if git diff --cached --quiet; then
+            echo "jar unchanged, nothing to publish"
+            exit 0
+          fi
+          git commit -m "Build CombatLog jar [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
