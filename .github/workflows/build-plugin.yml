@@ -43,16 +43,28 @@ jobs:
           cp combat-log-plugin/target/CombatLog-*.jar server/plugins/
           cd server
 
-          BUILD=$(curl -sSfL https://api.papermc.io/v2/projects/paper/versions/1.20.1 \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['builds'][-1])")
-          echo "Using Paper 1.20.1 build $BUILD"
-          curl -sSfL -o paper.jar \
-            "https://api.papermc.io/v2/projects/paper/versions/1.20.1/builds/$BUILD/downloads/paper-1.20.1-$BUILD.jar"
+          curl -sSfL -H "User-Agent: combatlog-ci/1.0" \
+            https://fill.papermc.io/v3/projects/paper/versions/1.20.1/builds > builds.json
+          PAPER_URL=$(python3 - <<'PICK'
+          import json, re, sys
+          raw = open("builds.json", encoding="utf-8").read()
+          # Take the first paper jar link in the response, whatever the schema
+          # around it looks like - the newest build is listed first.
+          found = re.findall(r'https://[^"\s]+/paper-1\.20\.1-\d+\.jar', raw)
+          print(found[0] if found else "")
+          PICK
+          )
+          if [ -z "$PAPER_URL" ]; then
+            echo "Could not find a Paper 1.20.1 download in:"; head -c 2000 builds.json; exit 1
+          fi
+          echo "Using $PAPER_URL"
+          curl -sSfL -o paper.jar "$PAPER_URL"
 
           curl -sSfL -o plugins/worldedit.jar \
             "https://maven.enginehub.org/repo/com/sk89q/worldedit/worldedit-bukkit/7.2.15/worldedit-bukkit-7.2.15-dist.jar"
           curl -sSfL -o plugins/worldguard.jar \
             "https://maven.enginehub.org/repo/com/sk89q/worldguard/worldguard-bukkit/7.0.9/worldguard-bukkit-7.0.9-dist.jar"
+          ls -la plugins/
 
           echo "eula=true" > eula.txt
           cat > server.properties <<'PROPS'
