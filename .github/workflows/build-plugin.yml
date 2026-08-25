@@ -62,7 +62,9 @@ jobs:
           ls -la paper.jar
 
           python3 - <<'GET'
-          import json, urllib.request
+          import json, urllib.request, zipfile
+
+          PLUGIN_LOADERS = {"bukkit", "spigot", "paper", "purpur", "folia"}
 
           def fetch(url):
               request = urllib.request.Request(url, headers={"User-Agent": "combatlog-ci/1.0"})
@@ -73,15 +75,23 @@ jobs:
               api = ("https://api.modrinth.com/v2/project/" + slug
                      + "/version?game_versions=%5B%221.20.1%22%5D")
               for version in json.loads(fetch(api)):
+                  # Modrinth lists every loader for a version, and WorldEdit ships
+                  # Fabric and Forge builds too - only the plugin jar is any use here.
+                  if not PLUGIN_LOADERS.intersection(version.get("loaders", [])):
+                      continue
                   jar = next((f for f in version["files"]
                               if f.get("primary") and f["filename"].endswith(".jar")), None)
-                  if jar:
-                      print(slug + ": " + jar["filename"])
-                      with open(out, "wb") as handle:
-                          handle.write(fetch(jar["url"]))
-                      break
+                  if not jar:
+                      continue
+                  print(slug + ": " + jar["filename"] + " " + str(version.get("loaders")))
+                  with open(out, "wb") as handle:
+                      handle.write(fetch(jar["url"]))
+                  with zipfile.ZipFile(out) as archive:
+                      if "plugin.yml" not in archive.namelist():
+                          raise SystemExit(jar["filename"] + " is not a Bukkit plugin jar")
+                  break
               else:
-                  raise SystemExit("no 1.20.1 build published for " + slug)
+                  raise SystemExit("no 1.20.1 plugin build published for " + slug)
           GET
           ls -la plugins/
 
