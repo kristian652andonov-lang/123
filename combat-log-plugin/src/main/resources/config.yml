@@ -27,7 +27,7 @@
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Do not touch. Used to warn you when an update adds new options.
-config-version: 1
+config-version: 2
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -466,6 +466,62 @@ elytra:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+#  HISTORY  —  the record behind /combatlog history
+#
+#  Every fight, kill, death and combat log is written to
+#  plugins/CombatLog/history.yml, together with a copy of what the victim was
+#  carrying, so you can hand somebody their gear back after a bug or a dupe.
+# ══════════════════════════════════════════════════════════════════════════════
+history:
+  enabled: true
+
+  # How many entries are kept. The oldest fall off the end.
+  max-entries: 500
+
+  # Only the newest entries keep their item data - that is the part that takes
+  # up space. Older entries still show who killed who, just without the gear.
+  max-snapshots: 200
+
+  # What gets written down.
+  record-fights: true
+  record-kills: true
+  record-deaths-without-killer: true
+  record-combat-logs: true
+
+  # Keep a copy of the victim's inventory so it can be rolled back.
+  keep-inventory-snapshots: true
+
+  # Write history.yml to disk this often, in seconds. It is always written on
+  # shutdown as well. 0 = only on shutdown.
+  save-interval-seconds: 120
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  GUI  —  /combatlog history
+# ══════════════════════════════════════════════════════════════════════════════
+gui:
+  title: "<gradient:#5FD3FF:#FF9D3D><bold>combat log</bold></gradient>"
+
+  # Show each entry as the player's head instead of a plain icon.
+  use-player-heads: true
+
+  # Ask before replacing somebody's inventory. Leave this on.
+  confirm-rollback: true
+
+  # Save what they are carrying before a rollback overwrites it, so the
+  # rollback can itself be rolled back.
+  snapshot-before-rollback: true
+
+  # The icon used when heads are off, and in the entry detail screen.
+  icons:
+    FIGHT: NETHERITE_SWORD
+    KILL: DIAMOND_SWORD
+    DEATH: SKELETON_SKULL
+    COMBAT_LOG: BARRIER
+    ROLLBACK: CLOCK
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 #  MESSAGES
 # ══════════════════════════════════════════════════════════════════════════════
 messages:
@@ -507,6 +563,16 @@ messages:
   invalid-number: "%prefix%<danger>%input% is not a number</danger>"
   worldguard-missing: "%prefix%<danger>worldguard is not installed, safe zone protection is off</danger>"
 
+  history-empty: "%prefix%<muted>nothing has been recorded yet</muted>"
+  history-cleared: "%prefix%<success>cleared</success> <accent>%count%</accent> <muted>combat log entries</muted>"
+  rollback-restored: "%prefix%<success>gave</success> <primary><bold>%player%</bold></primary> <success>their inventory back</success>"
+  rollback-given: "%prefix%<success>the items are in your inventory</success>"
+  rollback-dropped: "%prefix%<success>dropped the items at</success> <primary>%world% %coords%</primary>"
+  rollback-no-snapshot: "%prefix%<danger>that entry is too old to still have its items</danger>"
+  rollback-target-offline: "%prefix%<danger>%player% has to be online for that</danger>"
+  rollback-world-missing: "%prefix%<danger>that world does not exist any more</danger>"
+  teleported: "%prefix%<muted>teleported to</muted> <primary>%world% %coords%</primary>"
+
   help:
     - "<dark_gray><strikethrough>                                        </strikethrough>"
     - "<gradient:#5FD3FF:#FF9D3D><bold>combatlog</bold></gradient> <dark_gray>v%version%</dark_gray>"
@@ -515,6 +581,7 @@ messages:
     - " <accent>›</accent> <primary>/combatlog check [player]</primary> <dark_gray>-</dark_gray> <muted>check someone else</muted>"
     - " <accent>›</accent> <primary>/combatlog tag [player] (seconds)</primary> <dark_gray>-</dark_gray> <muted>tag a player</muted>"
     - " <accent>›</accent> <primary>/combatlog untag [player]</primary> <dark_gray>-</dark_gray> <muted>free a player</muted>"
+    - " <accent>›</accent> <primary>/combatlog history</primary> <dark_gray>-</dark_gray> <muted>who fought, killed and died</muted>"
     - " <accent>›</accent> <primary>/combatlog zones</primary> <dark_gray>-</dark_gray> <muted>safe zones around you</muted>"
     - " <accent>›</accent> <primary>/combatlog reload</primary> <dark_gray>-</dark_gray> <muted>reload the config</muted>"
     - "<dark_gray><strikethrough>                                        </strikethrough>"

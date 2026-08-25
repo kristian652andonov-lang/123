@@ -4,6 +4,9 @@ import dev.kristian.combatlog.CombatLogPlugin;
 import dev.kristian.combatlog.combat.CombatManager;
 import dev.kristian.combatlog.combat.UntagReason;
 import dev.kristian.combatlog.config.Settings;
+import dev.kristian.combatlog.gui.GuiContext;
+import dev.kristian.combatlog.gui.HistoryGui;
+import dev.kristian.combatlog.history.HistoryManager;
 import dev.kristian.combatlog.region.RegionService;
 import dev.kristian.combatlog.text.Text;
 import net.kyori.adventure.text.Component;
@@ -17,26 +20,31 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 /** {@code /combatlog} and its subcommands. */
 public final class CombatLogCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> SUBCOMMANDS =
-            List.of("help", "status", "check", "tag", "untag", "zones", "reload");
+            List.of("help", "status", "check", "history", "tag", "untag", "zones", "reload", "clearhistory");
 
     private final CombatLogPlugin plugin;
     private final Settings settings;
     private final CombatManager combat;
     private final RegionService regions;
     private final Text text;
+    private final HistoryManager history;
+    private final GuiContext guiContext;
 
     public CombatLogCommand(CombatLogPlugin plugin, Settings settings, CombatManager combat,
-                            RegionService regions, Text text) {
+                            RegionService regions, Text text, HistoryManager history, GuiContext guiContext) {
         this.plugin = plugin;
         this.settings = settings;
         this.combat = combat;
         this.regions = regions;
         this.text = text;
+        this.history = history;
+        this.guiContext = guiContext;
     }
 
     @Override
@@ -50,6 +58,8 @@ public final class CombatLogCommand implements CommandExecutor, TabCompleter {
             case "help" -> sendHelp(sender);
             case "status" -> status(sender);
             case "check" -> check(sender, args);
+            case "history", "gui", "logs" -> openHistory(sender, args);
+            case "clearhistory" -> clearHistory(sender);
             case "tag" -> tag(sender, args);
             case "untag" -> untag(sender, args);
             case "zones" -> zones(sender);
@@ -104,6 +114,49 @@ public final class CombatLogCommand implements CommandExecutor, TabCompleter {
                 "player", target.getName(),
                 "time", settings.timeStyle.format(remaining),
                 "seconds", Long.toString((remaining + 999L) / 1000L));
+    }
+
+    /** Opens the combat log browser, optionally narrowed to one player. */
+    private void openHistory(CommandSender sender, String[] args) {
+        if (!has(sender, "combatlog.history")) {
+            return;
+        }
+        if (!(sender instanceof Player player)) {
+            text.send(sender, settings.messages.playersOnly);
+            return;
+        }
+        if (!settings.history.enabled) {
+            text.send(player, settings.messages.historyEmpty);
+            return;
+        }
+
+        UUID filter = null;
+        String filterName = null;
+        if (args.length >= 2) {
+            Player online = Bukkit.getPlayerExact(args[1]);
+            if (online != null) {
+                filter = online.getUniqueId();
+                filterName = online.getName();
+            } else {
+                // They may well be offline - the log knows their id anyway.
+                filter = history.findPlayerId(args[1]);
+                filterName = args[1];
+                if (filter == null) {
+                    text.send(player, settings.messages.playerNotFound, "player", args[1]);
+                    return;
+                }
+            }
+        }
+        new HistoryGui(guiContext, filter, filterName).open(player);
+    }
+
+    private void clearHistory(CommandSender sender) {
+        if (!has(sender, "combatlog.admin")) {
+            return;
+        }
+        int count = history.size();
+        history.clear();
+        text.send(sender, settings.messages.historyCleared, "count", Integer.toString(count));
     }
 
     private void tag(CommandSender sender, String[] args) {
@@ -229,7 +282,7 @@ public final class CombatLogCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 2) {
             String sub = args[0].toLowerCase(Locale.ROOT);
-            if (sub.equals("check") || sub.equals("tag") || sub.equals("untag")) {
+            if (sub.equals("check") || sub.equals("tag") || sub.equals("untag") || sub.equals("history")) {
                 List<String> names = new ArrayList<>();
                 for (Player online : Bukkit.getOnlinePlayers()) {
                     names.add(online.getName());

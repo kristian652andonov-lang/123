@@ -24,7 +24,13 @@ permissions:
     description: Check another player's combat timer.
     default: op
   combatlog.admin:
-    description: Tag, untag, inspect safe zones and reload the config.
+    description: Tag, untag, inspect safe zones, clear the log and reload the config.
+    default: op
+  combatlog.history:
+    description: Open the combat log browser.
+    default: op
+  combatlog.rollback:
+    description: Restore, take or drop a recorded inventory.
     default: op
   combatlog.bypass:
     description: Never get put in combat at all.

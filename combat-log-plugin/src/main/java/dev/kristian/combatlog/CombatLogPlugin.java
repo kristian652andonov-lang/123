@@ -9,6 +9,10 @@ import dev.kristian.combatlog.command.CombatLogCommand;
 import dev.kristian.combatlog.config.Settings;
 import dev.kristian.combatlog.cooldown.CooldownManager;
 import dev.kristian.combatlog.display.DisplayManager;
+import dev.kristian.combatlog.gui.GuiContext;
+import dev.kristian.combatlog.gui.GuiListener;
+import dev.kristian.combatlog.history.HistoryManager;
+import dev.kristian.combatlog.history.RollbackService;
 import dev.kristian.combatlog.hook.PlaceholderHook;
 import dev.kristian.combatlog.listener.CombatListener;
 import dev.kristian.combatlog.listener.CooldownListener;
@@ -44,8 +48,11 @@ public final class CombatLogPlugin extends JavaPlugin {
     private RegionService regions;
     private BarrierManager barrier;
     private DisplayManager display;
+    private HistoryManager history;
+    private GuiContext guiContext;
 
     private BukkitTask ticker;
+    private BukkitTask historySaver;
     private long tick;
 
     @Override
@@ -62,6 +69,10 @@ public final class CombatLogPlugin extends JavaPlugin {
         barrier = new BarrierManager(settings, regions);
         display = new DisplayManager(settings, text);
 
+        history = new HistoryManager(this, settings);
+        history.load();
+        guiContext = new GuiContext(this, settings, text, history, new RollbackService(settings, history));
+
         combat.addListener(display);
         combat.addListener(new StateCleanup());
 
@@ -70,6 +81,7 @@ public final class CombatLogPlugin extends JavaPlugin {
         hookPlaceholderApi();
 
         ticker = Bukkit.getScheduler().runTaskTimer(this, this::tick, 1L, 1L);
+        startHistorySaver();
 
         getLogger().info("CombatLog enabled - safe zone protection is "
                 + (regions.isAvailable() ? "active via WorldGuard." : "OFF (WorldGuard not found)."));
@@ -80,6 +92,13 @@ public final class CombatLogPlugin extends JavaPlugin {
         if (ticker != null) {
             ticker.cancel();
             ticker = null;
+        }
+        if (historySaver != null) {
+            historySaver.cancel();
+            historySaver = null;
+        }
+        if (history != null) {
+            history.saveNow();
         }
         if (barrier != null) {
             barrier.removeAll();
@@ -103,6 +122,20 @@ public final class CombatLogPlugin extends JavaPlugin {
             combat.clearAll(UntagReason.SHUTDOWN);
         }
         barrier.removeAll();
+        startHistorySaver();
+    }
+
+    /** Restarts the periodic history write with whatever interval the config now asks for. */
+    private void startHistorySaver() {
+        if (historySaver != null) {
+            historySaver.cancel();
+            historySaver = null;
+        }
+        long interval = settings.history.saveIntervalSeconds * 20L;
+        if (!settings.history.enabled || interval <= 0L) {
+            return;
+        }
+        historySaver = Bukkit.getScheduler().runTaskTimer(this, history::saveAsync, interval, interval);
     }
 
     // ------------------------------------------------------------- lifecycle
@@ -132,9 +165,10 @@ public final class CombatLogPlugin extends JavaPlugin {
 
     private void registerListeners() {
         Bukkit.getPluginManager().registerEvents(
-                new CombatListener(settings, combat, regions), this);
+                new CombatListener(settings, combat, regions, history), this);
         Bukkit.getPluginManager().registerEvents(
-                new PunishmentListener(settings, combat, barrier, display, text, getLogger()), this);
+                new PunishmentListener(settings, combat, barrier, display, history, text, getLogger()), this);
+        Bukkit.getPluginManager().registerEvents(new GuiListener(), this);
         Bukkit.getPluginManager().registerEvents(
                 new MovementListener(settings, combat, regions, text), this);
         Bukkit.getPluginManager().registerEvents(
@@ -149,7 +183,7 @@ public final class CombatLogPlugin extends JavaPlugin {
             getLogger().severe("The combatlog command is missing from plugin.yml - the jar is damaged.");
             return;
         }
-        CombatLogCommand executor = new CombatLogCommand(this, settings, combat, regions, text);
+        CombatLogCommand executor = new CombatLogCommand(this, settings, combat, regions, text, history, guiContext);
         command.setExecutor(executor);
         command.setTabCompleter(executor);
     }

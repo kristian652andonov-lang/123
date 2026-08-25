@@ -3,6 +3,7 @@ package dev.kristian.combatlog.listener;
 import dev.kristian.combatlog.combat.CombatManager;
 import dev.kristian.combatlog.combat.UntagReason;
 import dev.kristian.combatlog.config.Settings;
+import dev.kristian.combatlog.history.HistoryManager;
 import dev.kristian.combatlog.region.RegionService;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Entity;
@@ -24,11 +25,13 @@ public final class CombatListener implements Listener {
     private final Settings settings;
     private final CombatManager combat;
     private final RegionService regions;
+    private final HistoryManager history;
 
-    public CombatListener(Settings settings, CombatManager combat, RegionService regions) {
+    public CombatListener(Settings settings, CombatManager combat, RegionService regions, HistoryManager history) {
         this.settings = settings;
         this.combat = combat;
         this.regions = regions;
+        this.history = history;
     }
 
     /**
@@ -68,11 +71,26 @@ public final class CombatListener implements Listener {
         }
 
         if (general.tagVictim && canBeTagged(victim)) {
-            combat.tag(victim, attacker);
+            // A fresh tag means this is the start of an engagement rather than
+            // another hit in one already running, so it is worth recording.
+            boolean fresh = combat.tag(victim, attacker);
+            if (fresh && attacker != null) {
+                history.recordFight(attacker, victim);
+            }
         }
         if (attacker != null && general.tagAttacker && canBeTagged(attacker)) {
             combat.tag(attacker, victim);
         }
+    }
+
+    /**
+     * Runs first so the inventory is captured exactly as the victim was carrying
+     * it, before drops are computed or a keep-inventory plugin empties it.
+     */
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void recordDeath(PlayerDeathEvent event) {
+        Player victim = event.getEntity();
+        history.recordDeath(victim, victim.getKiller());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

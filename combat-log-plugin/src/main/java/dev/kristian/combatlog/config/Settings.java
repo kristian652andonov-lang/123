@@ -2,6 +2,7 @@ package dev.kristian.combatlog.config;
 
 import dev.kristian.combatlog.barrier.AnimationMode;
 import dev.kristian.combatlog.cooldown.CooldownRule;
+import dev.kristian.combatlog.history.EventType;
 import dev.kristian.combatlog.text.TimeStyle;
 import net.kyori.adventure.bossbar.BossBar;
 import org.bukkit.Color;
@@ -34,7 +35,7 @@ import java.util.logging.Logger;
 public final class Settings {
 
     /** Bump this whenever an option is added, so admins get told to look. */
-    public static final int CURRENT_CONFIG_VERSION = 1;
+    public static final int CURRENT_CONFIG_VERSION = 2;
 
     public final General general = new General();
     public final ActionBar actionBar = new ActionBar();
@@ -48,6 +49,8 @@ public final class Settings {
     public final Restrictions restrictions = new Restrictions();
     public final Cooldowns cooldowns = new Cooldowns();
     public final Elytra elytra = new Elytra();
+    public final History history = new History();
+    public final Gui gui = new Gui();
     public final Messages messages = new Messages();
 
     public TimeStyle timeStyle = TimeStyle.TENTHS;
@@ -104,6 +107,8 @@ public final class Settings {
         loadRestrictions();
         loadCooldowns();
         loadElytra();
+        loadHistory();
+        loadGui();
         loadMessages();
     }
 
@@ -274,6 +279,41 @@ public final class Settings {
         elytra.stopActiveGlide = config.getBoolean("elytra.stop-active-glide", true);
     }
 
+    private void loadHistory() {
+        history.enabled = config.getBoolean("history.enabled", true);
+        history.maxEntries = Math.max(1, config.getInt("history.max-entries", 500));
+        history.maxSnapshots = Math.max(0, config.getInt("history.max-snapshots", 200));
+        history.recordFights = config.getBoolean("history.record-fights", true);
+        history.recordKills = config.getBoolean("history.record-kills", true);
+        history.recordDeathsWithoutKiller = config.getBoolean("history.record-deaths-without-killer", true);
+        history.recordCombatLogs = config.getBoolean("history.record-combat-logs", true);
+        history.keepInventorySnapshots = config.getBoolean("history.keep-inventory-snapshots", true);
+        history.saveIntervalSeconds = Math.max(0, config.getInt("history.save-interval-seconds", 120));
+    }
+
+    private void loadGui() {
+        gui.title = config.getString("gui.title", "combat log");
+        gui.usePlayerHeads = config.getBoolean("gui.use-player-heads", true);
+        gui.confirmRollback = config.getBoolean("gui.confirm-rollback", true);
+        gui.snapshotBeforeRollback = config.getBoolean("gui.snapshot-before-rollback", true);
+
+        gui.icons.clear();
+        ConfigurationSection icons = section("gui.icons");
+        for (String key : icons.getKeys(false)) {
+            EventType type = EventType.parse(key, null);
+            if (type == null) {
+                logger.warning("gui.icons." + key + " is not a combat log entry type - skipping it.");
+                continue;
+            }
+            Material material = Material.matchMaterial(String.valueOf(icons.getString(key, "")));
+            if (material == null || material.isAir()) {
+                logger.warning("gui.icons." + key + " is not a valid 1.20.1 item - skipping it.");
+                continue;
+            }
+            gui.icons.put(type, material);
+        }
+    }
+
     private void loadMessages() {
         messages.prefix = config.getString("messages.prefix", "");
         messages.tagged = message("tagged");
@@ -303,6 +343,15 @@ public final class Settings {
         messages.playersOnly = message("players-only");
         messages.invalidNumber = message("invalid-number");
         messages.worldGuardMissing = message("worldguard-missing");
+        messages.historyEmpty = message("history-empty");
+        messages.historyCleared = message("history-cleared");
+        messages.rollbackRestored = message("rollback-restored");
+        messages.rollbackGiven = message("rollback-given");
+        messages.rollbackDropped = message("rollback-dropped");
+        messages.rollbackNoSnapshot = message("rollback-no-snapshot");
+        messages.rollbackTargetOffline = message("rollback-target-offline");
+        messages.rollbackWorldMissing = message("rollback-world-missing");
+        messages.teleported = message("teleported");
 
         List<String> help = config.getStringList("messages.help");
         if (help.isEmpty()) {
@@ -544,6 +593,30 @@ public final class Settings {
         public boolean stopActiveGlide;
     }
 
+    public static final class History {
+        public boolean enabled;
+        public int maxEntries;
+        public int maxSnapshots;
+        public boolean recordFights;
+        public boolean recordKills;
+        public boolean recordDeathsWithoutKiller;
+        public boolean recordCombatLogs;
+        public boolean keepInventorySnapshots;
+        public int saveIntervalSeconds;
+    }
+
+    public static final class Gui {
+        public String title = "combat log";
+        public boolean usePlayerHeads;
+        public boolean confirmRollback;
+        public boolean snapshotBeforeRollback;
+        public final Map<EventType, Material> icons = new EnumMap<>(EventType.class);
+
+        public Material icon(EventType type) {
+            return icons.getOrDefault(type, Material.PAPER);
+        }
+    }
+
     public static final class Messages {
         public String prefix = "";
         public String tagged = "";
@@ -573,6 +646,15 @@ public final class Settings {
         public String playersOnly = "";
         public String invalidNumber = "";
         public String worldGuardMissing = "";
+        public String historyEmpty = "";
+        public String historyCleared = "";
+        public String rollbackRestored = "";
+        public String rollbackGiven = "";
+        public String rollbackDropped = "";
+        public String rollbackNoSnapshot = "";
+        public String rollbackTargetOffline = "";
+        public String rollbackWorldMissing = "";
+        public String teleported = "";
         public List<String> help = List.of();
     }
 }

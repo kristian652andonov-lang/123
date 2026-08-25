@@ -4,7 +4,9 @@ import dev.kristian.combatlog.barrier.BarrierManager;
 import dev.kristian.combatlog.combat.CombatManager;
 import dev.kristian.combatlog.combat.UntagReason;
 import dev.kristian.combatlog.config.Settings;
+import dev.kristian.combatlog.combat.CombatTag;
 import dev.kristian.combatlog.display.DisplayManager;
+import dev.kristian.combatlog.history.HistoryManager;
 import dev.kristian.combatlog.text.Text;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -38,6 +40,7 @@ public final class PunishmentListener implements Listener {
     private final CombatManager combat;
     private final BarrierManager barrier;
     private final DisplayManager display;
+    private final HistoryManager history;
     private final Text text;
     private final Logger logger;
 
@@ -45,11 +48,12 @@ public final class PunishmentListener implements Listener {
     private final Set<UUID> kicked = new HashSet<>();
 
     public PunishmentListener(Settings settings, CombatManager combat, BarrierManager barrier,
-                              DisplayManager display, Text text, Logger logger) {
+                              DisplayManager display, HistoryManager history, Text text, Logger logger) {
         this.settings = settings;
         this.combat = combat;
         this.barrier = barrier;
         this.display = display;
+        this.history = history;
         this.text = text;
         this.logger = logger;
     }
@@ -90,6 +94,13 @@ public final class PunishmentListener implements Listener {
     private void punish(Player player) {
         Location location = player.getLocation();
         World world = location.getWorld();
+
+        // Written down before anything is dropped, so the log keeps a complete
+        // copy of what they ran away with.
+        CombatTag tag = combat.get(player.getUniqueId());
+        history.recordCombatLog(player,
+                tag == null ? null : tag.opponentName(),
+                tag == null ? null : tag.opponentId());
 
         try {
             if (settings.punishment.dropInventory && world != null) {
