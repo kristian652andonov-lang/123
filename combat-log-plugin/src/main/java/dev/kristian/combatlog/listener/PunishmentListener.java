@@ -80,6 +80,15 @@ public final class PunishmentListener implements Listener {
         boolean wasKicked = kicked.remove(id);
         boolean tagged = combat.isTagged(id);
 
+        if (tagged) {
+            // Recorded before any punishment runs, so the log keeps a complete
+            // copy of what they left with even when killing on quit is off.
+            CombatTag tag = combat.get(id);
+            history.recordCombatLog(player,
+                    tag == null ? null : tag.opponentName(),
+                    tag == null ? null : tag.opponentId());
+        }
+
         if (tagged
                 && settings.punishment.killOnQuit
                 && (!wasKicked || settings.punishment.punishOnKick)) {
@@ -94,13 +103,6 @@ public final class PunishmentListener implements Listener {
     private void punish(Player player) {
         Location location = player.getLocation();
         World world = location.getWorld();
-
-        // Written down before anything is dropped, so the log keeps a complete
-        // copy of what they ran away with.
-        CombatTag tag = combat.get(player.getUniqueId());
-        history.recordCombatLog(player,
-                tag == null ? null : tag.opponentName(),
-                tag == null ? null : tag.opponentId());
 
         try {
             if (settings.punishment.dropInventory && world != null) {
