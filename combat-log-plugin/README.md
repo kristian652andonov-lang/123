@@ -15,6 +15,8 @@ client, so the world is never modified and nobody else's screen changes.
 
 ## Installing
 
+The built jar lives in [`dist/CombatLog-1.0.0.jar`](dist/CombatLog-1.0.0.jar).
+
 1. Drop `CombatLog-1.0.0.jar` into your server's `plugins/` folder.
 2. Install [WorldGuard](https://enginehub.org/worldguard) (and WorldEdit)
    if you have not already — this is what the safe zone protection reads.

@@ -174,7 +174,10 @@ public final class CombatLogCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        List<String> here = regions.describeRegionsAt(player.getLocation());
+        List<String> here = new ArrayList<>();
+        for (String description : regions.describeRegionsAt(player.getLocation())) {
+            here.add(Text.escape(description));
+        }
         int radius = settings.barrier.radius;
         var nearby = regions.safeZonesNear(player.getWorld(),
                 player.getLocation().getBlockX(),
@@ -190,7 +193,7 @@ public final class CombatLogCommand implements CommandExecutor, TabCompleter {
             if (i > 0) {
                 names.append("<dark_gray>, </dark_gray><accent>");
             }
-            names.append(nearby.get(i).name());
+            names.append(Text.escape(nearby.get(i).name()));
         }
         text.send(player, "%prefix%<muted>safe zones within</muted> <accent>" + (radius + 2)
                 + "</accent> <muted>blocks:</muted> <accent>"

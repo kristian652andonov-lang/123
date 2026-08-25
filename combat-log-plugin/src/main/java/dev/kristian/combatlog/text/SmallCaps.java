@@ -51,46 +51,65 @@ public final class SmallCaps {
             return input;
         }
 
-        StringBuilder out = new StringBuilder(input.length());
-        boolean inTag = false;
-        boolean inPlaceholder = false;
+        int length = input.length();
+        StringBuilder out = new StringBuilder(length);
 
-        for (int i = 0; i < input.length(); i++) {
-            char c = input.charAt(i);
+        int index = 0;
+        while (index < length) {
+            char current = input.charAt(index);
 
             // "\<" is MiniMessage's escape - copy both characters untouched.
-            if (c == '\\' && i + 1 < input.length()) {
-                out.append(c).append(input.charAt(++i));
-                continue;
-            }
-            if (c == '<') {
-                inTag = true;
-                out.append(c);
-                continue;
-            }
-            if (c == '>') {
-                inTag = false;
-                out.append(c);
-                continue;
-            }
-            if (c == '%') {
-                inPlaceholder = !inPlaceholder;
-                out.append(c);
-                continue;
-            }
-            if (inTag || inPlaceholder) {
-                out.append(c);
+            if (current == '\\' && index + 1 < length) {
+                out.append(current).append(input.charAt(index + 1));
+                index += 2;
                 continue;
             }
 
-            if (c >= 'a' && c <= 'z') {
-                out.append(GLYPHS[c - 'a']);
-            } else if (convertUppercase && c >= 'A' && c <= 'Z') {
-                out.append(GLYPHS[c - 'A']);
-            } else {
-                out.append(c);
+            // A tag or a placeholder is copied verbatim, but only once we have
+            // seen it close. A lone "<" or "%" in the text is just a character.
+            if (current == '<') {
+                int close = input.indexOf('>', index + 1);
+                if (close > index) {
+                    out.append(input, index, close + 1);
+                    index = close + 1;
+                    continue;
+                }
+            } else if (current == '%') {
+                int close = placeholderEnd(input, index);
+                if (close > index) {
+                    out.append(input, index, close + 1);
+                    index = close + 1;
+                    continue;
+                }
             }
+
+            out.append(fold(current, convertUppercase));
+            index++;
         }
         return out.toString();
+    }
+
+    /** Index of the closing {@code %} of a {@code %placeholder%}, or -1. */
+    private static int placeholderEnd(String input, int start) {
+        for (int i = start + 1; i < input.length(); i++) {
+            char current = input.charAt(i);
+            if (current == '%') {
+                return i > start + 1 ? i : -1;
+            }
+            if (!Character.isLetterOrDigit(current) && current != '_' && current != '-') {
+                return -1;
+            }
+        }
+        return -1;
+    }
+
+    private static char fold(char character, boolean convertUppercase) {
+        if (character >= 'a' && character <= 'z') {
+            return GLYPHS[character - 'a'];
+        }
+        if (convertUppercase && character >= 'A' && character <= 'Z') {
+            return GLYPHS[character - 'A'];
+        }
+        return character;
     }
 }
