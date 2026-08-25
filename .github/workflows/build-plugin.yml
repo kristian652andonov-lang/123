@@ -118,10 +118,14 @@ jobs:
             sleep 3
             echo "combatlog zones"
             sleep 3
+            echo "combatlog history"
+            sleep 3
+            echo "combatlog clearhistory"
+            sleep 3
             echo "combatlog reload"
             sleep 3
             echo "stop"
-            sleep 40 ) | timeout 260 java -Xmx2G -jar paper.jar --nogui > console.log 2>&1 || true
+            sleep 40 ) | timeout 300 java -Xmx2G -jar paper.jar --nogui > console.log 2>&1 || true
 
           echo "───────── plugins folder ─────────"
           ls -la plugins/
@@ -140,7 +144,14 @@ jobs:
           if grep -ain "combatlog" console.log | grep -qi "exception\|caused by"; then
             echo "FAIL: an exception mentions the plugin"; exit 1
           fi
-          echo "OK: enabled, hooked WorldGuard, commands and reload ran clean"
+          # The reply comes back folded into small caps, so match it as rendered.
+          grep -aq "ᴄᴏᴍʙᴀᴛ ʟᴏɢ ᴇɴᴛʀɪᴇs" console.log \
+            || { echo "FAIL: /combatlog clearhistory produced no response"; exit 1; }
+          test -f plugins/CombatLog/history.yml \
+            || { echo "FAIL: history.yml was not written on shutdown"; exit 1; }
+          test -f plugins/CombatLog/config.yml \
+            || { echo "FAIL: config.yml was not generated"; exit 1; }
+          echo "OK: enabled, hooked WorldGuard, commands, history and reload ran clean"
 
       - name: Publish the built jar into the repository
         run: |

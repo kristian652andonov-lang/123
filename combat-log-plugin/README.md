@@ -11,6 +11,10 @@ border until your timer runs out.
 Only the player in combat can see that wall. It is sent straight to their
 client, so the world is never modified and nobody else's screen changes.
 
+It also keeps a log of every fight, kill, death and logout, with a copy of what
+the loser was carrying — so when somebody loses their kit to a bug you can hand
+it straight back from `/combatlog history`.
+
 ---
 
 ## Installing
@@ -54,6 +58,8 @@ you, and whether it currently considers you protected.
 | `/combatlog` · `/cl` · `/combat` | `combatlog.use` | Help menu |
 | `/combatlog status` | `combatlog.use` | Your own timer |
 | `/combatlog check <player>` | `combatlog.check` | Somebody else's timer |
+| `/combatlog history [player]` | `combatlog.history` | Open the combat log browser |
+| `/combatlog clearhistory` | `combatlog.admin` | Wipe the recorded log |
 | `/combatlog tag <player> [seconds]` | `combatlog.admin` | Put a player in combat |
 | `/combatlog untag <player>` | `combatlog.admin` | Free a player |
 | `/combatlog zones` | `combatlog.admin` | What the plugin sees around you |
@@ -65,7 +71,9 @@ you, and whether it currently considers you protected.
 | --- | --- | --- |
 | `combatlog.use` | everyone | Use the command |
 | `combatlog.check` | op | Check other players |
-| `combatlog.admin` | op | Tag, untag, zones, reload |
+| `combatlog.admin` | op | Tag, untag, zones, clear the log, reload |
+| `combatlog.history` | op | Open the combat log browser |
+| `combatlog.rollback` | op | Restore, take or drop a recorded inventory |
 | `combatlog.bypass` | no | Never gets tagged at all |
 | `combatlog.bypass.commands` | no | Blocked commands still work |
 | `combatlog.bypass.flight` | no | Keep flying in combat |
@@ -101,6 +109,47 @@ you, and whether it currently considers you protected.
   There is also one shared cooldown for all other food.
 - **elytra** — block gliding in combat, a cooldown after combat ends, a minimum
   gap between glides, and whether an active glide is cut short on tagging.
+- **history** — what gets recorded, how many entries are kept, how many of them
+  keep their item data, and how often the log is written to disk.
+- **gui** — the browser's title, player heads on or off, whether a rollback asks
+  for confirmation, and the icon used for each kind of entry.
+
+## The combat log browser
+
+`/combatlog history` opens a paginated list of everything that happened, newest
+first. Each entry is the loser's head:
+
+```
+ ᴋʀɪsᴛɪᴀɴ ᴋɪʟʟᴇᴅ sᴛᴇᴠᴇ
+ 4ᴍ ᴀɢᴏ · ᴡᴏʀʟᴅ 128, 64, -302
+ ᴄᴀᴜsᴇ › ᴇɴᴛɪᴛʏ ᴀᴛᴛᴀᴄᴋ - ᴋʀɪsᴛɪᴀɴ
+ ʜᴇʟᴅ › ɴᴇᴛʜᴇʀɪᴛᴇ sᴡᴏʀᴅ
+ › ᴄʟɪᴄᴋ ᴛᴏ ᴏᴘᴇɴ ᴛʜᴇɪʀ ɪɴᴠᴇɴᴛᴏʀʏ
+```
+
+The hopper at the bottom cycles the filter — everything, fights, kills, deaths,
+combat logs, rollbacks. `/combatlog history Steve` narrows it to one player, and
+that works for offline players too, because the log remembers their UUID.
+
+Clicking an entry shows both players, the cause, the weapon and the exact spot,
+with a button to teleport there.
+
+## Rolling an inventory back
+
+Open an entry and click **open their inventory**. You get the victim's gear laid
+out exactly as they had it — main inventory, hotbar, armour and off hand, with
+every enchantment and custom name intact. Three buttons:
+
+- **give it back to \<player>** — replaces what they are carrying now. They have
+  to be online. Their current inventory is saved to the log as a `ROLLBACK`
+  entry first, so if you restore the wrong thing you can undo it the same way.
+  Behind a confirmation screen unless you turn `gui.confirm-rollback` off.
+- **put it in my inventory** — hands the items to you instead. Anything that
+  does not fit drops at your feet.
+- **drop it where it happened** — spills the items back at the death spot.
+
+Only the newest `history.max-snapshots` entries keep their items — that is the
+bulky part of the file. Older entries still show who killed who.
 
 ## Notes
 
@@ -110,6 +159,8 @@ you, and whether it currently considers you protected.
 - `punishment.punish-on-kick` is off by default. Turn it on only if you are sure
   your server does not kick people for lag, or you will be killing players for
   your own timeouts.
+- The log lives in `plugins/CombatLog/history.yml`. It is written every
+  `history.save-interval-seconds` on a background thread and always on shutdown.
 - The wall is drawn only when a tagged player is *outside* a safe zone. If
   somebody is tagged while already standing in spawn they are not walled in —
   they can walk out, they just cannot walk back in.
