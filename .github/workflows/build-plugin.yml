@@ -58,7 +58,8 @@ jobs:
             echo "Could not find a Paper 1.20.1 download in:"; head -c 2000 builds.json; exit 1
           fi
           echo "Using $PAPER_URL"
-          curl -sSfL -o paper.jar "$PAPER_URL"
+          curl -sSfL -H "User-Agent: combatlog-ci/1.0" -o paper.jar "$PAPER_URL"
+          ls -la paper.jar
 
           curl -sSfL -o plugins/worldedit.jar \
             "https://maven.enginehub.org/repo/com/sk89q/worldedit/worldedit-bukkit/7.2.15/worldedit-bukkit-7.2.15-dist.jar"
