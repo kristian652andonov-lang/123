@@ -1,0 +1,4 @@
+name: CombatLog
+version: '${project.version}'
+main: dev.kristian.combatlog.CombatLogPlugin
+api-version: '1.20'
