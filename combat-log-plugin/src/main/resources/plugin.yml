@@ -2,3 +2,42 @@ name: CombatLog
 version: '${project.version}'
 main: dev.kristian.combatlog.CombatLogPlugin
 api-version: '1.20'
+description: Combat tagging with WorldGuard safe zone barriers, built for box PvP.
+author: kristian
+softdepend:
+  - WorldGuard
+  - PlaceholderAPI
+
+commands:
+  combatlog:
+    description: Combat log status and administration.
+    usage: /combatlog help
+    aliases:
+      - cl
+      - combat
+
+permissions:
+  combatlog.use:
+    description: Use /combatlog and see your own timer.
+    default: true
+  combatlog.check:
+    description: Check another player's combat timer.
+    default: op
+  combatlog.admin:
+    description: Tag, untag, inspect safe zones and reload the config.
+    default: op
+  combatlog.bypass:
+    description: Never get put in combat at all.
+    default: false
+  combatlog.bypass.commands:
+    description: Use blocked commands while in combat.
+    default: false
+  combatlog.bypass.flight:
+    description: Keep flying while in combat.
+    default: false
+  combatlog.bypass.elytra:
+    description: Keep using an elytra while in combat.
+    default: false
+  combatlog.bypass.cooldowns:
+    description: Ignore every item cooldown.
+    default: false

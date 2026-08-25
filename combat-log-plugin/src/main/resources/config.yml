@@ -1,0 +1,520 @@
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║                                                                          ║
+# ║        ᴄ ᴏ ᴍ ʙ ᴀ ᴛ ʟ ᴏ ɢ   —   ʙ ᴏ x   ᴘ ᴠ ᴘ   ᴇ ᴅ ɪ ᴛ ɪ ᴏ ɴ              ║
+# ║                        paper 1.20.1                                      ║
+# ║                                                                          ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+#
+#  COLOURS
+#    Every message is written in MiniMessage format. You can use:
+#      <primary> <accent> <muted> <danger> <success>   -> your theme colours
+#      <#5FD3FF>                                       -> any hex colour
+#      <gradient:#5FD3FF:#FF9D3D>text</gradient>       -> gradients
+#      <bold> <italic> <underlined> <obfuscated>       -> styles
+#    Old school "&b" / "&#5FD3FF" codes also work if you prefer them.
+#
+#  FONT
+#    Leave font.small-caps on and just type normal lowercase text - the plugin
+#    turns it into ꜱᴍᴀʟʟ ᴄᴀᴘꜱ for you. Placeholders (%time%) and colour tags
+#    are never touched.
+#
+#  PLACEHOLDERS
+#    %time%    time left in combat        %player%   player name
+#    %bar%     the progress bar           %opponent% who tagged them
+#    %item%    item name                  %seconds%  whole seconds left
+#    %region%  safe zone name             %duration% configured combat length
+#
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Do not touch. Used to warn you when an update adds new options.
+config-version: 1
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  GENERAL  —  when does someone get tagged, and for how long
+# ══════════════════════════════════════════════════════════════════════════════
+general:
+  # How long a player stays in combat, in seconds.
+  combat-duration: 15
+
+  # Reset the timer back to full every time they are hit again.
+  refresh-on-hit: true
+
+  # Worlds the plugin ignores completely. Empty list = every world.
+  disabled-worlds: []
+
+  # Tag when a player hits a player.
+  tag-on-player-damage: true
+
+  # Tag when a mob hits a player. (Usually off on a box pvp server.)
+  tag-on-mob-damage: false
+
+  # Who gets tagged by a player-vs-player hit.
+  tag-attacker: true
+  tag-victim: true
+
+  # Arrows, tridents, snowballs, splash potions... count as combat.
+  count-projectiles: true
+
+  # Wolves / tamed pets hitting someone counts as their owner hitting them.
+  count-pets: false
+
+  # Never tag someone for damaging themselves.
+  ignore-self-damage: true
+
+  # If the hit happens inside a WorldGuard safe zone, tag nobody.
+  no-tag-inside-safe-zone: true
+
+  # Players with the permission combatlog.bypass are never tagged.
+  respect-bypass-permission: true
+
+  # Getting a kill instantly clears YOUR combat tag.
+  untag-killer-on-kill: true
+
+  # Dying clears the tag (so you are free the moment you respawn).
+  untag-on-death: true
+
+  # Wipe every tag when the plugin is reloaded with /combatlog reload.
+  clear-tags-on-reload: true
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  THEME  —  the two colours the whole plugin is built out of
+# ══════════════════════════════════════════════════════════════════════════════
+theme:
+  # light blue
+  primary: "#5FD3FF"
+  primary-dark: "#2A9FD6"
+  primary-light: "#B4EEFF"
+  # orange
+  accent: "#FF9D3D"
+  accent-dark: "#D97316"
+  accent-light: "#FFCB8A"
+  # supporting colours
+  muted: "#75879B"
+  danger: "#FF5C5C"
+  success: "#5BE39A"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  FONT
+# ══════════════════════════════════════════════════════════════════════════════
+font:
+  # Turn normal text into ꜱᴍᴀʟʟ ᴄᴀᴘꜱ automatically.
+  small-caps: true
+  # Also convert A-Z, not just a-z.
+  convert-uppercase: true
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  TIME DISPLAY
+# ══════════════════════════════════════════════════════════════════════════════
+time:
+  # SECONDS          ->  12
+  # TENTHS           ->  12.4
+  # MINUTES_SECONDS  ->  00:12
+  # SMART            ->  1m 12s  /  12.4s
+  style: TENTHS
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  ACTION BAR  —  the text that sits just above the hotbar
+# ══════════════════════════════════════════════════════════════════════════════
+actionbar:
+  enabled: true
+
+  # How often the bar is redrawn. 2 ticks = 10 times a second. Lower = smoother.
+  update-ticks: 2
+
+  format: "<accent>⚔</accent> <gradient:#5FD3FF:#B4EEFF><bold>combat</bold></gradient> <dark_gray>│</dark_gray> %bar% <dark_gray>│</dark_gray> <accent><bold>%time%</bold></accent><accent-dark>s</accent-dark>"
+
+  progress-bar:
+    enabled: true
+    length: 22
+    symbol: "▍"
+    # colour of the part that is still left
+    filled: "<primary>"
+    # colour of the part that has already run out
+    empty: "<#243642>"
+    # the "filled" colour swaps to this once the timer gets low
+    low: "<accent>"
+    low-threshold-percent: 30
+
+  # Make the whole bar blink when combat is about to end.
+  flash:
+    enabled: true
+    below-seconds: 3
+    interval-ticks: 4
+    color: "<danger>"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  BOSS BAR  —  optional second timer at the top of the screen
+# ══════════════════════════════════════════════════════════════════════════════
+bossbar:
+  enabled: false
+  title: "<accent>⚔</accent> <primary>in combat</primary> <dark_gray>·</dark_gray> <accent>%time%</accent>"
+  # PINK BLUE RED GREEN YELLOW PURPLE WHITE
+  color: BLUE
+  # PROGRESS NOTCHED_6 NOTCHED_10 NOTCHED_12 NOTCHED_20
+  overlay: PROGRESS
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  TITLES
+# ══════════════════════════════════════════════════════════════════════════════
+titles:
+  on-tag:
+    enabled: false
+    title: "<gradient:#FF9D3D:#FF5C5C><bold>combat</bold></gradient>"
+    subtitle: "<muted>do not log out for</muted> <accent>%seconds%s</accent>"
+    fade-in-ticks: 4
+    stay-ticks: 24
+    fade-out-ticks: 8
+  on-untag:
+    enabled: false
+    title: "<gradient:#5FD3FF:#5BE39A><bold>safe</bold></gradient>"
+    subtitle: "<muted>you are out of combat</muted>"
+    fade-in-ticks: 4
+    stay-ticks: 20
+    fade-out-ticks: 8
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  SOUNDS  —  use any vanilla sound key, e.g. block.note_block.pling
+# ══════════════════════════════════════════════════════════════════════════════
+sounds:
+  tagged:
+    enabled: true
+    sound: "entity.experience_orb.pickup"
+    volume: 0.7
+    pitch: 1.6
+  untagged:
+    enabled: true
+    sound: "block.note_block.pling"
+    volume: 0.7
+    pitch: 1.9
+  barrier-blocked:
+    enabled: true
+    sound: "block.glass.hit"
+    volume: 0.6
+    pitch: 0.7
+  cooldown-denied:
+    enabled: true
+    sound: "block.note_block.bass"
+    volume: 0.8
+    pitch: 0.5
+  action-blocked:
+    enabled: true
+    sound: "entity.villager.no"
+    volume: 0.7
+    pitch: 1.2
+  combat-logged:
+    enabled: true
+    sound: "entity.lightning_bolt.thunder"
+    volume: 0.9
+    pitch: 1.0
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  PUNISHMENT  —  what happens when a tagged player disconnects
+# ══════════════════════════════════════════════════════════════════════════════
+punishment:
+  # Kill them on the spot.
+  kill-on-quit: true
+
+  # Also punish players who are KICKED (lag kicks, /kick, timeouts).
+  # Leave this off unless you know what you are doing.
+  punish-on-kick: false
+
+  # Spill their gear on the floor where they logged out.
+  drop-inventory: true
+  drop-experience: true
+
+  # Empty their inventory after dropping it, so nothing is duplicated.
+  clear-inventory-after-drop: true
+
+  # Cosmetic lightning bolt at the log-out spot (does no damage, no fire).
+  lightning-effect: true
+
+  # Announce it.
+  broadcast: true
+  # Only announce to players in the same world.
+  broadcast-same-world-only: false
+
+  # Console commands run when someone combat logs. %player% is replaced.
+  # Example: ["tempban %player% 10m combat logging"]
+  commands: []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  WORLDGUARD  —  keeping tagged players out of safe zones
+#                 THE IMPORTANT ONE FOR BOX PVP
+# ══════════════════════════════════════════════════════════════════════════════
+worldguard:
+  enabled: true
+
+  # Walking into a safe zone while tagged is refused.
+  block-entering-safe-zones: true
+  # Any teleport (/spawn, plugin warps, etc.) into a safe zone is refused.
+  block-teleport-into-safe-zones: true
+  # Ender pearls that land inside a safe zone are refused.
+  block-enderpearl-into-safe-zones: true
+
+  # Shove them back out when they bump the border.
+  push-back:
+    enabled: true
+    strength: 0.45
+    upward: 0.16
+
+  # Minimum gap between two "you cannot enter" messages, in milliseconds.
+  message-cooldown-millis: 1200
+
+  # How a region is recognised as a safe zone. A region only has to match ONE
+  # of these rules.
+  safe-zone-detection:
+    # Regions with any of these names are safe zones.
+    region-names:
+      - spawn
+      - safezone
+      - safe-zone
+      - hub
+      - lobby
+    # "spawn" also matches "spawn-1", "mainspawn", "spawn_pvpoff" ...
+    match-partial-names: true
+    # Any region with one of these flags set to DENY is a safe zone.
+    # This is the recommended way: just set "pvp deny" on your spawn region.
+    deny-flags:
+      - pvp
+    # Any region with one of these flags set to ALLOW is a safe zone.
+    allow-flags: []
+
+  # Regions here are NEVER treated as a safe zone, whatever their flags say.
+  ignored-regions: []
+
+  # Ignore the world-wide __global__ region. Keep this true, otherwise a server
+  # with "pvp deny" set globally would turn the entire map into a safe zone.
+  ignore-global-region: true
+
+  # How long the list of nearby regions is cached, in milliseconds.
+  region-cache-millis: 1000
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  BARRIER  —  the red glass wall that seals safe zone entrances
+#
+#  The blocks are sent to the tagged player ONLY. Nobody else sees them, the
+#  world is never modified, and the wall follows the player around while their
+#  combat timer runs.
+# ══════════════════════════════════════════════════════════════════════════════
+barrier:
+  enabled: true
+
+  # How far around the player the wall is drawn, in blocks.
+  radius: 6
+  # How far up and down from the player's feet it reaches.
+  height-above: 3
+  height-below: 2
+
+  # How often the wall is rebuilt / re-coloured. 3 ticks is smooth and cheap.
+  update-ticks: 3
+
+  # Only draw the wall over air, grass, water... never over real solid blocks.
+  only-replace-passable-blocks: true
+
+  # Also seal the diagonal corners of the border.
+  seal-corners: true
+
+  # Hard safety cap so a huge region can never lag someone out.
+  max-blocks-per-player: 900
+
+  animation:
+    # WAVE   -> a ripple runs outwards from the player
+    # PULSE  -> the whole wall changes colour at once
+    # STATIC -> no animation
+    mode: WAVE
+    ticks-per-frame: 2
+    # The wall cycles through these blocks. Any glass / concrete works.
+    frames:
+      - RED_STAINED_GLASS
+      - RED_STAINED_GLASS
+      - RED_STAINED_GLASS
+      - ORANGE_STAINED_GLASS
+
+  particles:
+    enabled: true
+    particle: REDSTONE
+    # Particles drawn per update, spread over the wall.
+    per-update: 10
+    color: "#FF5C5C"
+    size: 1.0
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  RESTRICTIONS  —  what a tagged player cannot do
+# ══════════════════════════════════════════════════════════════════════════════
+restrictions:
+  block-commands:
+    enabled: true
+    # BLACKLIST -> everything in the list below is blocked
+    # WHITELIST -> ONLY the commands in the list below are allowed
+    mode: BLACKLIST
+    commands:
+      - spawn
+      - home
+      - sethome
+      - tp
+      - tpa
+      - tpahere
+      - tpaccept
+      - warp
+      - hub
+      - lobby
+      - shop
+      - ec
+      - enderchest
+      - back
+      - rtp
+      - wild
+      - kit
+      - craft
+      - workbench
+
+  # Cancel creative / plugin flight the moment they get tagged.
+  block-flight: true
+
+  # Stop them gliding away.
+  block-elytra: true
+
+  # Stop trident riptide launches.
+  block-riptide: false
+
+  # Stop chorus fruit teleports.
+  block-chorus-fruit: true
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  COOLDOWNS  —  golden apples, pearls, rockets, food
+#
+#  Add any material you like as a new entry. The name must be a valid 1.20.1
+#  material, e.g. GOLDEN_APPLE, ENCHANTED_GOLDEN_APPLE, ENDER_PEARL,
+#  FIREWORK_ROCKET, CHORUS_FRUIT, COOKED_BEEF ...
+# ══════════════════════════════════════════════════════════════════════════════
+cooldowns:
+  enabled: true
+
+  # Draw the vanilla white "swipe" over the item while it is on cooldown.
+  show-item-animation: true
+
+  # Minimum gap between two "on cooldown" messages, in milliseconds.
+  message-cooldown-millis: 800
+
+  items:
+    GOLDEN_APPLE:
+      enabled: true
+      seconds: 20
+      # true  -> the cooldown only applies while the player is in combat
+      # false -> the cooldown always applies
+      only-in-combat: false
+
+    ENCHANTED_GOLDEN_APPLE:
+      enabled: true
+      seconds: 120
+      only-in-combat: false
+
+    ENDER_PEARL:
+      enabled: true
+      seconds: 14
+      only-in-combat: false
+
+    FIREWORK_ROCKET:
+      enabled: true
+      seconds: 3
+      only-in-combat: true
+      # Only start / check the cooldown when they are actually flying.
+      only-while-gliding: true
+
+    CHORUS_FRUIT:
+      enabled: false
+      seconds: 8
+      only-in-combat: false
+
+  # A single cooldown shared by every other edible item.
+  food:
+    enabled: false
+    seconds: 2
+    only-in-combat: true
+    # Items that are handled above are skipped automatically; add extra ones here.
+    ignored: []
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  ELYTRA
+# ══════════════════════════════════════════════════════════════════════════════
+elytra:
+  # Refuse to let them start gliding while tagged.
+  disable-in-combat: true
+
+  # Extra seconds after combat ends before the elytra works again.
+  cooldown-after-combat: 0
+
+  # Minimum seconds between two glides, in or out of combat. 0 = off.
+  glide-cooldown: 0
+
+  # Rip them out of the sky if they were already gliding when they got tagged.
+  stop-active-glide: true
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  MESSAGES
+# ══════════════════════════════════════════════════════════════════════════════
+messages:
+  prefix: "<gradient:#5FD3FF:#FF9D3D><bold>combat</bold></gradient> <dark_gray>»</dark_gray> "
+
+  # Set any message to "" to disable it entirely.
+  tagged: "%prefix%<muted>you are now in combat for</muted> <accent><bold>%seconds%</bold></accent><accent>s</accent> <dark_gray>·</dark_gray> <danger>do not log out</danger>"
+  tagged-by: "%prefix%<muted>you are now in combat with</muted> <primary><bold>%opponent%</bold></primary>"
+  refreshed: ""
+  untagged: "%prefix%<success>you are out of combat</success>"
+
+  safezone-blocked: "%prefix%<danger>you cannot enter a safe zone while in combat</danger> <dark_gray>·</dark_gray> <accent>%time%s</accent>"
+  teleport-blocked: "%prefix%<danger>you cannot teleport into a safe zone while in combat</danger>"
+  enderpearl-blocked: "%prefix%<danger>that pearl would land in a safe zone</danger>"
+
+  command-blocked: "%prefix%<danger>you cannot use</danger> <primary>/%command%</primary> <danger>in combat</danger> <dark_gray>·</dark_gray> <accent>%time%s</accent>"
+  flight-blocked: "%prefix%<danger>flight is disabled in combat</danger>"
+  elytra-blocked: "%prefix%<danger>you cannot fly with an elytra in combat</danger>"
+  elytra-cooldown: "%prefix%<danger>your elytra is on cooldown for</danger> <accent>%time%s</accent>"
+  riptide-blocked: "%prefix%<danger>riptide is disabled in combat</danger>"
+  chorus-blocked: "%prefix%<danger>chorus fruit is disabled in combat</danger>"
+
+  cooldown-active: "%prefix%<primary>%item%</primary> <muted>is on cooldown for</muted> <accent><bold>%time%</bold></accent><accent>s</accent>"
+
+  combat-log-broadcast: "%prefix%<primary><bold>%player%</bold></primary> <danger>logged out in combat and was slain</danger>"
+
+  status-in-combat: "%prefix%<muted>you are in combat for</muted> <accent><bold>%time%</bold></accent><accent>s</accent>"
+  status-safe: "%prefix%<success>you are not in combat</success>"
+  check-in-combat: "%prefix%<primary><bold>%player%</bold></primary> <muted>is in combat for</muted> <accent><bold>%time%</bold></accent><accent>s</accent>"
+  check-safe: "%prefix%<primary><bold>%player%</bold></primary> <muted>is not in combat</muted>"
+
+  admin-tagged: "%prefix%<muted>tagged</muted> <primary><bold>%player%</bold></primary> <muted>for</muted> <accent>%seconds%s</accent>"
+  admin-untagged: "%prefix%<muted>cleared the combat tag of</muted> <primary><bold>%player%</bold></primary>"
+  reloaded: "%prefix%<success>configuration reloaded</success> <dark_gray>·</dark_gray> <muted>%ms%ms</muted>"
+
+  no-permission: "%prefix%<danger>you do not have permission to do that</danger>"
+  player-not-found: "%prefix%<danger>no player called</danger> <primary>%player%</primary> <danger>is online</danger>"
+  players-only: "%prefix%<danger>only a player can run that</danger>"
+  invalid-number: "%prefix%<danger>%input% is not a number</danger>"
+  worldguard-missing: "%prefix%<danger>worldguard is not installed, safe zone protection is off</danger>"
+
+  help:
+    - "<dark_gray><strikethrough>                                        </strikethrough>"
+    - "<gradient:#5FD3FF:#FF9D3D><bold>combatlog</bold></gradient> <dark_gray>v%version%</dark_gray>"
+    - ""
+    - " <accent>›</accent> <primary>/combatlog status</primary> <dark_gray>-</dark_gray> <muted>your combat timer</muted>"
+    - " <accent>›</accent> <primary>/combatlog check [player]</primary> <dark_gray>-</dark_gray> <muted>check someone else</muted>"
+    - " <accent>›</accent> <primary>/combatlog tag [player] (seconds)</primary> <dark_gray>-</dark_gray> <muted>tag a player</muted>"
+    - " <accent>›</accent> <primary>/combatlog untag [player]</primary> <dark_gray>-</dark_gray> <muted>free a player</muted>"
+    - " <accent>›</accent> <primary>/combatlog zones</primary> <dark_gray>-</dark_gray> <muted>safe zones around you</muted>"
+    - " <accent>›</accent> <primary>/combatlog reload</primary> <dark_gray>-</dark_gray> <muted>reload the config</muted>"
+    - "<dark_gray><strikethrough>                                        </strikethrough>"

@@ -18,26 +18,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Warm dependency cache (failures tolerated)
-        working-directory: combat-log-plugin
-        run: mvn -B -ntp package || true
-
-      - name: Bundle resolved dependencies
-        if: always()
-        run: |
-          du -sh "$HOME/.m2/repository" || true
-          tar --exclude='*-sources.jar' --exclude='*-javadoc.jar' \
-              -czf /tmp/m2-repository.tgz -C "$HOME" .m2/repository
-          ls -lh /tmp/m2-repository.tgz
-
-      - name: Upload dependency cache
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: m2-repository
-          path: /tmp/m2-repository.tgz
-          retention-days: 1
+          cache: maven
 
       - name: Build plugin
         working-directory: combat-log-plugin
