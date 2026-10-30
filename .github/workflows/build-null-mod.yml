@@ -5,6 +5,7 @@ on:
     paths:
       - 'null-mod/**'
       - '!null-mod/dist/**'
+      - '!null-mod/docs/**'
       - '!null-mod/**/*.md'
       - '.github/workflows/build-null-mod.yml'
   workflow_dispatch:

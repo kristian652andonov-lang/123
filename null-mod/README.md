@@ -20,8 +20,12 @@ is to make it feel like the game itself is failing.
    multiplayer (both sides need it).
 3. Start a world. NULL begins immediately.
 
-The jar is built by GitHub Actions on every push (**Actions → Build NULL mod → Artifacts →
-`null-mod-jar`**).
+A ready-built jar is in [`dist/`](dist/). GitHub Actions also builds one on every push
+(**Actions → Build NULL mod → Artifacts → `null-mod-jar`**).
+
+The Mods list shows NULL twice: **NULL** and **NULL (module)**. That is expected. The mod id is
+`null`, which Java does not accept as a module name, so the jar carries a small technical
+second entry whose id names the module. It has no content of its own.
 
 ## The five stages
 
@@ -105,3 +109,34 @@ cd null-mod
 
 The jar ends up in `null-mod/build/libs/`. `./gradlew runGameTestServer` runs the GameTests;
 `./gradlew runClient` starts a development client.
+
+## How it is tested
+
+Every push runs the **Build NULL mod** workflow (`.github/workflows/build-null-mod.yml`):
+
+1. **Compile and package** the jar.
+2. **GameTests** on a GameTest server: stage progression, persistence and commands, the
+   random event registry, build protection, world corruption, the moon, Visitors, NULLROOT
+   growth, capture and release, corrupted chat and the NULL geometry function.
+3. **Client smoke test**: a scripted client on a virtual display opens the corrupted main menu
+   and NULL's settings, creates a world, goes through every stage with every random event
+   forced, watches the moon, is taken into the NULL dimension, opens the player list, returns
+   to the overworld and quits, taking screenshots on the way. Its integrated server also runs
+   the NULL dimension self-check (generated chunks, arrival platform, decay and exact
+   regeneration).
+4. **Multiplayer smoke test**: a real NeoForge dedicated server with the built jar, joined by
+   the scripted client: stage sync, every stage, the NULL transition over the network and the
+   simulated player list. The server must not load a single client class and must pass the
+   dimension self-check.
+
+Screenshots from these runs (software rendering on a virtual display, so the overworld looks
+plainer than on a real GPU; the "Ran … for 1 player(s)" lines are the test forcing events):
+
+| | |
+|---|---|
+| ![Corrupted main menu](docs/main-menu.jpg) | ![NULL settings](docs/settings.jpg) |
+| The corrupted main menu | NULL's settings |
+| ![The shattering moon](docs/shattering-moon.jpg) | ![The NULL dimension](docs/null-dimension.jpg) |
+| Stage 4: the moon breaking apart | Stage 5: the NULL dimension |
+| ![Distortion in NULL](docs/null-dimension-glitch.jpg) | ![The player list in NULL](docs/player-list.jpg) |
+| Distortion and corrupted chat in NULL | Players who are not there |
