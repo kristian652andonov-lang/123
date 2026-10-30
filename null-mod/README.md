@@ -63,6 +63,12 @@ never appears after Minecraft has closed. NULL does not change anything on your 
 collects nothing. It is unavailable on macOS and on systems without a desktop, and is never
 used on dedicated servers.
 
+Once it is on, the settings screen controls how often windows appear, the shortest pause
+between two windows (45 s by default) and a separate chance for each kind of window: small
+corner notifications (A), error windows (B), distorted messages (C), larger NULL reports (D)
+and the Stage 5 final interference (E). **Show test message** shows one window right away. Stage 1
+has almost none; they become more frequent and stranger with every stage.
+
 ## Server / world configuration
 
 Each world has `serverconfig/null-server.toml` (copy one into `defaultconfigs/` to change the

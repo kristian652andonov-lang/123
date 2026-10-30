@@ -163,6 +163,22 @@ public final class NullSettingsScreen extends Screen {
                 value -> NullClientSettings.set(NullClientSettings.DESKTOP_FREQUENCY, value));
         sliders.add(frequency);
         option("desktop_frequency", frequency, allowed);
+        NullSliderButton cooldown = new NullSliderButton(0, 0, SettingsList.CONTROL_WIDTH, SettingsList.CONTROL_HEIGHT,
+                Component.translatable(PREFIX + "desktop_cooldown"), 15.0, 1800.0, 15.0,
+                NullClientSettings.get(NullClientSettings.DESKTOP_COOLDOWN),
+                value -> Component.translatable("null.settings.value.seconds", (int) Math.round(value)),
+                value -> NullClientSettings.set(NullClientSettings.DESKTOP_COOLDOWN, (int) Math.round(value)));
+        sliders.add(cooldown);
+        option("desktop_cooldown", cooldown, allowed);
+        BooleanSupplier notifications = () -> allowed.getAsBoolean()
+                && NullClientSettings.get(NullClientSettings.DESKTOP_NOTIFICATIONS);
+        BooleanSupplier errorWindows = () -> allowed.getAsBoolean()
+                && NullClientSettings.get(NullClientSettings.DESKTOP_ERROR_WINDOWS);
+        chance(NullClientSettings.DESKTOP_CHANCE_NOTIFICATION, "desktop_chance_notification", notifications);
+        chance(NullClientSettings.DESKTOP_CHANCE_ERROR, "desktop_chance_error", errorWindows);
+        chance(NullClientSettings.DESKTOP_CHANCE_DISTORTED, "desktop_chance_distorted", notifications);
+        chance(NullClientSettings.DESKTOP_CHANCE_REPORT, "desktop_chance_report", errorWindows);
+        chance(NullClientSettings.DESKTOP_CHANCE_FINAL, "desktop_chance_final", errorWindows);
 
         list.addText(this::desktopStatus, this::desktopStatusColor);
         NullActionButton test = new NullActionButton(0, 0, 160, SettingsList.CONTROL_HEIGHT,
@@ -198,6 +214,16 @@ public final class NullSettingsScreen extends Screen {
         NullSliderButton slider = new NullSliderButton(0, 0, SettingsList.CONTROL_WIDTH, SettingsList.CONTROL_HEIGHT,
                 Component.translatable(PREFIX + name), 0.0, 1.0, 0.05, NullClientSettings.get(value),
                 NullSettingsScreen::percentText, newValue -> NullClientSettings.set(value, newValue));
+        sliders.add(slider);
+        option(name, slider, enabled);
+    }
+
+    /** A 0-300 % chance slider where 0 reads "never". */
+    private void chance(ModConfigSpec.DoubleValue value, String name, BooleanSupplier enabled) {
+        NullSliderButton slider = new NullSliderButton(0, 0, SettingsList.CONTROL_WIDTH, SettingsList.CONTROL_HEIGHT,
+                Component.translatable(PREFIX + name), 0.0, 3.0, 0.1, NullClientSettings.get(value),
+                newValue -> newValue <= 0.0 ? Component.translatable("null.settings.value.never") : percentText(newValue),
+                newValue -> NullClientSettings.set(value, newValue));
         sliders.add(slider);
         option(name, slider, enabled);
     }

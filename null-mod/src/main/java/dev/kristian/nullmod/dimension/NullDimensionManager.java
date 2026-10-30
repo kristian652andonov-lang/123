@@ -271,6 +271,7 @@ public final class NullDimensionManager implements CorruptionSystem {
         BlockPos preferred = destination != null ? destination.pos() : new BlockPos(0, NullWorldGeneration.SPAWN_Y, 0);
         float yaw = destination != null ? destination.yaw() : -90.0F;
         BlockPos pos = safeSpot(level, preferred);
+        wake(player);
         player.teleportTo(level, pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, yaw, 0.0F);
         if (player.level() != level) {
             return false;
@@ -298,6 +299,7 @@ public final class NullDimensionManager implements CorruptionSystem {
             level = server.overworld();
             pos = surface(level, level.getSharedSpawnPos());
         }
+        wake(player);
         player.teleportTo(level, pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, destination.yaw(), 0.0F);
         if (NullDimensions.isNull(player.level())) {
             return false;
@@ -387,6 +389,13 @@ public final class NullDimensionManager implements CorruptionSystem {
     private static boolean free(ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
         return state.getCollisionShape(level, pos).isEmpty() && state.getFluidState().isEmpty();
+    }
+
+    /** Like /tp, a sleeping player wakes up before being moved. */
+    private static void wake(ServerPlayer player) {
+        if (player.isSleeping()) {
+            player.stopSleepInBed(true, true);
+        }
     }
 
     private static void sendPhase(ServerPlayer player, int phase, int duration) {

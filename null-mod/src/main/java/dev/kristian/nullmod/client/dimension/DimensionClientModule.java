@@ -35,8 +35,8 @@ public final class DimensionClientModule {
         // Before the visual system, which darkens and tints the fog on top of NULL's own.
         gameBus.addListener(EventPriority.HIGH, NullFog::onRenderFog);
         gameBus.addListener(EventPriority.HIGH, NullFog::onFogColor);
-        ClientEffects.register(DimensionEvents.EFFECT_BLACKOUT, DimensionAtmosphere::blackout);
-        ClientEffects.register(DimensionEvents.EFFECT_PULSE, DimensionAtmosphere::pulse);
+        ClientEffects.register(DimensionEvents.EFFECT_BLACKOUT, DimensionAtmosphere::onBlackout);
+        ClientEffects.register(DimensionEvents.EFFECT_PULSE, DimensionAtmosphere::onPulse);
         ClientCorruptionState.addTransitionListener(TransitionSequence::onPayload);
     }
 

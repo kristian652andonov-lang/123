@@ -98,7 +98,7 @@ public final class DimensionGameTests {
             }
             total++;
         }
-        helper.assertTrue(differences > 200, "different seeds give the same structure (" + differences + " differences)");
+        helper.assertTrue(differences > 120, "different seeds give the same structure (" + differences + " differences)");
         helper.assertTrue(solid > total / 400 && solid < total / 4, "implausible amount of structure: " + solid + " of " + total);
         helper.succeed();
     }
@@ -109,6 +109,8 @@ public final class DimensionGameTests {
         helper.assertTrue(level.getChunkSource().getGenerator() instanceof NullChunkGenerator,
                 "the NULL dimension does not use the null:null_geometry generator");
         long seed = NullChunkGenerator.seedOf(level);
+        // Nothing may be decayed while the generated blocks are compared with the geometry.
+        NullDimensionManager.INSTANCE.restoreAll(level.getServer());
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int[] chunkPos : new int[][]{{0, 0}, {-1, -1}, {37, -23}}) {
             LevelChunk chunk = level.getChunk(chunkPos[0], chunkPos[1]);

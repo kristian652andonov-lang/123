@@ -41,6 +41,12 @@ public final class NullClientSettings {
     public static final ModConfigSpec.BooleanValue DESKTOP_NOTIFICATIONS;
     public static final ModConfigSpec.BooleanValue DESKTOP_ERROR_WINDOWS;
     public static final ModConfigSpec.DoubleValue DESKTOP_FREQUENCY;
+    public static final ModConfigSpec.IntValue DESKTOP_COOLDOWN;
+    public static final ModConfigSpec.DoubleValue DESKTOP_CHANCE_NOTIFICATION;
+    public static final ModConfigSpec.DoubleValue DESKTOP_CHANCE_ERROR;
+    public static final ModConfigSpec.DoubleValue DESKTOP_CHANCE_DISTORTED;
+    public static final ModConfigSpec.DoubleValue DESKTOP_CHANCE_REPORT;
+    public static final ModConfigSpec.DoubleValue DESKTOP_CHANCE_FINAL;
 
     static {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
@@ -128,6 +134,27 @@ public final class NullClientSettings {
         DESKTOP_FREQUENCY = b.comment("How often desktop interference happens.")
                 .translation("null.settings.desktop_frequency")
                 .defineInRange("desktopFrequency", 1.0, 0.0, 3.0);
+        DESKTOP_COOLDOWN = b.comment("Shortest time between two desktop windows, in seconds.")
+                .translation("null.settings.desktop_cooldown")
+                .defineInRange("desktopCooldownSeconds", 45, 15, 1800);
+        b.comment("How likely each kind of window is, compared with the others the stage allows (1 = normal, 0 = never).")
+                .push("chances");
+        DESKTOP_CHANCE_NOTIFICATION = b.comment("Type A: small corner notifications.")
+                .translation("null.settings.desktop_chance_notification")
+                .defineInRange("notification", 1.0, 0.0, 3.0);
+        DESKTOP_CHANCE_ERROR = b.comment("Type B: small error windows.")
+                .translation("null.settings.desktop_chance_error")
+                .defineInRange("errorWindow", 1.0, 0.0, 3.0);
+        DESKTOP_CHANCE_DISTORTED = b.comment("Type C: distorted messages that flicker and disappear.")
+                .translation("null.settings.desktop_chance_distorted")
+                .defineInRange("distortedMessage", 1.0, 0.0, 3.0);
+        DESKTOP_CHANCE_REPORT = b.comment("Type D: larger NULL reports.")
+                .translation("null.settings.desktop_chance_report")
+                .defineInRange("report", 1.0, 0.0, 3.0);
+        DESKTOP_CHANCE_FINAL = b.comment("Type E: Stage 5 final interference.")
+                .translation("null.settings.desktop_chance_final")
+                .defineInRange("finalInterference", 1.0, 0.0, 3.0);
+        b.pop();
         b.pop();
 
         SPEC = b.build();

@@ -31,7 +31,7 @@ final class NullFog {
                 || event.getMode() != FogRenderer.FogMode.FOG_TERRAIN || event.getType() != FogType.NONE) {
             return;
         }
-        float dark = DimensionAtmosphere.blackout((float) event.getPartialTick());
+        float dark = DimensionAtmosphere.blackoutLevel((float) event.getPartialTick());
         float far = event.getFarPlaneDistance() * (1.0F - 0.45F * dark);
         float near = Math.min(far * 0.12F, far - 1.0F);
         event.setNearPlaneDistance(Math.max(0.0F, near));
@@ -46,8 +46,8 @@ final class NullFog {
             return;
         }
         float partial = (float) event.getPartialTick();
-        float wave = DimensionAtmosphere.pulse(partial, TINT);
-        float light = 1.0F - DimensionAtmosphere.blackout(partial);
+        float wave = DimensionAtmosphere.pulseColor(partial, TINT);
+        float light = 1.0F - DimensionAtmosphere.blackoutLevel(partial);
         float r = (float) BASE.x + TINT[0] * 0.07F * wave;
         float g = (float) BASE.y + TINT[1] * 0.07F * wave;
         float b = (float) BASE.z + TINT[2] * 0.07F * wave;

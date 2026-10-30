@@ -25,7 +25,8 @@ import net.minecraft.client.Minecraft;
  * Pacing: only while in a world. Stage 1 only extremely rare, subtle notes; Stage 2 occasional
  * small notifications; Stage 3 stranger notes and occasional error windows; Stage 4 reports,
  * distorted text and warnings; Stage 5 more often and in every style. Rates scale with
- * {@code DESKTOP_FREQUENCY}; at least {@value #MIN_GAP_MS} ms between two windows, at most three
+ * {@code DESKTOP_FREQUENCY} and each kind's chance setting; at least the player's cooldown
+ * ({@code DESKTOP_COOLDOWN}, 45 s by default, never under 15 s) between two windows, at most three
  * open at once, nothing during the first minute and a half of a session, and nothing while the
  * game runs in exclusive fullscreen.
  * <p>
@@ -58,7 +59,6 @@ public final class DesktopInterferenceManager {
         FULLSCREEN
     }
 
-    static final long MIN_GAP_MS = 45_000L;
     private static final long JOIN_GRACE_MS = 90_000L;
     private static final long ROLL_INTERVAL_MS = 1_000L;
     private static final long STAGE_WINDOW_DEADLINE_MS = 120_000L;
@@ -243,7 +243,8 @@ public final class DesktopInterferenceManager {
     }
 
     private static boolean canShowNow(long now) {
-        return now - lastShownMs >= MIN_GAP_MS && DesktopWindowManager.openCount() < DesktopWindowManager.MAX_WINDOWS;
+        long gapMs = NullClientSettings.get(NullClientSettings.DESKTOP_COOLDOWN) * 1000L;
+        return now - lastShownMs >= gapMs && DesktopWindowManager.openCount() < DesktopWindowManager.MAX_WINDOWS;
     }
 
     private static void showForStage(CorruptionStage stage, boolean stageChange, long now) {

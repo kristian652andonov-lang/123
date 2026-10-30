@@ -102,7 +102,7 @@ final class NullSkyRenderer {
             }
             RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
             double time = DimensionAtmosphere.time(partial);
-            float wave = DimensionAtmosphere.pulse(partial, TINT);
+            float wave = DimensionAtmosphere.pulseColor(partial, TINT);
             float boost = 1.0F + 1.2F * wave;
             float tr = Mth.lerp(wave * 0.8F, 1.0F, TINT[0] * 1.6F);
             float tg = Mth.lerp(wave * 0.8F, 1.0F, TINT[1] * 1.6F);
@@ -257,14 +257,14 @@ final class NullSkyRenderer {
     /** An endless grid far below (cold blue) and a sparser one far above (violet). */
     private static void buildGrids(Mesh mesh) {
         float extent = 5200.0F;
-        Fade floor = (x, y, z) -> 0.8F * (1.0F - smoothstep(1500.0F, extent, (float) Math.sqrt(x * x + z * z)));
+        Fade floor = (x, y, z) -> 0.8F * (1.0F - smoothstep(700.0F, 3800.0F, (float) Math.sqrt(x * x + z * z)));
         float spacing = 110.0F;
         for (int k = -24; k <= 24; k++) {
             float c = k * spacing;
             strip(mesh, -extent, FLOOR_Y, c, extent, FLOOR_Y, c, 48, 2.8F, 0.15F, 0.6F, 1.0F, floor);
             strip(mesh, c, FLOOR_Y, -extent, c, FLOOR_Y, extent, 48, 2.8F, 0.15F, 0.6F, 1.0F, floor);
         }
-        Fade ceiling = (x, y, z) -> 0.45F * (1.0F - smoothstep(1200.0F, extent, (float) Math.sqrt(x * x + z * z)));
+        Fade ceiling = (x, y, z) -> 0.45F * (1.0F - smoothstep(600.0F, 3800.0F, (float) Math.sqrt(x * x + z * z)));
         float wide = 160.0F;
         for (int k = -16; k <= 16; k++) {
             float c = k * wide;

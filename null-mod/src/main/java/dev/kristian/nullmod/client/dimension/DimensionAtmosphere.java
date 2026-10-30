@@ -86,7 +86,10 @@ final class DimensionAtmosphere {
     // ------------------------------------------------------------------ effects
 
     /** {@code dimension.blackout}: the sky and every light of the dimension go dark for 1-3 seconds. */
-    static void blackout(ClientEffectPayload effect) {
+    static void onBlackout(ClientEffectPayload effect) {
+        if (ClientLimits.maxVisualEffects() <= 0) {
+            return;
+        }
         Minecraft mc = Minecraft.getInstance();
         float intensity = Mth.clamp(effect.intensity(), 0.0F, 1.0F);
         int length = 20 + (int) (hash01(effect.seed(), 7L) * 40.0F);
@@ -103,7 +106,10 @@ final class DimensionAtmosphere {
     }
 
     /** {@code dimension.pulse}: a wave of red, green and blue light runs through the dimension. */
-    static void pulse(ClientEffectPayload effect) {
+    static void onPulse(ClientEffectPayload effect) {
+        if (ClientLimits.maxVisualEffects() <= 0) {
+            return;
+        }
         Minecraft mc = Minecraft.getInstance();
         float intensity = Mth.clamp(effect.intensity(), 0.0F, 1.0F);
         if (mc.level == null || !NullDimensions.isNull(mc.level)) {
@@ -126,7 +132,7 @@ final class DimensionAtmosphere {
     }
 
     /** 0..1: how dark the geometry blackout has made everything. */
-    static float blackout(float partial) {
+    static float blackoutLevel(float partial) {
         return BLACKOUT.value(clock + partial);
     }
 
@@ -140,7 +146,7 @@ final class DimensionAtmosphere {
      * The colour of the RGB wave right now (hue runs red, green, blue) written into {@code rgb},
      * and its strength, 0 when there is no wave.
      */
-    static float pulse(float partial, float[] rgb) {
+    static float pulseColor(float partial, float[] rgb) {
         if (pulseStart == Long.MIN_VALUE) {
             rgb[0] = 1.0F;
             rgb[1] = 1.0F;
@@ -174,7 +180,7 @@ final class DimensionAtmosphere {
         r = Mth.lerp(0.5F, r, lum * 0.9F);
         g = Mth.lerp(0.5F, g, lum * 0.98F);
         b = Mth.lerp(0.5F, b, Math.min(1.0F, lum * 1.12F));
-        float wave = pulse(partial, TINT);
+        float wave = pulseColor(partial, TINT);
         if (wave > 0.0F) {
             float bright = Math.max(lum, 0.25F) * (1.0F + 0.6F * wave);
             float k = Math.min(1.0F, wave * 0.75F);

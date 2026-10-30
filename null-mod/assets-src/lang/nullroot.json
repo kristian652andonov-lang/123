@@ -1,0 +1,6 @@
+{
+  "entity.null.nullroot": "NULLROOT",
+  "death.attack.null.nullroot": "%1$s was pulled into the ground",
+  "death.attack.null.nullroot.player": "%1$s was pulled into the ground whilst fighting %2$s",
+  "death.attack.null.nullroot.item": "%1$s was pulled into the ground by %2$s using %3$s"
+}

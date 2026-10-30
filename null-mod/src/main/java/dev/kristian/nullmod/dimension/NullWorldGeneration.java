@@ -202,7 +202,7 @@ public final class NullWorldGeneration {
         return "NULL cell " + c.lineX + "," + c.lineZ + " " + kind;
     }
 
-    /** Ticks a block id is a light source (used by tests and the decay system's statistics). */
+    /** True if a material emits light (the glow blocks, frames and data blocks). */
     public static boolean isGlow(int id) {
         return id >= GLOW_RED && id <= GLOW_WHITE || id == FRAME || id == DATA;
     }

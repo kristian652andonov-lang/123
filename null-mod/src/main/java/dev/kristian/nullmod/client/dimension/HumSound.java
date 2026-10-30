@@ -48,7 +48,7 @@ final class HumSound extends AbstractTickableSoundInstance {
             stop();
             return;
         }
-        float dark = DimensionAtmosphere.blackout(0.0F);
+        float dark = DimensionAtmosphere.blackoutLevel(0.0F);
         float goal = fading ? 0.0F : LEVEL * ClientLimits.audio() * (1.0F - 0.85F * dark);
         volume += (goal - volume) * (fading ? 0.08F : 0.03F);
         pitch = 1.0F - 0.12F * dark;

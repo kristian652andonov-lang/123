@@ -28,6 +28,10 @@ import org.joml.Matrix4f;
 final class NullrootGlimpseLayer {
     static final ResourceLocation ID = NullMod.id("nullroot_glimpse");
     private static final int SEGMENTS = 30;
+    /** Centre line of the last strip drawn (offshoots start on it). */
+    private static final float[] PATH_X = new float[SEGMENTS + 1];
+    private static final float[] PATH_Y = new float[SEGMENTS + 1];
+    private static final float[] PATH_HEADING = new float[SEGMENTS + 1];
 
     private static boolean active;
     private static int age;
@@ -127,9 +131,9 @@ final class NullrootGlimpseLayer {
             }
         }
         direction += angle;
-        float length = size * (0.24F + 0.16F * intensity) * extend;
-        float thickness = size * (0.03F + 0.02F * intensity);
-        float curl = (flip ? 1.0F : -1.0F) * (0.6F + 0.5F * t);
+        float length = size * (0.38F + 0.22F * intensity) * extend;
+        float thickness = size * (0.05F + 0.035F * intensity);
+        float curl = (flip ? 1.0F : -1.0F) * (0.8F + 0.7F * t);
 
         graphics.flush();
         Matrix4f pose = graphics.pose().last().pose();
@@ -141,13 +145,18 @@ final class NullrootGlimpseLayer {
         // A faint dark halo first, then the tendril itself and two thin offshoots.
         strip(buffer, pose, baseX, baseY, direction, length, thickness * 1.7F, curl, time, phase, 22, 8, 30, 70);
         strip(buffer, pose, baseX, baseY, direction, length, thickness, curl, time, phase, 4, 2, 6, 240);
-        float sideX = baseX + Mth.cos(direction) * length * 0.35F;
-        float sideY = baseY + Mth.sin(direction) * length * 0.35F;
-        strip(buffer, pose, sideX, sideY, direction + curl * 0.9F + 0.5F, length * 0.32F, thickness * 0.35F, -curl, time * 1.3F,
+        // The offshoots grow out of the tendril's actual (curled) path.
+        int first = Math.round(SEGMENTS * 0.35F);
+        int second = Math.round(SEGMENTS * 0.55F);
+        float sideX = PATH_X[first];
+        float sideY = PATH_Y[first];
+        float sideHeading = PATH_HEADING[first];
+        float side2X = PATH_X[second];
+        float side2Y = PATH_Y[second];
+        float side2Heading = PATH_HEADING[second];
+        strip(buffer, pose, sideX, sideY, sideHeading + Math.copySign(0.9F, curl), length * 0.38F, thickness * 0.35F, -curl, time * 1.3F,
                 phase + 2.1F, 4, 2, 6, 235);
-        float side2X = baseX + Mth.cos(direction) * length * 0.55F;
-        float side2Y = baseY + Mth.sin(direction) * length * 0.55F;
-        strip(buffer, pose, side2X, side2Y, direction - curl * 0.8F - 0.6F, length * 0.22F, thickness * 0.25F, curl, time * 1.6F,
+        strip(buffer, pose, side2X, side2Y, side2Heading - Math.copySign(0.8F, curl), length * 0.28F, thickness * 0.25F, curl, time * 1.6F,
                 phase + 4.4F, 4, 2, 6, 230);
         MeshData mesh = buffer.build();
         if (mesh != null) {
@@ -177,7 +186,10 @@ final class NullrootGlimpseLayer {
                 px += Mth.cos(heading) * step;
                 py += Mth.sin(heading) * step;
             }
-            float half = 0.5F * thickness * (float) Math.pow(1.0F - s, 0.8F) + 0.4F;
+            PATH_X[i] = px;
+            PATH_Y[i] = py;
+            PATH_HEADING[i] = heading;
+            float half = 0.5F * thickness * (float) Math.pow(1.0F - s, 0.6F) + 0.4F;
             float nx = -Mth.sin(heading) * half;
             float ny = Mth.cos(heading) * half;
             float leftX = px + nx;

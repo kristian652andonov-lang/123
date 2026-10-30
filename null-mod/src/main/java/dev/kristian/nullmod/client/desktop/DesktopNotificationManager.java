@@ -29,22 +29,29 @@ final class DesktopNotificationManager {
     private DesktopNotificationManager() {
     }
 
-    /** The player's switches allow this kind of window. */
+    /** The player's switches allow this kind of window, and its chance is not zero. */
     static boolean allowed(DesktopWindowType type) {
-        return type.errorWindow()
+        boolean switchedOn = type.errorWindow()
                 ? NullClientSettings.get(NullClientSettings.DESKTOP_ERROR_WINDOWS)
                 : NullClientSettings.get(NullClientSettings.DESKTOP_NOTIFICATIONS);
+        return switchedOn && chance(type) > 0.0;
     }
 
-    /** True when at least one kind of window may appear at all. */
-    static boolean anyAllowed() {
-        return NullClientSettings.get(NullClientSettings.DESKTOP_NOTIFICATIONS)
-                || NullClientSettings.get(NullClientSettings.DESKTOP_ERROR_WINDOWS);
+    /** The player's chance multiplier for this kind of window (1 = normal, 0 = never). */
+    static double chance(DesktopWindowType type) {
+        return NullClientSettings.get(switch (type) {
+            case NOTIFICATION -> NullClientSettings.DESKTOP_CHANCE_NOTIFICATION;
+            case ERROR -> NullClientSettings.DESKTOP_CHANCE_ERROR;
+            case DISTORTED -> NullClientSettings.DESKTOP_CHANCE_DISTORTED;
+            case REPORT -> NullClientSettings.DESKTOP_CHANCE_REPORT;
+            case FINAL -> NullClientSettings.DESKTOP_CHANCE_FINAL;
+        });
     }
 
     /**
      * Picks the kind of window for the stage, or {@code null} when every fitting kind is switched
-     * off. Order of the weights: notification, error, distorted, report, final.
+     * off. Order of the weights: notification, error, distorted, report, final; each is scaled by
+     * the player's chance setting for that kind.
      */
     static DesktopWindowType chooseType(CorruptionStage stage, Random random, boolean stageChange) {
         int[] normal = switch (stage) {
@@ -73,7 +80,7 @@ final class DesktopNotificationManager {
         int total = 0;
         int[] allowedWeights = new int[weights.length];
         for (int i = 0; i < weights.length; i++) {
-            allowedWeights[i] = allowed(TYPES[i]) ? weights[i] : 0;
+            allowedWeights[i] = allowed(TYPES[i]) ? (int) Math.round(weights[i] * chance(TYPES[i])) : 0;
             total += allowedWeights[i];
         }
         if (total <= 0) {

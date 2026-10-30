@@ -3,7 +3,10 @@ package dev.kristian.nullmod;
 import dev.kristian.nullmod.audio.AudioModule;
 import dev.kristian.nullmod.chat.ChatModule;
 import dev.kristian.nullmod.core.CorruptionManager;
+import dev.kristian.nullmod.desktop.DesktopModule;
+import dev.kristian.nullmod.dimension.DimensionModule;
 import dev.kristian.nullmod.entity.fakeplayer.FakePlayerModule;
+import dev.kristian.nullmod.entity.nullroot.NullrootModule;
 import dev.kristian.nullmod.entity.visitor.VisitorModule;
 import dev.kristian.nullmod.event.RandomEventManager;
 import dev.kristian.nullmod.gametest.CoreGameTests;
@@ -29,13 +32,16 @@ final class NullSystems {
         // Systems tick in this order.
         CorruptionManager.registerSystem(RandomEventManager.INSTANCE);
         WorldModule.init(modBus, gameBus);
+        NullrootModule.init(modBus, gameBus);
         MoonModule.init(modBus, gameBus);
         VisitorModule.init(modBus, gameBus);
         FakePlayerModule.init(modBus, gameBus);
         ChatModule.init(modBus, gameBus);
+        DimensionModule.init(modBus, gameBus);
 
         // Event-only modules (their effects run on the client).
         VisualModule.init(modBus, gameBus);
         AudioModule.init(modBus, gameBus);
+        DesktopModule.init(modBus, gameBus);
     }
 }
