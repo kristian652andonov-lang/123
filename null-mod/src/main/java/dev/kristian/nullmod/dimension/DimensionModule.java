@@ -20,6 +20,7 @@ public final class DimensionModule {
         DimensionEvents.register();
         gameBus.addListener(NullDimensionManager::onRespawnPosition);
         gameBus.addListener(NullDimensionManager::onRespawn);
+        DimensionSelfCheck.init(gameBus);
         modBus.addListener((RegisterGameTestsEvent event) -> event.register(DimensionGameTests.class));
     }
 }

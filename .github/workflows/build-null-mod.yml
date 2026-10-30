@@ -50,8 +50,9 @@ jobs:
           path: null-mod/build/libs/null-*.jar
           if-no-files-found: error
 
-      # Runs every @GameTest in a real dedicated-server environment (registries, datapacks,
-      # the NULL dimension, entities, commands) and fails on any failed test.
+      # Runs every @GameTest in a GameTest server (registries, datapacks, entities, commands)
+      # and fails on any failed test. The GameTest server never loads datapack dimensions, so
+      # the NULL dimension is checked by DimensionSelfCheck in the two smoke tests below.
       - name: GameTests
         id: gametests
         if: steps.build.outcome == 'success'
@@ -73,6 +74,7 @@ jobs:
           export LIBGL_ALWAYS_SOFTWARE=1
           timeout 2400 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClient -PnullAutotest=smoke --stacktrace > client.log 2>&1 || echo "client exited with $?"
           bash ci/check-client.sh client.log
+          grep -aq "NULL-AUTOTEST: dimension self-check passed" client.log || { echo "FAIL: the NULL dimension self-check did not pass"; exit 1; }
 
       # Installs a real NeoForge dedicated server with the built jar, joins it with the
       # scripted client and drives every stage, every event and the NULL transition over the
