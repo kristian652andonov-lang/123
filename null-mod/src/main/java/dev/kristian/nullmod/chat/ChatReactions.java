@@ -277,7 +277,8 @@ public final class ChatReactions {
 
     private static void watchDepth(ServerPlayer player, Watch watch, CorruptionStage stage) {
         ServerLevel level = player.serverLevel();
-        if (NullDimensions.isNull(level)) {
+        // Only the overworld has an "underground": the Nether's surface is its roof, and NULL has none.
+        if (level.dimension() != Level.OVERWORLD) {
             watch.deep = false;
             watch.bedrock = false;
             return;
@@ -285,7 +286,7 @@ public final class ChatReactions {
         BlockPos feet = player.blockPosition();
         boolean covered = level.hasChunkAt(feet) && !level.canSeeSky(feet.above());
         int surface = covered ? level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, feet.getX(), feet.getZ()) : feet.getY();
-        boolean deep = covered && (feet.getY() < surface - 30 || (level.dimension() == Level.OVERWORLD && feet.getY() < 0));
+        boolean deep = covered && (feet.getY() < surface - 30 || feet.getY() < 0);
         boolean bedrock = covered && feet.getY() < level.getMinBuildHeight() + 6;
         float chance = STAGE_CHANCE[stage.number() - 1];
         if (deep && !watch.deep) {

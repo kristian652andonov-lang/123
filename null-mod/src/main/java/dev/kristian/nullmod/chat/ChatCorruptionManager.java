@@ -131,7 +131,8 @@ public final class ChatCorruptionManager implements CorruptionSystem {
         final UUID id;
         long nextAmbient = -1L;
         long nextReaction;
-        long lastSaidMemory = Long.MIN_VALUE;
+        /** Server tick of the last "chat:said" memory, or -1 for never. */
+        long lastSaidMemory = -1L;
         int deliveredCount;
         final Map<String, Long> cooldowns = new HashMap<>();
         /** Newest first. */
@@ -610,7 +611,7 @@ public final class ChatCorruptionManager implements CorruptionSystem {
             state.said.removeLast();
         }
         long now = player.server.getTickCount();
-        if (force || now - state.lastSaidMemory >= SAID_MEMORY_GAP) {
+        if (force || state.lastSaidMemory < 0L || now - state.lastSaidMemory >= SAID_MEMORY_GAP) {
             state.lastSaidMemory = now;
             WorldMemory.remember(player.server, "chat:said", player.getUUID(), clean);
         }

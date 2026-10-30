@@ -37,6 +37,7 @@ final class NullDesktopPanel extends JComponent {
     private static final String GLITCH_CHARS = "#%&@$*!?/\\|<>=+~_01";
     private static final String BRAND_TEXT = "NULL";
     private static final String TEST_TEXT = "TEST";
+    private static final long MIN_FLICKER_PAUSE_MS = 300L;
 
     private final DesktopWindowSpec spec;
     private final Random random;
@@ -67,6 +68,7 @@ final class NullDesktopPanel extends JComponent {
     private long nextGlitchAt;
     private long flickerUntil;
     private long nextFlickerAt;
+    private float flickerDepth;
     private int jitterRow = -1;
     private int jitterPx;
 
@@ -338,19 +340,21 @@ final class NullDesktopPanel extends JComponent {
         // the cursor blinks while typing (steady when flashing is off) and shortly after
         cursorOn = typing && (spec.flicker() <= 0.0F || (ageMs / 380L) % 2L == 0L);
 
-        // brightness flicker: short dips at random moments
+        // brightness flicker: short dips at random moments, each with one steady depth, and never
+        // more than about three dips a second (photosensitivity)
         brightness = 1.0F;
         windowFlicker = 1.0F;
         if (spec.flicker() > 0.0F) {
             if (ageMs >= nextFlickerAt) {
                 flickerUntil = ageMs + 40L + random.nextInt(110);
+                flickerDepth = spec.flicker() * (0.35F + 0.5F * random.nextFloat());
                 float rate = spec.layout() == DesktopWindowSpec.Layout.BIG_TEXT ? 0.35F : 1.6F;
-                nextFlickerAt = flickerUntil + (long) ((rate * 1000.0F) * (0.3F + random.nextFloat()) / (0.25F + spec.flicker()));
+                long pause = (long) ((rate * 1000.0F) * (0.3F + random.nextFloat()) / (0.25F + spec.flicker()));
+                nextFlickerAt = flickerUntil + Math.max(MIN_FLICKER_PAUSE_MS, pause);
             }
             if (ageMs < flickerUntil) {
-                float depth = spec.flicker() * (0.35F + 0.5F * random.nextFloat());
-                brightness = Math.max(0.15F, 1.0F - depth);
-                windowFlicker = Math.max(0.35F, 1.0F - depth * 0.7F);
+                brightness = Math.max(0.15F, 1.0F - flickerDepth);
+                windowFlicker = Math.max(0.35F, 1.0F - flickerDepth * 0.7F);
             }
         }
 

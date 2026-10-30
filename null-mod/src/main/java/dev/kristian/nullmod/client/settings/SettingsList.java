@@ -38,6 +38,12 @@ final class SettingsList extends ContainerObjectSelectionList<SettingsList.Entry
         return rowWidth;
     }
 
+    /** Just right of the rows, so it never covers the controls at their right end. */
+    @Override
+    protected int getScrollbarPosition() {
+        return Math.min(getRowRight() + 6, getRight() - 7);
+    }
+
     void addHeader(Component title) {
         addEntry(new HeaderEntry(title));
     }
@@ -144,8 +150,8 @@ final class SettingsList extends ContainerObjectSelectionList<SettingsList.Entry
             control.setY(top + (height - control.getHeight()) / 2);
             int labelRight = control.getX() - 8;
             int color = control.active ? NullStyle.TEXT : NullStyle.TEXT_DISABLED;
-            // a scrolling string with its centre at the left edge stays left-aligned when it fits
-            AbstractWidget.renderScrollingString(graphics, font, label, left + 4, left + 4, top, labelRight, top + height, color);
+            // left-aligned; scrolls when it is too long for the space next to the control
+            graphics.drawScrollingString(font, label, left + 4, labelRight, top + (height - font.lineHeight) / 2 + 1, color);
             control.render(graphics, mouseX, mouseY, partialTick);
             if (hovering && tooltip != null && mouseX >= left && mouseX < labelRight && mouseY >= top && mouseY < top + height) {
                 screen.setTooltipForNextRenderPass(tooltip.toCharSequence(Minecraft.getInstance()));
@@ -177,7 +183,7 @@ final class SettingsList extends ContainerObjectSelectionList<SettingsList.Entry
         public void render(GuiGraphics graphics, int index, int top, int left, int width, int height, int mouseX, int mouseY,
                 boolean hovering, float partialTick) {
             Font font = Minecraft.getInstance().font;
-            AbstractWidget.renderScrollingString(graphics, font, text.get(), left + 4, left + 4, top, left + width - 4, top + height,
+            graphics.drawScrollingString(font, text.get(), left + 4, left + width - 4, top + (height - font.lineHeight) / 2 + 1,
                     color.getAsInt());
         }
 

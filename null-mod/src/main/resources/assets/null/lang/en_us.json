@@ -39,6 +39,7 @@
   "block.null.void_panel": "Void",
   "entity.null.fake_player": "Player",
   "entity.null.visitor": "Visitor",
+  "null.chat.sender.unknown": "Unknown",
   "null.command.event.failed": "%s could not happen there (no valid spot, or disabled by the config).",
   "null.command.event.ran": "Ran %s for %s player(s).",
   "null.command.event.unknown": "There is no NULL event called %s. Try /null events.",

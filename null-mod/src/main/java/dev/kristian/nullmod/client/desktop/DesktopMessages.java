@@ -121,7 +121,7 @@ public final class DesktopMessages {
             m(3, 4, "NULL.EXE", "FAILED TO UNLOAD."),
             m(3, 4, "REGION.NULL", "REGION -1, -1 IS EMPTY.", "IT WAS NOT EMPTY BEFORE."),
             m(3, 5, "NULL.EXE", "EXCEPTION AT " + HEX + "."),
-            m(3, 4, "MOON.NULL", "THE FILE IS DAMAGED.", "PIECES ARE MISSING."),
+            m(3, 4, "MOON.NULL", "THE MOON IS DAMAGED.", "PIECES ARE MISSING."),
             m(3, 4, "NULL.EXE", "UNEXPECTED PLAYER."),
             m(3, 4, "TERRAIN.NULL", "GENERATION FAILED AT Y = -64.", "SOMETHING IS BELOW."),
             m(3, 4, "NULL.EXE", "STACK OVERFLOW IN SKY."),

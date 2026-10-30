@@ -352,7 +352,26 @@ public class NullrootEntity extends Mob {
 
     /** The block it grows out of. */
     public BlockPos rootPos() {
-        return root != null ? root : this.blockPosition().relative(face().getOpposite());
+        if (root != null) {
+            return root;
+        }
+        // Not known here (clients, or before the first tick): it is behind the face it grows out of.
+        Direction f = face();
+        Vec3 attach = this.position().add(attachOffset(f, variant()));
+        return BlockPos.containing(attach.x - f.getStepX() * 0.5, attach.y - f.getStepY() * 0.5, attach.z - f.getStepZ() * 0.5);
+    }
+
+    /**
+     * From an organism's position (the bottom centre of its box) to the centre of the face it
+     * grows out of. Clients draw the model from there; it needs nothing but the synced face and
+     * variant.
+     */
+    public static Vec3 attachOffset(Direction face, NullrootVariant variant) {
+        return switch (face) {
+            case UP -> Vec3.ZERO;
+            case DOWN -> new Vec3(0.0, variant.height(), 0.0);
+            default -> new Vec3(-face.getStepX() * variant.width() * 0.5, variant.height() * 0.5, -face.getStepZ() * variant.width() * 0.5);
+        };
     }
 
     /** Centre of the block face it grows out of. */

@@ -65,12 +65,8 @@ final class DesktopNotificationManager {
                 return type;
             }
         }
-        DesktopWindowType type = weighted(normal, random);
-        if (type == null && stage.isFinal()) {
-            // Stage 5 with error windows off: the final messages still come, as notifications
-            return weighted(new int[] {50, 0, 50, 0, 0}, random);
-        }
-        return type;
+        // with error windows off, Stage 5 still has its notifications and distorted messages
+        return weighted(normal, random);
     }
 
     private static DesktopWindowType weighted(int[] weights, Random random) {
