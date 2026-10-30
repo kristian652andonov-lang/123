@@ -7,6 +7,7 @@ on:
       - '!null-mod/ci/api-queries.txt'
       - '!null-mod/ci/api-export-request.txt'
       - '!null-mod/dist/**'
+      - '!null-mod/**/*.md'
       - '.github/workflows/build-null-mod.yml'
   workflow_dispatch:
 
@@ -79,7 +80,7 @@ jobs:
           mkdir -p screens
           for f in run/screenshots/*.png; do
             [ -f "$f" ] || continue
-            ffmpeg -loglevel error -y -i "$f" -vf scale=720:-1 -q:v 6 "screens/$(basename "${f%.png}").jpg"
+            java -Djava.awt.headless=true ci/Shrink.java "$f" "screens/$(basename "${f%.png}").jpg" 720
           done
           ls -la screens
 

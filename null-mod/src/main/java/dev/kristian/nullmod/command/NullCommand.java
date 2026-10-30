@@ -113,7 +113,9 @@ public final class NullCommand {
 
     private static int reset(CommandSourceStack source) {
         long now = source.getServer().overworld().getGameTime();
-        if (now - resetRequestedAt > RESET_CONFIRM_TICKS || now < resetRequestedAt) {
+        boolean pending = resetRequestedAt != Long.MIN_VALUE && now >= resetRequestedAt
+                && now - resetRequestedAt <= RESET_CONFIRM_TICKS;
+        if (!pending) {
             resetRequestedAt = now;
             source.sendSuccess(() -> Component.translatable("null.command.reset.confirm").withStyle(ChatFormatting.YELLOW), false);
             return 0;
