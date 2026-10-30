@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "axis=x": {
+      "model": "null:block/corrupted_log_horizontal",
+      "x": 90,
+      "y": 90
+    },
+    "axis=y": {
+      "model": "null:block/corrupted_log"
+    },
+    "axis=z": {
+      "model": "null:block/corrupted_log_horizontal",
+      "x": 90
+    }
+  }
+}

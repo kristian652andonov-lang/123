@@ -1,0 +1,19 @@
+{
+  "replace": false,
+  "values": [
+    "null:black_block",
+    "null:missing_block",
+    "null:error_block",
+    "null:error_stripes",
+    "null:error_noise",
+    "null:error_shift",
+    "null:static_block",
+    "null:corrupted_grass_block",
+    "null:corrupted_dirt",
+    "null:corrupted_sand",
+    "null:retro_grass_block",
+    "null:retro_dirt",
+    "null:retro_gravel",
+    "null:retro_sand"
+  ]
+}

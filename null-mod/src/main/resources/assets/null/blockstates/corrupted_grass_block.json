@@ -1,0 +1,36 @@
+{
+  "variants": {
+    "": [
+      {
+        "model": "null:block/corrupted_grass_block"
+      },
+      {
+        "model": "null:block/corrupted_grass_block",
+        "y": 90
+      },
+      {
+        "model": "null:block/corrupted_grass_block",
+        "y": 180
+      },
+      {
+        "model": "null:block/corrupted_grass_block",
+        "y": 270
+      },
+      {
+        "model": "null:block/corrupted_grass_block_alt"
+      },
+      {
+        "model": "null:block/corrupted_grass_block_alt",
+        "y": 90
+      },
+      {
+        "model": "null:block/corrupted_grass_block_alt",
+        "y": 180
+      },
+      {
+        "model": "null:block/corrupted_grass_block_alt",
+        "y": 270
+      }
+    ]
+  }
+}

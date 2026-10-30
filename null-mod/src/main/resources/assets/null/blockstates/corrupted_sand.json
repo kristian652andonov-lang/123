@@ -1,0 +1,36 @@
+{
+  "variants": {
+    "": [
+      {
+        "model": "null:block/corrupted_sand"
+      },
+      {
+        "model": "null:block/corrupted_sand",
+        "y": 90
+      },
+      {
+        "model": "null:block/corrupted_sand",
+        "y": 180
+      },
+      {
+        "model": "null:block/corrupted_sand",
+        "y": 270
+      },
+      {
+        "model": "null:block/corrupted_sand_alt"
+      },
+      {
+        "model": "null:block/corrupted_sand_alt",
+        "y": 90
+      },
+      {
+        "model": "null:block/corrupted_sand_alt",
+        "y": 180
+      },
+      {
+        "model": "null:block/corrupted_sand_alt",
+        "y": 270
+      }
+    ]
+  }
+}

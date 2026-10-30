@@ -1,0 +1,17 @@
+{
+  "replace": false,
+  "values": [
+    "null:black_block",
+    "null:missing_block",
+    "null:error_block",
+    "null:error_stripes",
+    "null:error_noise",
+    "null:error_shift",
+    "null:static_block",
+    "null:corrupted_stone",
+    "null:retro_stone",
+    "null:retro_cobblestone",
+    "null:retro_mossy_cobblestone",
+    "null:retro_bricks"
+  ]
+}

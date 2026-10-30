@@ -1,0 +1,36 @@
+{
+  "variants": {
+    "": [
+      {
+        "model": "null:block/corrupted_dirt"
+      },
+      {
+        "model": "null:block/corrupted_dirt",
+        "y": 90
+      },
+      {
+        "model": "null:block/corrupted_dirt",
+        "y": 180
+      },
+      {
+        "model": "null:block/corrupted_dirt",
+        "y": 270
+      },
+      {
+        "model": "null:block/corrupted_dirt_alt"
+      },
+      {
+        "model": "null:block/corrupted_dirt_alt",
+        "y": 90
+      },
+      {
+        "model": "null:block/corrupted_dirt_alt",
+        "y": 180
+      },
+      {
+        "model": "null:block/corrupted_dirt_alt",
+        "y": 270
+      }
+    ]
+  }
+}

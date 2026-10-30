@@ -1,0 +1,21 @@
+{
+  "variants": {
+    "": [
+      {
+        "model": "null:block/residue"
+      },
+      {
+        "model": "null:block/residue",
+        "y": 90
+      },
+      {
+        "model": "null:block/residue",
+        "y": 180
+      },
+      {
+        "model": "null:block/residue",
+        "y": 270
+      }
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "variants": {
+    "": [
+      {
+        "model": "null:block/corrupted_leaves"
+      },
+      {
+        "model": "null:block/corrupted_leaves",
+        "y": 90
+      },
+      {
+        "model": "null:block/corrupted_leaves",
+        "y": 180
+      },
+      {
+        "model": "null:block/corrupted_leaves",
+        "y": 270
+      },
+      {
+        "model": "null:block/corrupted_leaves_alt"
+      },
+      {
+        "model": "null:block/corrupted_leaves_alt",
+        "y": 90
+      },
+      {
+        "model": "null:block/corrupted_leaves_alt",
+        "y": 180
+      },
+      {
+        "model": "null:block/corrupted_leaves_alt",
+        "y": 270
+      }
+    ]
+  }
+}
