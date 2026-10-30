@@ -40,6 +40,10 @@ public final class AudioCorruptionManager {
 
     /** If nobody lifts the transition silence (a lost packet), it ends on its own after this long. */
     private static final int TRANSITION_SILENCE_LIMIT = 20 * 45;
+    /** A capture distortion nobody has updated for this long is released (its driver must have died). */
+    private static final int CAPTURE_WATCHDOG_TICKS = 20 * 30;
+    /** Ticks between attempts to (re)start the capture drone when the sound engine refused it. */
+    private static final int LOOP_RETRY_TICKS = 40;
 
     private static int silenceTicks;
     private static boolean pausedBySilence;
@@ -47,6 +51,8 @@ public final class AudioCorruptionManager {
     private static int transitionTicks;
     private static float captureTarget;
     private static float capture;
+    private static int captureUntouched;
+    private static int captureRetry;
     @Nullable
     private static NullSoundInstance captureLoop;
     @Nullable
@@ -73,7 +79,7 @@ public final class AudioCorruptionManager {
      * Volume is scaled by the player's audio settings; nothing plays when the channel is off.
      */
     public static void play(SoundEvent sound, Channel channel, @Nullable Vec3 pos, float volume, float pitch) {
-        if (sound == null || !canStart(channel) || volume <= 0.0F) {
+        if (sound == null || !canStart(channel, sound) || volume <= 0.0F) {
             return;
         }
         if (pos != null) {
@@ -100,10 +106,14 @@ public final class AudioCorruptionManager {
                 volume, pitch, false, true, RANDOM).steady());
     }
 
-    /** Everything stops at once and nothing new plays (except {@link #playUi}) for a while. */
+    /**
+     * Everything stops at once and nothing new plays (except {@link #playUi}) for a while.
+     * Does nothing when the player switched off horror sounds or sudden silences.
+     */
     public static void silence(int ticks) {
         Minecraft mc = Minecraft.getInstance();
-        if (ticks <= 0 || transitionSilent || mc.level == null) {
+        if (ticks <= 0 || transitionSilent || mc.level == null || ClientLimits.audio() <= 0.0F
+                || !NullClientSettings.get(NullClientSettings.SUDDEN_SILENCE)) {
             return;
         }
         silenceTicks = Math.max(silenceTicks, ticks);
@@ -114,12 +124,20 @@ public final class AudioCorruptionManager {
         }
     }
 
-    /** 0..1 while a NULLROOT holds the player: everything bends and the capture drone plays. */
+    /**
+     * 0..1 while a NULLROOT holds the player: everything bends and the capture drone plays.
+     * Call it while the capture lasts (every tick or whenever it changes) and with 0 on release;
+     * a value nobody refreshes for 30 seconds is released automatically.
+     */
     public static void setCaptureDistortion(float amount) {
         captureTarget = Float.isNaN(amount) ? 0.0F : Mth.clamp(amount, 0.0F, 1.0F);
+        captureUntouched = 0;
     }
 
-    /** The cinematic move into NULL: every sound stops and only transition sounds (and UI) may play. */
+    /**
+     * The cinematic move into NULL: every sound stops and only transition sounds
+     * ({@code null:transition.*}, through any of the play methods) and {@link #playUi} sounds may play.
+     */
     public static void setTransitionSilence(boolean silent) {
         if (silent == transitionSilent) {
             return;
@@ -151,7 +169,7 @@ public final class AudioCorruptionManager {
 
     /** Plays a sound from a direction (it keeps that direction while the player walks). */
     public static void playFromDirection(SoundEvent sound, Channel channel, Vec3 direction, float volume, float pitch) {
-        if (sound == null || !canStart(channel) || volume <= 0.0F || direction.lengthSqr() < 1.0E-6) {
+        if (sound == null || !canStart(channel, sound) || volume <= 0.0F || direction.lengthSqr() < 1.0E-6) {
             return;
         }
         Vec3 offset = direction.normalize().scale(12.0);
@@ -161,7 +179,7 @@ public final class AudioCorruptionManager {
 
     /** Plays a sound at a point that stays audible out to {@code range} blocks. */
     public static void playAt(SoundEvent sound, Channel channel, Vec3 pos, float volume, float pitch, float range) {
-        if (sound == null || !canStart(channel) || volume <= 0.0F) {
+        if (sound == null || !canStart(channel, sound) || volume <= 0.0F) {
             return;
         }
         start(new NullSoundInstance(sound, channel, NullSoundInstance.Placement.WORLD, pos.x, pos.y, pos.z,
@@ -170,7 +188,7 @@ public final class AudioCorruptionManager {
 
     /** Plays a sound with no position at all. */
     public static void playGlobal(SoundEvent sound, Channel channel, float volume, float pitch) {
-        if (sound == null || !canStart(channel) || volume <= 0.0F) {
+        if (sound == null || !canStart(channel, sound) || volume <= 0.0F) {
             return;
         }
         start(new NullSoundInstance(sound, channel, NullSoundInstance.Placement.GLOBAL, 0.0, 0.0, 0.0,
@@ -179,7 +197,7 @@ public final class AudioCorruptionManager {
 
     /** Plays a sound right behind the player's head; it stays behind them however they turn. */
     public static void playBehind(SoundEvent sound, Channel channel, float distance, float volume, float pitch) {
-        if (sound == null || !canStart(channel) || volume <= 0.0F) {
+        if (sound == null || !canStart(channel, sound) || volume <= 0.0F) {
             return;
         }
         double side = (RANDOM.nextFloat() - 0.5F) * 0.8F;
@@ -203,14 +221,20 @@ public final class AudioCorruptionManager {
 
     /** Stops every sound NULL started (not the game's own sounds). */
     public static void stopAll() {
-        stopOwn(true);
+        stopOwn(false);
     }
 
-    private static void stopOwn(boolean includingUi) {
+    /** True while one of our sounds is really in the sound engine (not finished, refused or cut off). */
+    public static boolean isPlaying(@Nullable NullSoundInstance sound) {
+        return sound != null && !sound.isStopped() && Minecraft.getInstance().getSoundManager().isActive(sound);
+    }
+
+    /** Stops our sounds; with {@code keepUiAndTransition} interface and transition sounds keep playing. */
+    private static void stopOwn(boolean keepUiAndTransition) {
         Minecraft mc = Minecraft.getInstance();
         for (Iterator<NullSoundInstance> it = ACTIVE.iterator(); it.hasNext(); ) {
             NullSoundInstance sound = it.next();
-            if (includingUi || !sound.isUi()) {
+            if (!keepUiAndTransition || !(sound.isUi() || isTransitionSound(sound.getLocation()))) {
                 sound.stopNow();
                 mc.getSoundManager().stop(sound);
                 it.remove();
@@ -222,9 +246,24 @@ public final class AudioCorruptionManager {
 
     // ------------------------------------------------------------------ used by the rest of the audio package
 
+    /** True if a sound on this channel may start now (world loaded, settings, silences). */
     static boolean canStart(Channel channel) {
+        return canStart(channel, null);
+    }
+
+    /**
+     * True if this sound may start now: the channel is on, nothing is silencing the game, or the
+     * transition into NULL is running and this is one of its own {@code transition.*} sounds.
+     */
+    static boolean canStart(Channel channel, @Nullable SoundEvent sound) {
         Minecraft mc = Minecraft.getInstance();
-        return mc.level != null && mc.player != null && !isSilenced() && channelGain(channel) > 0.0F;
+        if (mc.level == null || mc.player == null || channelGain(channel) <= 0.0F) {
+            return false;
+        }
+        if (transitionSilent) {
+            return sound != null && isTransitionSound(sound.getLocation());
+        }
+        return silenceTicks <= 0;
     }
 
     /** Settings multiplier for a channel: 0 when horror sounds or the channel's toggle are off. */
