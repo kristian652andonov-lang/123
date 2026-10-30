@@ -11,19 +11,19 @@ import net.minecraft.world.entity.EntityDimensions;
  */
 public enum NullrootVariant {
     /** A small black plant. Only watches. */
-    SMALL("small", 0.5F, 0.7F, 8.0F, Behaviour.OBSERVER, 20.0, 0.0F, 0.0F, 0, 0.45F),
+    SMALL("small", 0.5F, 0.7F, 8.0F, Behaviour.OBSERVER, 20.0, 0.0F, 0.0F, 0, 0.45F, 60),
     /** A tall black plant with a heavy crown. Grabs whoever walks right up to it. */
-    LARGE("large", 1.1F, 2.2F, 30.0F, Behaviour.HUNTER, 16.0, 3.2F, 0.035F, 220, 1.7F),
+    LARGE("large", 1.1F, 2.2F, 30.0F, Behaviour.HUNTER, 16.0, 3.2F, 0.035F, 220, 1.7F, 110),
     /** A knot of long tendrils. The hunter. */
-    TENDRIL("tendril", 0.7F, 1.5F, 20.0F, Behaviour.HUNTER, 18.0, 7.0F, 0.055F, 200, 0.75F),
+    TENDRIL("tendril", 0.7F, 1.5F, 20.0F, Behaviour.HUNTER, 18.0, 7.0F, 0.055F, 200, 0.75F, 80),
     /** Hangs from cave ceilings and lets something down. */
-    CEILING("ceiling", 0.8F, 1.4F, 16.0F, Behaviour.HUNTER, 12.0, 5.5F, 0.06F, 190, 1.0F),
+    CEILING("ceiling", 0.8F, 1.4F, 16.0F, Behaviour.HUNTER, 12.0, 5.5F, 0.06F, 190, 1.0F, 80),
     /** Grows sideways out of cave walls. */
-    WALL("wall", 0.9F, 0.9F, 18.0F, Behaviour.HUNTER, 14.0, 4.5F, 0.05F, 190, 0.5F),
+    WALL("wall", 0.9F, 0.9F, 18.0F, Behaviour.HUNTER, 14.0, 4.5F, 0.05F, 190, 0.5F, 70),
     /** A lumpy cluster deep underground. */
-    UNDERGROUND("underground", 1.0F, 1.3F, 26.0F, Behaviour.HUNTER, 16.0, 6.0F, 0.05F, 210, 0.85F),
+    UNDERGROUND("underground", 1.0F, 1.3F, 26.0F, Behaviour.HUNTER, 16.0, 6.0F, 0.05F, 210, 0.85F, 90),
     /** The large mass at the centre of a colony; captured players are pulled into it. */
-    CENTRAL("central", 2.4F, 2.6F, 80.0F, Behaviour.ANCHOR, 32.0, 4.0F, 0.04F, 230, 1.6F);
+    CENTRAL("central", 2.4F, 2.6F, 80.0F, Behaviour.ANCHOR, 32.0, 4.0F, 0.04F, 230, 1.6F, 160);
 
     /** What a variant does when a player comes near. */
     public enum Behaviour {
@@ -47,10 +47,11 @@ public enum NullrootVariant {
     private final float reachSpeed;
     private final int captureTicks;
     private final float rootOffset;
+    private final int growTicks;
     private final EntityDimensions dimensions;
 
     NullrootVariant(String id, float width, float height, float maxHealth, Behaviour behaviour, double detectRange,
-                    float maxReach, float reachSpeed, int captureTicks, float rootOffset) {
+                    float maxReach, float reachSpeed, int captureTicks, float rootOffset, int growTicks) {
         this.id = id;
         this.width = width;
         this.height = height;
@@ -61,6 +62,7 @@ public enum NullrootVariant {
         this.reachSpeed = reachSpeed;
         this.captureTicks = captureTicks;
         this.rootOffset = rootOffset;
+        this.growTicks = growTicks;
         this.dimensions = EntityDimensions.scalable(width, height);
     }
 
@@ -111,6 +113,11 @@ public enum NullrootVariant {
     /** How far from the block face (in blocks, fully grown) the tendrils come out. */
     public float rootOffset() {
         return rootOffset;
+    }
+
+    /** Ticks it takes to grow out of the block to full size. */
+    public int growTicks() {
+        return growTicks;
     }
 
     public boolean reaches() {

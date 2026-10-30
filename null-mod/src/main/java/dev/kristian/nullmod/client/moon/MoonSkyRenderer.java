@@ -76,6 +76,12 @@ final class MoonSkyRenderer {
         if (rain <= 0.01F) {
             return;
         }
+        // Height of the moon over the horizon (-1..1). This pass runs after the whole sky, so a
+        // debris field far below the horizon (daytime) would show over vanilla's dark lower sky.
+        float altitude = -Mth.cos(level.getTimeOfDay(partial) * (float) (Math.PI * 2.0));
+        if (altitude < -0.45F) {
+            return;
+        }
         MATRIX.set(event.getModelViewMatrix())
                 .rotateY((float) (-Math.PI / 2.0))
                 .rotateX(level.getTimeOfDay(partial) * (float) (Math.PI * 2.0));

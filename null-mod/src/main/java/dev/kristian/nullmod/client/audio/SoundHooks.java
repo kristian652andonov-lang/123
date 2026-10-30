@@ -13,9 +13,10 @@ import net.neoforged.neoforge.client.event.sound.PlaySoundEvent;
  * back during silences, hands music to {@link MusicCorruption}, echoes the player's footsteps
  * and plays some game sounds at the wrong pitch (or bent by a NULLROOT capture).
  * <p>
- * Only sounds that nobody keeps a reference to are ever wrapped: never ticking sounds (minecarts,
- * bees, elytra, other mods' loops), records, UI sounds, voice or music, because whoever started
- * those may later try to stop or query that exact instance. Nothing happens outside a world.
+ * Only one-shot sounds that nobody keeps a reference to are ever wrapped: never ticking or looping
+ * sounds (minecarts, bees, elytra, other mods' loops), records, UI sounds, voice or music, because
+ * whoever started those may later try to stop or query that exact instance. Nothing happens
+ * outside a world.
  */
 final class SoundHooks {
     private static boolean failed;
@@ -55,6 +56,10 @@ final class SoundHooks {
                 return;
             }
             PhantomFootsteps.onSound(mc, sound, random);
+            if (sound.isLooping()) {
+                // A loop is stopped by whoever started it, through that exact instance: never replace it.
+                return;
+            }
             float pitch = PitchCorruption.factorFor(random);
             float volume = 1.0F;
             float capture = AudioCorruptionManager.captureDistortion();

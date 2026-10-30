@@ -4,6 +4,7 @@
   assets/null/textures/environment/moon_debris.png  4x4 atlas of small rock shards (16x16 each)
   assets/null/textures/environment/moon_glow.png    soft glow with faint rays (flashes, glints)
   assets/null/textures/environment/moon_ring.png    thin shockwave ring (the final disappearance)
+  ...plus .png.mcmeta files giving the glow and the ring smooth filtering (they are drawn large).
 
 The moon itself is never shipped: the client draws its cracks into a copy of whatever moon the
 active resource pack provides. These sprites are drawn with additive blending like the vanilla
@@ -11,6 +12,7 @@ sun and moon, so black/transparent means "nothing".
 
 Usage: python3 tools/gen_moon.py [--preview out.png]
 """
+import json
 import math
 import pathlib
 import sys
@@ -151,6 +153,11 @@ def preview(images: dict, path: pathlib.Path) -> None:
     Image.fromarray(canvas, "RGB").save(path)
 
 
+#: Light effects are drawn many times their size: smooth (linear) filtering and no edge wrap.
+#: The debris atlas stays pixel art like the vanilla sun and moon.
+SMOOTH = ("moon_glow.png", "moon_ring.png")
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     images = {
@@ -161,6 +168,10 @@ def main() -> int:
     for name, im in images.items():
         im.save(OUT / name, optimize=True)
         print(f"wrote {OUT.relative_to(ROOT) / name} ({im.width}x{im.height})")
+        if name in SMOOTH:
+            meta = OUT / (name + ".mcmeta")
+            meta.write_text(json.dumps({"texture": {"blur": True, "clamp": True}}, indent=2) + "\n", encoding="utf-8")
+            print(f"wrote {meta.relative_to(ROOT)}")
     if len(sys.argv) > 2 and sys.argv[1] == "--preview":
         preview(images, pathlib.Path(sys.argv[2]))
         print(f"preview -> {sys.argv[2]}")

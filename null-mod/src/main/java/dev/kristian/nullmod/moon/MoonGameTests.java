@@ -19,6 +19,15 @@ public final class MoonGameTests {
     private MoonGameTests() {
     }
 
+    /**
+     * Stage 1 with a whole moon, whatever earlier batches left behind: going through Stage 2
+     * makes the move into Stage 1 a real stage change, which always resets the moon.
+     */
+    private static void startWhole(MinecraftServer server) {
+        CorruptionManager.setStage(server, CorruptionStage.UNDER_MIDDLE);
+        CorruptionManager.setStage(server, CorruptionStage.START);
+    }
+
     @GameTest(template = "empty", batch = "moon_geometry")
     public static void geometryIsDeterministicAndOrdered(GameTestHelper helper) {
         for (long seed : new long[] {0L, 42L, -7_123_456_789L, 0x4E554C4C2D4E554CL}) {
@@ -69,6 +78,7 @@ public final class MoonGameTests {
     public static void progressFollowsTheClockAndResets(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         CorruptionData data = CorruptionManager.data(server);
+        startWhole(server);
         CorruptionManager.setStage(server, CorruptionStage.MIDDLE);
         helper.runAfterDelay(30, () -> {
             float expected = MoonCorruptionManager.targetProgress(data.corruptionTicks());
@@ -91,6 +101,8 @@ public final class MoonGameTests {
             helper.succeed();
             return;
         }
+        startWhole(server);
+        helper.assertTrue(data.moonProgress() == 0.0F && !data.moonGone(), "Stage 1 did not reset the moon");
         CorruptionManager.setStage(server, CorruptionStage.NULL);
         helper.assertTrue(data.moonGone() && data.moonProgress() >= 1.0F, "the moon did not disappear when Stage 5 began");
         CorruptionManager.setStage(server, CorruptionStage.ABOVE_MIDDLE);
@@ -105,6 +117,7 @@ public final class MoonGameTests {
     public static void progressNeverGoesBackOnItsOwn(GameTestHelper helper) {
         MinecraftServer server = helper.getLevel().getServer();
         CorruptionData data = CorruptionManager.data(server);
+        startWhole(server);
         CorruptionManager.setStage(server, CorruptionStage.UNDER_MIDDLE);
         MoonCorruptionManager.INSTANCE.setProgress(data, 0.5F, false);
         helper.runAfterDelay(30, () -> {

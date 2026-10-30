@@ -38,6 +38,7 @@ final class AmbientScheduler {
     private static float droneDrift = 1.0F;
     private static float droneTarget = 1.0F;
     private static int droneRetarget;
+    private static int droneRetry;
 
     private static final SoundEvent[] PLAYER_LIKE = {
             SoundEvents.WOODEN_DOOR_OPEN, SoundEvents.WOODEN_DOOR_CLOSE, SoundEvents.CHEST_OPEN, SoundEvents.CHEST_CLOSE,
@@ -69,26 +70,29 @@ final class AmbientScheduler {
             return;
         }
         int stage = ClientCorruptionState.stage().number();
+        // A lower audio intensity makes everything quieter (channel gain) and rarer (longer waits).
+        float rarity = 1.0F / Math.max(0.3F, Math.min(1.0F, ClientLimits.audio()));
         if (--nextAmbient <= 0) {
             ambient(stage, mc, random);
-            nextAmbient = interval(stage, random);
+            nextAmbient = scaled(interval(stage, random), rarity);
         }
         tickDrone(stage, mc, random);
         if (NullClientSettings.get(NullClientSettings.SUDDEN_SILENCE)) {
             if (stage >= 2 && --nextInterruption <= 0) {
                 // A dropout: everything cuts out for a fraction of a second.
                 AudioCorruptionManager.silence(3 + random.nextInt(stage >= 5 ? 10 : 6));
-                nextInterruption = stage >= 5 ? 400 + random.nextInt(900) : stage >= 3 ? 1800 + random.nextInt(2400) : 2400 + random.nextInt(3600);
+                nextInterruption = scaled(stage >= 5 ? 400 + random.nextInt(900)
+                        : stage >= 3 ? 1800 + random.nextInt(2400) : 2400 + random.nextInt(3600), rarity);
             }
             if (stage >= 3 && --nextSilence <= 0) {
                 AudioCorruptionManager.silence(40 + random.nextInt(80));
-                nextSilence = stage >= 5 ? 3000 + random.nextInt(3600) : 9000 + random.nextInt(9000);
+                nextSilence = scaled(stage >= 5 ? 3000 + random.nextInt(3600) : 9000 + random.nextInt(9000), rarity);
             }
         }
         if (stage >= 5) {
             if (--nextChaos <= 0) {
                 PitchCorruption.startChaos(100 + random.nextInt(200), 0.3F + 0.4F * random.nextFloat());
-                nextChaos = 1800 + random.nextInt(3000);
+                nextChaos = scaled(1800 + random.nextInt(3000), rarity);
             }
             if (--nextMusic <= 0) {
                 if (!MusicCorruption.playing() && random.nextFloat() < 0.5F) {
@@ -113,11 +117,16 @@ final class AmbientScheduler {
 
     static void reset() {
         stopLoops(0);
+        droneRetry = 0;
         nextAmbient = 600;
         nextInterruption = 2400;
         nextSilence = 9000;
         nextChaos = 2400;
         nextMusic = 6000;
+    }
+
+    private static int scaled(int ticks, float rarity) {
+        return Math.round(ticks * rarity);
     }
 
     private static int interval(int stage, RandomSource random) {
@@ -276,10 +285,19 @@ final class AmbientScheduler {
         }
         boolean inNull = NullDimensions.isNull(mc.level);
         NullSoundInstance loop = drone;
-        if (loop == null || loop.isStopped() || loop.fading() || droneInNull != inNull) {
+        if (droneRetry > 0) {
+            droneRetry--;
+        }
+        // isPlaying also notices a drone the game cut off (sound engine reload, /stopsound).
+        if (!AudioCorruptionManager.isPlaying(loop) || loop.fading() || droneInNull != inNull) {
             if (loop != null) {
                 loop.fadeOut(80);
             }
+            drone = null;
+            if (droneRetry > 0) {
+                return;
+            }
+            droneRetry = 40;
             // Inside NULL the dimension already hums; ours sits far below it, beating against it.
             SoundEvent sound = inNull ? NullSounds.DIMENSION_HUM.get() : NullSounds.LOW_HUM.get();
             drone = AudioCorruptionManager.start(new NullSoundInstance(sound, AudioCorruptionManager.Channel.AMBIENT,

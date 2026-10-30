@@ -6,11 +6,14 @@ import dev.kristian.nullmod.config.NullClientSettings;
 import dev.kristian.nullmod.registry.NullSounds;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import javax.annotation.Nullable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.client.resources.sounds.TickableSoundInstance;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
@@ -26,17 +29,26 @@ import net.minecraft.world.phys.Vec3;
  * the silence of the transition into NULL, and the distortion while a NULLROOT holds the player.
  * <p>
  * Silence pauses everything that is playing (it resumes exactly where it was, like a dropout)
- * and holds back new sounds; only {@link #playUi} sounds get through. Never touches audio
- * files or the system mixer, only what Minecraft itself plays. Render thread only.
+ * and holds back new sounds; only {@link #playUi} sounds get through. Loops that the game or
+ * another mod starts during a silence are not lost: they start when the silence is over. Never
+ * touches audio files or the system mixer, only what Minecraft itself plays. Render thread only.
  */
 public final class AudioCorruptionManager {
-    /** What a sound is, which decides the player's toggle that controls it. */
+    /**
+     * What a sound is, which decides the player's toggle that controls it: STATIC = static noise,
+     * WHISPER = whispers, FOOTSTEPS = phantom footsteps, MUSIC = music distortion; AMBIENT,
+     * CREATURE and EVENT only follow the horror-sound switch and intensity (as all channels do).
+     * UI sounds are not horror sounds: their caller decides whether they may play.
+     */
     public enum Channel { STATIC, WHISPER, FOOTSTEPS, MUSIC, AMBIENT, CREATURE, EVENT, UI }
 
     private static final int MAX_ACTIVE = 18;
     private static final RandomSource RANDOM = RandomSource.create();
     private static final List<NullSoundInstance> ACTIVE = new ArrayList<>();
     private static final List<Scheduled> SCHEDULED = new ArrayList<>();
+    /** Loops of the game and other mods held back by a silence, newest per sound id. */
+    private static final Map<ResourceLocation, Deferred> DEFERRED = new LinkedHashMap<>();
+    private static final int MAX_DEFERRED = 48;
 
     /** If nobody lifts the transition silence (a lost packet), it ends on its own after this long. */
     private static final int TRANSITION_SILENCE_LIMIT = 20 * 45;
@@ -66,6 +78,10 @@ public final class AudioCorruptionManager {
             this.ticks = ticks;
             this.action = action;
         }
+    }
+
+    /** A sound someone keeps and expects to play, and the world it belongs to. */
+    private record Deferred(TickableSoundInstance sound, @Nullable ClientLevel level) {
     }
 
     private AudioCorruptionManager() {
@@ -334,19 +350,47 @@ public final class AudioCorruptionManager {
         return !transitionSilent || sound.isUi() || isTransitionSound(sound.getLocation());
     }
 
-    /** Whether a sound about to start must be held back right now. */
+    /**
+     * Whether a sound about to start must be held back right now. One-shots are dropped; a
+     * ticking sound of the game or another mod (biome loops, minecarts, bees, machines) is kept by
+     * whoever started it and would otherwise stay silent for good, so it starts once the silence
+     * is over. Records and loops nobody could restart are never held back.
+     */
     static boolean suppressed(SoundInstance sound) {
-        if (sound instanceof NullSoundInstance own && own.isUi()) {
-            return false;
-        }
-        if (sound.getSource() == SoundSource.MASTER) {
+        if (!isSilenced() || sound.getSource() == SoundSource.MASTER) {
             // Interface clicks keep working; menus must never feel broken.
             return false;
         }
-        if (transitionSilent) {
-            return !isTransitionSound(sound.getLocation());
+        boolean transition = transitionSilent && isTransitionSound(sound.getLocation());
+        if (sound instanceof NullSoundInstance own) {
+            return !own.isUi() && !transition;
         }
-        return silenceTicks > 0;
+        if (transition || sound.getSource() == SoundSource.RECORDS
+                || (sound.isLooping() && !(sound instanceof TickableSoundInstance))) {
+            return false;
+        }
+        if (sound instanceof TickableSoundInstance tickable && !tickable.isStopped()) {
+            // Only the newest per sound id: a mod that makes a new instance every tick while its
+            // loop is not playing must get exactly one loop back, not dozens.
+            DEFERRED.remove(sound.getLocation());
+            if (DEFERRED.size() < MAX_DEFERRED) {
+                DEFERRED.put(sound.getLocation(), new Deferred(tickable, Minecraft.getInstance().level));
+            }
+        }
+        return true;
+    }
+
+    /** Starts the held-back loops that still belong to this world and are still wanted. */
+    private static void replayDeferred(Minecraft mc) {
+        List<Deferred> due = new ArrayList<>(DEFERRED.values());
+        DEFERRED.clear();
+        SoundManager manager = mc.getSoundManager();
+        for (Deferred deferred : due) {
+            TickableSoundInstance sound = deferred.sound();
+            if (deferred.level() == mc.level && !sound.isStopped() && !manager.isActive(sound)) {
+                manager.play(sound);
+            }
+        }
     }
 
     static boolean isTransitionSound(ResourceLocation id) {
@@ -398,6 +442,9 @@ public final class AudioCorruptionManager {
             NullMod.LOGGER.warn("NULL transition silence was never lifted; lifting it");
             transitionSilent = false;
             transitionTicks = 0;
+        }
+        if (!DEFERRED.isEmpty() && !isSilenced()) {
+            replayDeferred(mc);
         }
         if (!SCHEDULED.isEmpty() && !mc.isPaused()) {
             List<Scheduled> due = null;
@@ -490,13 +537,18 @@ public final class AudioCorruptionManager {
 
     private static void onLevelChanged(Minecraft mc) {
         // Dimension change or respawn: nothing of ours carries over, except interface and
-        // transition sounds (the move into NULL plays across the change).
-        stopOwn(false);
+        // transition sounds started for the new world (the move into NULL keeps its own sounds).
+        stopOwn(true);
+        // Loops held back in the old world died with it (the game stops every sound on a level
+        // change); ones the new world already started stay held until the silence ends.
+        DEFERRED.values().removeIf(deferred -> deferred.level() != mc.level);
         captureTarget = 0.0F;
         capture = 0.0F;
+        captureRetry = 0;
         MusicCorruption.stop(0);
         AmbientScheduler.reset();
         PhantomFootsteps.reset();
+        PhantomWalkers.reset();
         PitchCorruption.reset();
         if (pausedBySilence) {
             endSilence(mc);
@@ -519,10 +571,13 @@ public final class AudioCorruptionManager {
         transitionTicks = 0;
         captureTarget = 0.0F;
         capture = 0.0F;
+        captureRetry = 0;
         lastLevel = null;
+        DEFERRED.clear();
         MusicCorruption.stop(0);
         AmbientScheduler.reset();
         PhantomFootsteps.reset();
+        PhantomWalkers.reset();
         PitchCorruption.reset();
     }
 }

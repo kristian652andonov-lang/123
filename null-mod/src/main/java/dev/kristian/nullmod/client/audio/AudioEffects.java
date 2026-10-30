@@ -2,7 +2,6 @@ package dev.kristian.nullmod.client.audio;
 
 import dev.kristian.nullmod.client.ClientCorruptionState;
 import dev.kristian.nullmod.client.effect.ClientEffects;
-import dev.kristian.nullmod.config.NullClientSettings;
 import dev.kristian.nullmod.network.ClientEffectPayload;
 import dev.kristian.nullmod.registry.NullSounds;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -168,10 +167,9 @@ final class AudioEffects {
         }
     }
 
+    /** Every sound stops at once (silence() honours the sudden-silence and horror-sound settings). */
     private static void silence(ClientEffectPayload effect) {
-        if (NullClientSettings.get(NullClientSettings.SUDDEN_SILENCE) && AudioCorruptionManager.channelEnabled(AudioCorruptionManager.Channel.EVENT)) {
-            AudioCorruptionManager.silence(Mth.clamp(effect.duration(), 30, 160));
-        }
+        AudioCorruptionManager.silence(Mth.clamp(effect.duration(), 30, 160));
     }
 
     private static void heartbeat(ClientEffectPayload effect) {
