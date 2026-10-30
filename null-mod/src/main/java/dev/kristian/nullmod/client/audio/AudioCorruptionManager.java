@@ -417,19 +417,35 @@ public final class AudioCorruptionManager {
                 }
             }
         }
-        tickCapture();
+        tickCapture(mc);
         prune(mc.getSoundManager());
     }
 
-    private static void tickCapture() {
+    private static void tickCapture(Minecraft mc) {
+        if (captureTarget > 0.0F && !mc.isPaused() && ++captureUntouched > CAPTURE_WATCHDOG_TICKS) {
+            NullMod.LOGGER.warn("NULL capture distortion was never released; releasing it");
+            captureTarget = 0.0F;
+        }
         float difference = captureTarget - capture;
         capture = Math.abs(difference) < 0.002F ? captureTarget : capture + difference * 0.15F;
+        if (captureRetry > 0) {
+            captureRetry--;
+        }
         boolean wanted = capture > 0.02F && !isSilenced() && channelGain(Channel.CREATURE) > 0.0F;
         if (wanted) {
-            if (captureLoop == null || captureLoop.isStopped() || captureLoop.fading()) {
-                NullSoundInstance loop = new NullSoundInstance(NullSounds.NULLROOT_CAPTURE.get(), Channel.CREATURE,
-                        NullSoundInstance.Placement.GLOBAL, 0.0, 0.0, 0.0, 0.9F, 1.0F, true, false, RANDOM).steady().fades(15, 25);
-                captureLoop = start(loop);
+            NullSoundInstance loop = captureLoop;
+            if (!isPlaying(loop) || loop.fading()) {
+                if (loop != null && !loop.fading()) {
+                    // Cut off from outside (sound engine reset, /stopsound): forget it and start anew.
+                    loop.stopNow();
+                }
+                captureLoop = null;
+                if (captureRetry <= 0) {
+                    captureRetry = LOOP_RETRY_TICKS;
+                    captureLoop = start(new NullSoundInstance(NullSounds.NULLROOT_CAPTURE.get(), Channel.CREATURE,
+                            NullSoundInstance.Placement.GLOBAL, 0.0, 0.0, 0.0, 0.9F, 1.0F, true, false, RANDOM)
+                            .steady().fades(15, 25));
+                }
             }
             if (captureLoop != null) {
                 captureLoop.modulate(0.85F + 0.25F * capture, capture);
