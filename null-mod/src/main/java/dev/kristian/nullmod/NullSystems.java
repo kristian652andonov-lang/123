@@ -1,6 +1,7 @@
 package dev.kristian.nullmod;
 
 import dev.kristian.nullmod.audio.AudioModule;
+import dev.kristian.nullmod.chat.ChatModule;
 import dev.kristian.nullmod.core.CorruptionManager;
 import dev.kristian.nullmod.entity.fakeplayer.FakePlayerModule;
 import dev.kristian.nullmod.entity.visitor.VisitorModule;
@@ -31,6 +32,7 @@ final class NullSystems {
         MoonModule.init(modBus, gameBus);
         VisitorModule.init(modBus, gameBus);
         FakePlayerModule.init(modBus, gameBus);
+        ChatModule.init(modBus, gameBus);
 
         // Event-only modules (their effects run on the client).
         VisualModule.init(modBus, gameBus);

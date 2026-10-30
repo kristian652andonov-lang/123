@@ -9,3 +9,5 @@ run-server/
 server/
 screens/
 *.log
+__pycache__/
+javac.*.args

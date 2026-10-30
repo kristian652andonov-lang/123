@@ -58,12 +58,9 @@ neoForge {
 
 // TEMPORARY: these systems are still being written; build and test the finished ones meanwhile.
 sourceSets.main.java {
-    exclude 'dev/kristian/nullmod/chat/**', 'dev/kristian/nullmod/dimension/**',
-            'dev/kristian/nullmod/client/dimension/**', 'dev/kristian/nullmod/entity/nullroot/**',
-            'dev/kristian/nullmod/client/nullroot/**', 'dev/kristian/nullmod/client/desktop/**',
-            'dev/kristian/nullmod/client/settings/**', 'dev/kristian/nullmod/client/menu/**',
-            'dev/kristian/nullmod/gametest/ChatGameTests.java', 'dev/kristian/nullmod/gametest/NullrootGameTests.java',
-            'dev/kristian/nullmod/gametest/DimensionGameTests.java'
+    exclude 'dev/kristian/nullmod/dimension/**', 'dev/kristian/nullmod/client/dimension/**',
+            'dev/kristian/nullmod/entity/nullroot/**', 'dev/kristian/nullmod/client/nullroot/**',
+            'dev/kristian/nullmod/gametest/NullrootGameTests.java', 'dev/kristian/nullmod/gametest/DimensionGameTests.java'
 }
 sourceSets.main.resources {
     exclude 'data/null/dimension/**', 'data/null/dimension_type/**', 'data/null/worldgen/**',

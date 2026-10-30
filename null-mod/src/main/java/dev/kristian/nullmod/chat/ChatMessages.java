@@ -180,6 +180,7 @@ public final class ChatMessages {
         b.user("how many of us are left");
         b.user("can you come back");
         b.user("why are you still in the {biome}");
+        b.user("its {clock}. why are you still playing");
         b.unknown("do you remember me");
         b.unknown("why did you come back");
     }
@@ -239,6 +240,7 @@ public final class ChatMessages {
         b.user("i dug down and there was a room");
         b.user("something answered when i typed");
         b.user("{name} hasnt moved in hours");
+        b.user("it was {clock} the last time it happened too");
         b.unknown("i was here first");
         b.unknown("this was my world");
         b.stages(4, 5);
@@ -325,6 +327,7 @@ public final class ChatMessages {
         b.voice("{player} its right behind you");
         b.voice("its watching you from the {biome}");
         b.voice("dont dig at {x} {z}");
+        b.voice("something followed you into the {dimension}");
         b.unknown("you should leave");
     }
 
@@ -369,6 +372,7 @@ public final class ChatMessages {
         b.nul("POSITION {x} {y} {z} CONFIRMED");
         b.nul("{player} DETECTED");
         b.nul("PLAYERDATA FOR {player} IS EMPTY");
+        b.nul("{dimension} IS NOT RESPONDING");
         b.stages(5, 5);
         b.nul("THERE IS NO SERVER");
         b.nul("YOU ARE THE LAST ONE");

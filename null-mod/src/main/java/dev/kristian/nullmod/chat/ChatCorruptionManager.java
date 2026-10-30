@@ -833,9 +833,9 @@ public final class ChatCorruptionManager implements CorruptionSystem {
         }
     }
 
-    /** NULL's lines stay mostly clean; damage shows up as obfuscated spans and swapped letters. */
+    /** NULL's lines are all capitals and stay mostly clean; damage shows up as obfuscated spans and swapped letters. */
     private static MutableComponent nullBody(String text, float strength, RandomSource r) {
-        String t = TextCorruptor.sanitize(text);
+        String t = TextCorruptor.sanitize(text.toUpperCase(Locale.ROOT));
         if (strength > 0.3F && r.nextFloat() < strength * 0.4F) {
             t = TextCorruptor.substitute(t, 0.04F + 0.1F * strength, r);
         }

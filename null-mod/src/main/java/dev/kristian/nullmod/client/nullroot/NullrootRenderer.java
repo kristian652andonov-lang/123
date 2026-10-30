@@ -79,32 +79,43 @@ public final class NullrootRenderer extends EntityRenderer<NullrootEntity> {
         NullrootState state = entity.state();
         Vec3 offset = NullrootEntity.attachOffset(face, variant);
 
-        if (scale > 0.01F) {
+        NullrootModel model = models[variant.ordinal()];
+        boolean visible = scale > 0.01F;
+        if (visible) {
             float tension = state == NullrootState.REACHING || state.holding() ? 1.0F
                     : state == NullrootState.RETRACTING || state == NullrootState.RECOIL ? 0.5F : 0.0F;
             float headTurn = variant == NullrootVariant.SMALL
                     ? Mth.clamp(NullrootGeometry.wrap(anim.targetYaw - anim.yaw(partialTick)), -0.9F, 0.9F) : 0.0F;
-            NullrootModel model = models[variant.ordinal()];
-            poseStack.pushPose();
-            poseStack.translate(offset.x, offset.y, offset.z);
-            NullrootGeometry.rotateToFace(poseStack, face);
-            NullrootGeometry.rotateY(poseStack, anim.yaw(partialTick));
-            NullrootGeometry.rotateX(poseStack, anim.leanX(partialTick));
-            NullrootGeometry.rotateZ(poseStack, anim.leanZ(partialTick));
-            poseStack.scale(scale, scale, scale);
             model.pose(time, anim.swayShift, pulse, jolt, headTurn, tension);
+            poseStack.pushPose();
+            toModelSpace(poseStack, anim, face, offset, scale, partialTick);
             model.render(poseStack, consumer, packedLight, overlay, -1);
-            float glow = veinGlow(variant, state, pulse) * scale;
-            if (glow > 0.02F) {
-                int v = Mth.clamp((int) (glow * 255.0F), 0, 255);
-                VertexConsumer veins = buffers.getBuffer(RenderType.eyes(NullrootTextures.VEINS));
-                model.render(poseStack, veins, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, FastColor.ARGB32.color(255, v, v, v));
-            }
             poseStack.popPose();
         }
 
         renderTendrils(entity, anim, variant, face, offset, scale, state, partialTick, time, poseStack, consumer, packedLight, overlay);
+
+        // Last: asking the buffer source for another render type ends the batch the consumer above writes to.
+        float glow = visible ? veinGlow(variant, state, pulse) * scale : 0.0F;
+        if (glow > 0.02F) {
+            int v = Mth.clamp((int) (glow * 255.0F), 0, 255);
+            VertexConsumer veins = buffers.getBuffer(RenderType.eyes(NullrootTextures.VEINS));
+            poseStack.pushPose();
+            toModelSpace(poseStack, anim, face, offset, scale, partialTick);
+            model.render(poseStack, veins, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, FastColor.ARGB32.color(255, v, v, v));
+            poseStack.popPose();
+        }
         super.render(entity, entityYaw, partialTick, poseStack, buffers, packedLight);
+    }
+
+    /** From the entity's position into the model's frame: the face centre, turned to the face, turned toward its focus, grown. */
+    private static void toModelSpace(PoseStack poseStack, NullrootAnimation anim, Direction face, Vec3 offset, float scale, float partialTick) {
+        poseStack.translate(offset.x, offset.y, offset.z);
+        NullrootGeometry.rotateToFace(poseStack, face);
+        NullrootGeometry.rotateY(poseStack, anim.yaw(partialTick));
+        NullrootGeometry.rotateX(poseStack, anim.leanX(partialTick));
+        NullrootGeometry.rotateZ(poseStack, anim.leanZ(partialTick));
+        poseStack.scale(scale, scale, scale);
     }
 
     /** Faint purple veins: the centre of a colony glows with every pulse, the others only while they hunt. */

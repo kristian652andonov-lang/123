@@ -109,15 +109,15 @@ public final class NullrootModels {
         Node body = b.body();
         b.bulb(body, "bulb0", -7.0F, 0.0F, -7.0F, 14.0F, 4.0F, 14.0F);
         b.bulb(body, "bulb1", -4.5F, 3.0F, -4.5F, 9.0F, 4.5F, 9.0F);
-        Node stalk = b.part(body, "stalk", PartPose.offset(0.0F, 7.0F, 0.0F), b.box(-2.4F, 0.0F, -2.4F, 4.8F, 6.6F, 4.8F));
+        Node stalk = b.part(body, "stalk", PartPose.offset(0.0F, 7.0F, 0.0F), b.box(-2.4F, 0.0F, -2.4F, 4.8F, 5.4F, 4.8F));
         b.chains.add(stalk.path);
         Node segment = stalk;
         for (int k = 1; k < 4; k++) {
             float t = 4.6F - k * 0.35F;
-            segment = b.part(segment, "s", PartPose.offset(0.0F, 6.5F, 0.0F), b.box(-t / 2.0F, 0.0F, -t / 2.0F, t, 6.6F, t));
+            segment = b.part(segment, "s", PartPose.offset(0.0F, 5.2F, 0.0F), b.box(-t / 2.0F, 0.0F, -t / 2.0F, t, 5.4F, t));
         }
-        Node crown = b.part(segment, "crown", PartPose.offset(0.0F, 6.2F, 0.0F),
-                b.box(-6.0F, 0.0F, -6.0F, 12.0F, 7.0F, 12.0F), b.box(-4.0F, 6.5F, -4.0F, 8.0F, 3.0F, 8.0F));
+        Node crown = b.part(segment, "crown", PartPose.offset(0.0F, 5.0F, 0.0F),
+                b.box(-6.0F, 0.0F, -6.0F, 12.0F, 6.0F, 12.0F), b.box(-4.0F, 5.5F, -4.0F, 8.0F, 2.5F, 8.0F));
         b.bulbs.add(crown.path);
         for (int i = 0; i < 5; i++) {
             float angle = i * (float) Math.PI * 0.4F;
