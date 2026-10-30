@@ -41,20 +41,6 @@ jobs:
         id: build
         run: ./gradlew build --stacktrace
 
-      - name: Dump Minecraft API signatures
-        if: always() && (inputs.api_dump || contains(github.event.head_commit.message, '[api-dump]'))
-        run: |
-          ./gradlew createMinecraftArtifacts --stacktrace
-          bash ci/api-dump.sh
-
-      - name: Upload API dump
-        if: always() && (inputs.api_dump || contains(github.event.head_commit.message, '[api-dump]'))
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-dump
-          path: null-mod/build/api-dump.txt
-          if-no-files-found: warn
-
       - name: Upload mod jar
         if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
@@ -62,3 +48,32 @@ jobs:
           name: null-mod-jar
           path: null-mod/build/libs/null-*.jar
           if-no-files-found: error
+
+  # Prints the public signatures of the Minecraft classes in null-mod/ci/api-classes.txt
+  # into this job's log, so the code can be checked against the real 1.21.1 API.
+  api-dump:
+    if: inputs.api_dump || contains(github.event.head_commit.message, '[api-dump]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: null-mod
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Dump Minecraft API signatures
+        run: |
+          ./gradlew createMinecraftArtifacts --quiet
+          bash ci/api-dump.sh > /dev/null
+          echo "=====API-DUMP-BEGIN====="
+          cat build/api-dump.txt
+          echo "=====API-DUMP-END====="
