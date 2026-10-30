@@ -257,9 +257,10 @@ PURPLE = rgb("#6b14a6")
 DARK_PURPLE = rgb("#2a0742")
 
 
-def corrupt(img, alpha, rng, *, blacks=3, checkers=1, shifts=2, smears=1, fray=0.4, specks=4):
-    """Eats into a texture: black holes with frayed edges, magenta/black checker fragments,
-    torn (horizontally shifted) bands and smeared pixels."""
+def corrupt(img, alpha, rng, *, blacks=3, checkers=1, tears=2, smears=1, fray=0.4, specks=4):
+    """Eats into a texture: black holes with frayed edges, magenta/black checker fragments (the
+    missing texture showing through), torn row segments that slid sideways and left a black or
+    smeared gap behind, and smeared pixels."""
     img = img.copy()
     alpha = alpha.copy()
     eaten = np.zeros((S, S), dtype=bool)
@@ -286,11 +287,11 @@ def corrupt(img, alpha, rng, *, blacks=3, checkers=1, shifts=2, smears=1, fray=0
         img[pick & ~burnt] = img[pick & ~burnt] * 0.25
         alpha[pick] = 255
     for _ in range(checkers):
-        w = int(rng.choice([2, 4, 4, 6]))
-        h = int(rng.choice([2, 2, 4]))
+        w = int(rng.choice([4, 4, 6, 8]))
+        h = int(rng.choice([2, 4, 4]))
         x = int(rng.integers(0, S // 2)) * 2
         y = int(rng.integers(0, S // 2)) * 2
-        cell = int(rng.choice([1, 1, 2]))
+        cell = int(rng.choice([1, 2, 2]))
         ys = (np.arange(h) + y) % S
         xs = (np.arange(w) + x) % S
         for j, yy in enumerate(ys):
@@ -299,15 +300,27 @@ def corrupt(img, alpha, rng, *, blacks=3, checkers=1, shifts=2, smears=1, fray=0
                 alpha[yy, xx] = 255
     for _ in range(specks):
         x, y = rng.integers(0, S, 2)
-        img[y, x] = BLACK if rng.random() < 0.7 else MAGENTA
+        img[y, x] = BLACK if rng.random() < 0.85 else MAGENTA
         alpha[y, x] = 255
-    for _ in range(shifts):
+    for _ in range(tears):
+        # A segment of 1-2 rows slides sideways; the gap it leaves is black or smeared.
         y = int(rng.integers(0, S))
-        h = int(rng.choice([1, 1, 2, 2, 3]))
-        dx = int(rng.choice([-5, -4, -3, -2, 2, 3, 4, 5]))
-        rows = (np.arange(h) + y) % S
-        img[rows] = np.roll(img[rows], dx, axis=1)
-        alpha[rows] = np.roll(alpha[rows], dx, axis=1)
+        h = int(rng.choice([1, 1, 2]))
+        x0 = int(rng.integers(0, S))
+        length = int(rng.integers(5, 11))
+        dx = int(rng.choice([-4, -3, -2, 2, 3, 4]))
+        smear_gap = rng.random() < 0.4
+        for yy in (np.arange(h) + y) % S:
+            seg = [(x0 + k) % S for k in range(length)]
+            moved_rgb = img[yy, seg].copy()
+            moved_a = alpha[yy, seg].copy()
+            for k, x in enumerate(seg):
+                img[yy, x] = moved_rgb[0] if smear_gap else BLACK
+                alpha[yy, x] = moved_a[0] if smear_gap else 255
+            for k in range(length):
+                x = (x0 + k + dx) % S
+                img[yy, x] = moved_rgb[k]
+                alpha[yy, x] = moved_a[k]
     for _ in range(smears):
         y = int(rng.integers(0, S))
         x0 = int(rng.integers(0, S))
@@ -502,12 +515,12 @@ def tex_static_block():
 
 @texture("corrupted_grass_block_top")
 def tex_corrupted_grass_top():
-    return corrupted_variant("grass_top", "a", fn_base=nat_grass_top, blacks=3, checkers=1, shifts=2, smears=1)
+    return corrupted_variant("grass_top", "a", fn_base=nat_grass_top, blacks=3, checkers=1, tears=2, smears=1)
 
 
 @texture("corrupted_grass_block_top_alt")
 def tex_corrupted_grass_top_alt():
-    return corrupted_variant("grass_top", "b", fn_base=nat_grass_top, blacks=2, checkers=2, shifts=2, smears=1)
+    return corrupted_variant("grass_top", "b", fn_base=nat_grass_top, blacks=2, checkers=2, tears=2, smears=1)
 
 
 def _grass_side(rng_key):
@@ -518,68 +531,68 @@ def _grass_side(rng_key):
 @texture("corrupted_grass_block")
 def tex_corrupted_grass_side():
     return corrupted_variant("grass_side", "a", fn_base=lambda r: _grass_side("grass_side"),
-                             blacks=2, checkers=1, shifts=3, smears=1)
+                             blacks=2, checkers=1, tears=3, smears=1)
 
 
 @texture("corrupted_grass_block_alt")
 def tex_corrupted_grass_side_alt():
     return corrupted_variant("grass_side", "b", fn_base=lambda r: _grass_side("grass_side"),
-                             blacks=3, checkers=1, shifts=2, smears=2)
+                             blacks=3, checkers=1, tears=2, smears=2)
 
 
 @texture("corrupted_grass_block_bottom")
 def tex_corrupted_grass_bottom():
-    return corrupted_variant("dirt", "bottom", fn_base=nat_dirt, blacks=2, checkers=1, shifts=1, smears=1)
+    return corrupted_variant("dirt", "bottom", fn_base=nat_dirt, blacks=2, checkers=1, tears=1, smears=1)
 
 
 @texture("corrupted_dirt")
 def tex_corrupted_dirt():
-    return corrupted_variant("dirt", "a", fn_base=nat_dirt, blacks=3, checkers=1, shifts=2, smears=1)
+    return corrupted_variant("dirt", "a", fn_base=nat_dirt, blacks=3, checkers=1, tears=2, smears=1)
 
 
 @texture("corrupted_dirt_alt")
 def tex_corrupted_dirt_alt():
-    return corrupted_variant("dirt", "b", fn_base=nat_dirt, blacks=2, checkers=2, shifts=2, smears=1)
+    return corrupted_variant("dirt", "b", fn_base=nat_dirt, blacks=2, checkers=2, tears=2, smears=1)
 
 
 @texture("corrupted_stone")
 def tex_corrupted_stone():
-    return corrupted_variant("stone", "a", fn_base=nat_stone, blacks=3, checkers=1, shifts=2, smears=1)
+    return corrupted_variant("stone", "a", fn_base=nat_stone, blacks=3, checkers=1, tears=2, smears=1)
 
 
 @texture("corrupted_stone_alt")
 def tex_corrupted_stone_alt():
-    return corrupted_variant("stone", "b", fn_base=nat_stone, blacks=2, checkers=2, shifts=3, smears=1)
+    return corrupted_variant("stone", "b", fn_base=nat_stone, blacks=2, checkers=2, tears=3, smears=1)
 
 
 @texture("corrupted_sand")
 def tex_corrupted_sand():
-    return corrupted_variant("sand", "a", fn_base=nat_sand, blacks=3, checkers=1, shifts=2, smears=1)
+    return corrupted_variant("sand", "a", fn_base=nat_sand, blacks=3, checkers=1, tears=2, smears=1)
 
 
 @texture("corrupted_sand_alt")
 def tex_corrupted_sand_alt():
-    return corrupted_variant("sand", "b", fn_base=nat_sand, blacks=2, checkers=2, shifts=2, smears=2)
+    return corrupted_variant("sand", "b", fn_base=nat_sand, blacks=2, checkers=2, tears=2, smears=2)
 
 
 @texture("corrupted_log")
 def tex_corrupted_log():
-    return corrupted_variant("log_side", "a", fn_base=nat_log_side, blacks=3, checkers=1, shifts=3, smears=1)
+    return corrupted_variant("log_side", "a", fn_base=nat_log_side, blacks=3, checkers=1, tears=3, smears=1)
 
 
 @texture("corrupted_log_top")
 def tex_corrupted_log_top():
-    return corrupted_variant("log_top", "a", fn_base=nat_log_top, blacks=2, checkers=1, shifts=2, smears=1)
+    return corrupted_variant("log_top", "a", fn_base=nat_log_top, blacks=2, checkers=1, tears=2, smears=1)
 
 
 @texture("corrupted_leaves")
 def tex_corrupted_leaves():
-    return corrupted_variant("leaves", "a", fn_base=nat_leaves, blacks=3, checkers=1, shifts=2, smears=1, fray=0.3)
+    return corrupted_variant("leaves", "a", fn_base=nat_leaves, blacks=3, checkers=1, tears=2, smears=1, fray=0.3)
 
 
 @texture("corrupted_leaves_alt")
 def tex_corrupted_leaves_alt():
-    return corrupted_variant("leaves", "b", fn_base=nat_leaves, blacks=2, checkers=2, shifts=2, smears=1, fray=0.3)
+    return corrupted_variant("leaves", "b", fn_base=nat_leaves, blacks=2, checkers=2, tears=2, smears=1, fray=0.3)
 
 
 @texture("residue")
@@ -587,8 +600,8 @@ def tex_residue():
     rng = rng_for("residue")
     v = 0.55 * rng.random((S, S)) + 0.45 * tile_noise(rng, 4)
     img = paint(v, ["#050307", "#09060b", "#0d0a10", "#121016"], [20, 38, 30, 12])
-    vein_a = rgb("#2b1138")
-    vein_b = rgb("#3d1a50")
+    vein_a = rgb("#321443")
+    vein_b = rgb("#47205e")
     # Veins: wandering, branching random walks that wrap around the tile edges.
     for start in range(3):
         x, y = rng.integers(0, S, 2).astype(float)
@@ -704,14 +717,16 @@ def tex_retro_mossy_cobblestone():
 @texture("retro_gravel")
 def tex_retro_gravel():
     rng = rng_for("retro_gravel")
-    label, n = cells(rng, 22, 2.6)
-    edges = cell_edges(label)
-    stones = [rgb(c) for c in ["#7d7672", "#8e8784", "#9b9592", "#6c6461", "#867565", "#a9a3a0", "#5f5958"]]
-    img = np.zeros((S, S, 3))
-    for i in range(n):
-        img[label == i] = stones[int(rng.integers(0, len(stones)))]
-    img *= (0.92 + 0.16 * rng.random((S, S)))[..., None]
-    img[edges] *= 0.62
+    v = 0.6 * coarse(rng, 2) + 0.4 * rng.random((S, S))
+    img = paint(v, ["#5d5654", "#706866", "#827a77", "#7a6c5f", "#958d8a", "#aaa4a0"], [10, 20, 24, 14, 20, 12])
+    # Each 2x2 pebble gets a lit top-left and a shadowed bottom-right pixel.
+    lit = (YY % 2 == 0) & (XX % 2 == 0) & (np.kron(rng.random((S // 2, S // 2)), np.ones((2, 2))) < 0.55)
+    shade = (YY % 2 == 1) & (XX % 2 == 1) & (np.kron(rng.random((S // 2, S // 2)), np.ones((2, 2))) < 0.7)
+    img[lit] *= 1.14
+    img[shade] *= 0.7
+    for _ in range(6):
+        x, y = rng.integers(0, S, 2)
+        img[y, x] = rgb("#4a4442")
     return [to_rgba(np.clip(img, 0, 255))]
 
 
@@ -847,13 +862,13 @@ def tex_grid_panel():
 def tex_frame_block():
     edge = np.minimum(np.minimum(XX, S - 1 - XX), np.minimum(YY, S - 1 - YY))
     img = solid("#03060a")
-    img[edge == 0] = rgb("#8fefff")
-    img[edge == 1] = rgb("#f2ffff")
-    img[edge == 2] = rgb("#3ccfe8")
-    img[edge == 3] = rgb("#0e3640")
-    img[edge == 4] = rgb("#071a20")
-    corner = ((XX <= 2) | (XX >= S - 3)) & ((YY <= 2) | (YY >= S - 3))
-    img[corner & (edge <= 1)] = rgb("#ffffff")
+    img[edge == 0] = rgb("#c4faff")
+    img[edge == 1] = rgb("#36d2ea")
+    img[edge == 2] = rgb("#0f4654")
+    img[edge == 3] = rgb("#08232b")
+    img[edge == 4] = rgb("#05121a")
+    corner = ((XX <= 1) | (XX >= S - 2)) & ((YY <= 1) | (YY >= S - 2))
+    img[corner & (edge == 0)] = rgb("#ffffff")
     return [to_rgba(img)]
 
 
