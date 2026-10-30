@@ -30,7 +30,6 @@ final class CorruptionPostEffect {
     private static int width = -1;
     private static int height = -1;
     private static float seed;
-    private static boolean ranThisFrame;
 
     private CorruptionPostEffect() {
     }
@@ -40,15 +39,13 @@ final class CorruptionPostEffect {
         return !failed && ClientLimits.shaderEffects();
     }
 
-    /** True if the corruption pass ran for the frame being drawn. */
-    static boolean ranThisFrame() {
-        return ranThisFrame;
-    }
-
     static void onRenderGuiPre(RenderGuiEvent.Pre event) {
-        ranThisFrame = false;
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || failed || !ClientLimits.shaderEffects() || !VisualDistortionManager.anyShaderLevel()) {
+            return;
+        }
+        if (VisualDistortionManager.frozen() && FreezeFrame.captured()) {
+            // The frozen picture covers everything; nothing underneath needs processing.
             return;
         }
         if (chain == null && !create(mc)) {
@@ -79,7 +76,6 @@ final class CorruptionPostEffect {
             RenderSystem.disableDepthTest();
             RenderSystem.resetTextureMatrix();
             chain.process(event.getPartialTick().getGameTimeDeltaTicks());
-            ranThisFrame = true;
         } catch (RuntimeException e) {
             fail(e);
         } finally {

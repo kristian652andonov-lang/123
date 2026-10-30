@@ -94,11 +94,11 @@ public final class Blueprint {
 
     /** A solid part of the structure (air means "carve this"). */
     public Blueprint set(int x, int y, int z, BlockState state) {
-        return put(x, y, z, state, mode, SafeBlockPlacer.Support.NONE, state.isAir() ? PHASE_CARVE : PHASE_SOLID, 0, 0, null);
+        return put(x, y, z, state, mode, SafeBlockPlacer.Support.NONE, state.isAir() ? PHASE_CARVE : PHASE_SOLID, 0, 0, 0, null);
     }
 
     public Blueprint set(int x, int y, int z, BlockState state, SafeBlockPlacer.Mode mode) {
-        return put(x, y, z, state, mode, SafeBlockPlacer.Support.NONE, state.isAir() ? PHASE_CARVE : PHASE_SOLID, 0, 0, null);
+        return put(x, y, z, state, mode, SafeBlockPlacer.Support.NONE, state.isAir() ? PHASE_CARVE : PHASE_SOLID, 0, 0, 0, null);
     }
 
     public Blueprint set(int x, int y, int z, Block block) {
@@ -107,23 +107,23 @@ public final class Blueprint {
 
     /** Something that needs support (torch, ladder, plant, snow): placed last, only if it can stay. */
     public Blueprint attach(int x, int y, int z, BlockState state) {
-        return put(x, y, z, state, mode, SafeBlockPlacer.Support.SURVIVE, PHASE_ATTACHED, 0, 0, null);
+        return put(x, y, z, state, mode, SafeBlockPlacer.Support.SURVIVE, PHASE_ATTACHED, 0, 0, 0, null);
     }
 
     /** Placed last but without a support check: things that are meant to hang where they should not. */
     public Blueprint loose(int x, int y, int z, BlockState state) {
-        return put(x, y, z, state, mode, SafeBlockPlacer.Support.NONE, PHASE_ATTACHED, 0, 0, null);
+        return put(x, y, z, state, mode, SafeBlockPlacer.Support.NONE, PHASE_ATTACHED, 0, 0, 0, null);
     }
 
     /** Something that needs a full face below it (sand on the ground). */
     public Blueprint grounded(int x, int y, int z, BlockState state) {
-        return put(x, y, z, state, mode, SafeBlockPlacer.Support.SOLID_BELOW, PHASE_SOLID, 0, 0, null);
+        return put(x, y, z, state, mode, SafeBlockPlacer.Support.SOLID_BELOW, PHASE_SOLID, 0, 0, 0, null);
     }
 
     /** Turns natural ground into air (corridors, shafts). */
     public Blueprint carve(int x, int y, int z) {
         return put(x, y, z, Blocks.AIR.defaultBlockState(), SafeBlockPlacer.Mode.REPLACE_NATURAL, SafeBlockPlacer.Support.NONE,
-                PHASE_CARVE, 0, 0, null);
+                PHASE_CARVE, 0, 0, 0, null);
     }
 
     public Blueprint fill(int x0, int y0, int z0, int x1, int y1, int z1, BlockState state) {
@@ -214,13 +214,13 @@ public final class Blueprint {
     public Blueprint sign(int x, int y, int z, int rotation16, SignText front, @Nullable SignText back, boolean needsGround) {
         BlockState state = Blocks.OAK_SIGN.defaultBlockState().setValue(StandingSignBlock.ROTATION, rotation16 & 15);
         return put(x, y, z, state, mode, needsGround ? SafeBlockPlacer.Support.SURVIVE : SafeBlockPlacer.Support.NONE,
-                PHASE_ATTACHED, 0, 0, signText(front, back));
+                PHASE_ATTACHED, 0, 0, 0, signWriter(front, back));
     }
 
     /** A wall sign hanging on the block behind it ({@code facing} points away from that block). */
     public Blueprint wallSign(int x, int y, int z, Direction facing, SignText front) {
         BlockState state = Blocks.OAK_WALL_SIGN.defaultBlockState().setValue(WallSignBlock.FACING, facing);
-        return put(x, y, z, state, mode, SafeBlockPlacer.Support.SURVIVE, PHASE_ATTACHED, 0, 0, signText(front, null));
+        return put(x, y, z, state, mode, SafeBlockPlacer.Support.SURVIVE, PHASE_ATTACHED, 0, 0, 0, signWriter(front, null));
     }
 
     /** Stairs: {@code facing} is the side the tall part is on. */
@@ -239,7 +239,8 @@ public final class Blueprint {
         return text.setColor(color).setHasGlowingText(glowing);
     }
 
-    private static PlacementJob.PostPlace signText(SignText front, @Nullable SignText back) {
+    /** Writes text onto the sign at the position (and waxes it) right after it was placed. */
+    public static PlacementJob.PostPlace signWriter(SignText front, @Nullable SignText back) {
         return (level, pos) -> {
             if (level.getBlockEntity(pos) instanceof SignBlockEntity sign) {
                 sign.setText(front, true);

@@ -52,8 +52,8 @@ void main() {
 
     // Wobble: the picture swims, then slowly breathes in and out.
     if (Warp > 0.0) {
-        uv.x += (sin(uv.y * 13.0 + t * 2.1) * 0.0055 + sin(uv.y * 37.0 - t * 4.7) * 0.0022) * Warp;
-        uv.y += (sin(uv.x * 9.0 + t * 1.6) * 0.0040 + sin(uv.x * 29.0 + t * 3.3) * 0.0012) * Warp;
+        uv.x += (sin(uv.y * 13.0 + t * 2.1) * 0.0080 + sin(uv.y * 37.0 - t * 4.7) * 0.0030) * Warp;
+        uv.y += (sin(uv.x * 9.0 + t * 1.6) * 0.0060 + sin(uv.x * 29.0 + t * 3.3) * 0.0018) * Warp;
         vec2 c = uv - 0.5;
         uv = 0.5 + c * (1.0 - 0.02 * Warp * (0.5 + 0.5 * sin(t * 1.1)));
     }
@@ -64,9 +64,9 @@ void main() {
         float frame = floor(t * 11.0);
         float rows = 14.0 + floor(hash11(frame * 0.37 + NullSeed) * 26.0);
         float row = floor(uv.y * rows);
-        if (hash12(vec2(row, frame + NullSeed)) < BlockShift * 0.5) {
+        if (hash12(vec2(row, frame + NullSeed)) < BlockShift * 0.35) {
             float s = hash12(vec2(row * 1.7 + 3.1, frame * 0.61 + NullSeed)) - 0.5;
-            uv.x += floor(s * 160.0 * BlockShift) * 8.0 * oneTexel.x;
+            uv.x += floor(s * 16.0 * BlockShift + 0.5) * 8.0 * oneTexel.x;
             band = 1.0;
         }
     }

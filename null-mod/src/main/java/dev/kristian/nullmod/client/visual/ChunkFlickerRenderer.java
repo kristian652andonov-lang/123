@@ -1,5 +1,6 @@
 package dev.kristian.nullmod.client.visual;
 
+import com.mojang.blaze3d.platform.GlConst;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
@@ -173,7 +174,7 @@ final class ChunkFlickerRenderer {
         modelView.set(event.getModelViewMatrix());
         RenderSystem.applyModelViewMatrix();
         RenderSystem.enableDepthTest();
-        RenderSystem.depthFunc(515);
+        RenderSystem.depthFunc(GlConst.GL_LEQUAL);
         RenderSystem.depthMask(false);
         RenderSystem.disableCull();
         RenderSystem.enableBlend();

@@ -41,7 +41,9 @@ final class MoonFragments {
         float settle = Math.min(1.0F, age / span);
         float eased = 1.0F - (1.0F - settle) * (1.0F - settle);
         float reach = shard.driftDistance() * (shattering ? 1.2F : 1.0F);
-        float drift = reach * eased + 0.15F * Math.max(0.0F, age - span);
+        // A broken piece is always clearly apart from its hole, then creeps further out.
+        float separation = 0.16F + 0.12F * shard.depth();
+        float drift = separation + (reach - separation) * eased + 0.15F * Math.max(0.0F, age - span);
         drift *= easeOutBack(animation);
         float wobble = shard.wobble() * Math.min(1.0F, animation * 1.5F);
         float u = shard.driftX() * drift + wobble * (float) Math.sin(seconds * 0.07F + shard.phase());

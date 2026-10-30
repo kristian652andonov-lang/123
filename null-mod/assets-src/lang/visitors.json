@@ -1,0 +1,6 @@
+{
+  "entity.null.visitor": "Visitor",
+  "entity.null.fake_player": "Player",
+  "null.tablist.header": "Minecraft Server",
+  "null.tablist.footer": "%s players online"
+}

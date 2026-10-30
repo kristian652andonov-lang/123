@@ -137,6 +137,11 @@ public final class SkinSet {
         return SKINS[sanitize(index)].category();
     }
 
+    /** The first (lowest index) skin of a category. */
+    public static int firstOf(Category category) {
+        return BY_CATEGORY[category.ordinal()][0];
+    }
+
     /** A random skin of one category. */
     public static int random(RandomSource random, Category category) {
         int[] indices = BY_CATEGORY[category.ordinal()];

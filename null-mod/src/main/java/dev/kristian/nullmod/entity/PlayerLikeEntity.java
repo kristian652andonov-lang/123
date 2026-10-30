@@ -295,7 +295,8 @@ public abstract class PlayerLikeEntity extends PathfinderMob {
             if (seen == null || player == owner) {
                 seen = player;
             }
-            if (isStaredAtBy(player) && (staring == null || player == owner)) {
+            // The view is already known to be clear; the stare test is just a narrower cone.
+            if (inStareCone(player) && (staring == null || player == owner)) {
                 staring = player;
             }
             if (player instanceof ServerPlayer serverPlayer && seenBy.add(player.getUUID())) {
@@ -362,12 +363,15 @@ public abstract class PlayerLikeEntity extends PathfinderMob {
 
     /** Looking straight at it (a narrow cone that shrinks with distance), with a clear view. */
     public boolean isStaredAtBy(Player player) {
-        Vec3 eye = player.getEyePosition();
-        Vec3 target = new Vec3(this.getX(), this.getY(0.75), this.getZ());
-        Vec3 to = target.subtract(eye);
+        return inStareCone(player) && canSee(player, IN_VIEW_DOT);
+    }
+
+    /** True if the player's view points straight at it. Ignores walls. */
+    public boolean inStareCone(Player player) {
+        Vec3 to = new Vec3(this.getX(), this.getY(0.75), this.getZ()).subtract(player.getEyePosition());
         double distance = Math.max(1.0, to.length());
         double threshold = Math.max(0.985, 1.0 - 0.05 / distance);
-        return player.getViewVector(1.0F).dot(to.normalize()) > threshold && clearLine(player, eye, target);
+        return to.lengthSqr() > 1.0E-6 && player.getViewVector(1.0F).dot(to.normalize()) > threshold;
     }
 
     private boolean clearLine(Player player, Vec3 from, Vec3 to) {
@@ -442,12 +446,17 @@ public abstract class PlayerLikeEntity extends PathfinderMob {
             onVanish(witness, cause);
         } finally {
             if (witness != null && cause.audible() && witness.level() == this.level() && witness.distanceToSqr(this) < 48.0 * 48.0) {
-                sendSound(witness, NullSounds.VISITOR_VANISH.get(), this.blockPosition().above(),
+                sendSound(witness, vanishSound(cause), this.blockPosition().above(),
                         0.32F + this.random.nextFloat() * 0.12F, 0.9F + this.random.nextFloat() * 0.2F);
                 WorldMemory.remember(witness.server, memoryKey() + ":vanished", witness.getUUID(), username());
             }
             this.discard();
         }
+    }
+
+    /** The faint sound the witness hears when it vanishes. */
+    protected SoundEvent vanishSound(VanishCause cause) {
+        return NullSounds.VISITOR_VANISH.get();
     }
 
     /**

@@ -21,7 +21,10 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoublePlantBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.phys.AABB;
 
 /**
@@ -480,10 +483,12 @@ public final class SafeBlockPlacer implements CorruptionSystem {
     }
 
     private static void apply(ServerLevel level, PlacementJob job, PlacementJob.Change change) {
+        BlockState before = level.getBlockState(change.pos());
         if (!level.setBlock(change.pos(), change.state(), FLAGS)) {
             job.skipped++;
             return;
         }
+        clearOtherHalf(level, change.pos(), before);
         job.placed++;
         if (job.firstPlaced == null) {
             job.firstPlaced = change.pos();
@@ -495,6 +500,22 @@ public final class SafeBlockPlacer implements CorruptionSystem {
             } catch (RuntimeException e) {
                 NullMod.LOGGER.error("NULL: post-placement step of world job '{}' failed", job.name(), e);
             }
+        }
+    }
+
+    /**
+     * Neighbours are never updated, so replacing one half of a tall plant would leave the other
+     * half hanging in the air. Take it away as well (it is the same plant, never anything built).
+     */
+    private static void clearOtherHalf(ServerLevel level, BlockPos pos, BlockState before) {
+        if (!(before.getBlock() instanceof DoublePlantBlock) || !before.hasProperty(BlockStateProperties.DOUBLE_BLOCK_HALF)) {
+            return;
+        }
+        boolean lower = before.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF) == DoubleBlockHalf.LOWER;
+        BlockPos other = lower ? pos.above() : pos.below();
+        BlockState state = level.getBlockState(other);
+        if (state.is(before.getBlock())) {
+            level.setBlock(other, Blocks.AIR.defaultBlockState(), FLAGS);
         }
     }
 

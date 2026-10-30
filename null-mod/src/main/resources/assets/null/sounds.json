@@ -55,10 +55,12 @@
     "sounds": [
       {
         "name": "null:ambient/low_hum_1",
+        "stream": true,
         "attenuation_distance": 32
       },
       {
         "name": "null:ambient/low_hum_2",
+        "stream": true,
         "attenuation_distance": 32
       }
     ]
@@ -117,10 +119,22 @@
   "ambient.whisper": {
     "subtitle": "subtitles.null.ambient.whisper",
     "sounds": [
-      "null:ambient/whisper_1",
-      "null:ambient/whisper_2",
-      "null:ambient/whisper_3",
-      "null:ambient/whisper_4"
+      {
+        "name": "null:ambient/whisper_1",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "null:ambient/whisper_2",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "null:ambient/whisper_3",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "null:ambient/whisper_4",
+        "attenuation_distance": 24
+      }
     ]
   },
   "ambient.voices_distant": {
@@ -323,18 +337,9 @@
   "event.breath_behind": {
     "subtitle": "subtitles.null.event.breath_behind",
     "sounds": [
-      {
-        "name": "null:event/breath_behind_1",
-        "attenuation_distance": 12
-      },
-      {
-        "name": "null:event/breath_behind_2",
-        "attenuation_distance": 12
-      },
-      {
-        "name": "null:event/breath_behind_3",
-        "attenuation_distance": 12
-      }
+      "null:event/breath_behind_1",
+      "null:event/breath_behind_2",
+      "null:event/breath_behind_3"
     ]
   },
   "moon.crack": {
@@ -565,9 +570,18 @@
   "visitor.breath": {
     "subtitle": "subtitles.null.visitor.breath",
     "sounds": [
-      "null:visitor/breath_1",
-      "null:visitor/breath_2",
-      "null:visitor/breath_3"
+      {
+        "name": "null:visitor/breath_1",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "null:visitor/breath_2",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "null:visitor/breath_3",
+        "attenuation_distance": 24
+      }
     ]
   },
   "fakeplayer.whisper": {

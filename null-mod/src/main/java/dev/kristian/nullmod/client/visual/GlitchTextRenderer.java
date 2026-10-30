@@ -75,7 +75,8 @@ final class GlitchTextRenderer {
         float scale = large
                 ? Math.min(width * 0.8F / preparedWidth, height * 0.2F / font.lineHeight)
                 : Math.min(width * 0.55F / preparedWidth, height * 0.08F / font.lineHeight);
-        scale = Math.max(1.0F, scale);
+        // Whole-number scales keep the bitmap font crisp.
+        scale = scale >= 2.0F ? (float) Math.floor(scale) : Math.max(1.0F, scale);
         float textW = preparedWidth * scale;
         float jitterX = SmoothNoise.hashSigned(seed ^ bucket, 11L) * (strobe ? 3.0F : 1.0F);
         float jitterY = SmoothNoise.hashSigned(seed ^ bucket, 12L) * (strobe ? 2.0F : 0.6F);

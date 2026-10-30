@@ -110,6 +110,23 @@ final class MoonArt {
         return new float[] {discX / cellW, discY / cellH, discW / cellW, discH / cellH};
     }
 
+    /** Left edge of the lit disc as a fraction of a phase cell. */
+    float discFractionX() {
+        return discX / cellW;
+    }
+
+    float discFractionY() {
+        return discY / cellH;
+    }
+
+    float discFractionW() {
+        return discW / cellW;
+    }
+
+    float discFractionH() {
+        return discH / cellH;
+    }
+
     // ------------------------------------------------------------------ main image
 
     /**
@@ -253,7 +270,9 @@ final class MoonArt {
         } else {
             for (int index : cracks) {
                 if (index >= 0 && index < geometry.crackCount()) {
-                    stroke(geometry.crack(index), 1.0F, radius * geometry.crack(index).width(), crackMask, 0.0F, 0.0F, true);
+                    // Light up as much of the crack as exists (a fresh one at least starts to glow).
+                    MoonGeometry.Crack crack = geometry.crack(index);
+                    stroke(crack, Math.max(0.15F, crack.growth(progress)), radius * crack.width(), crackMask, 0.0F, 0.0F, true);
                 }
             }
         }

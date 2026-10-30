@@ -34,8 +34,8 @@ public final class DuplicatedTerrain {
         RandomSource random = req.random();
         int attempts = req.attempts(4);
         for (int i = 0; i < attempts; i++) {
-            BlockPos source = LocationFinder.findGround(level, req.player(), random, req.minDistance(24.0, 12.0), 64.0,
-                    req.view(LocationFinder.View.EDGE), 4, pos -> true);
+            BlockPos source = LocationFinder.findGround(level, req.player(), random, req.minDistance(40.0, 16.0), 96.0,
+                    req.view(LocationFinder.View.HIDDEN), 4, pos -> true);
             if (source == null) {
                 continue;
             }

@@ -32,6 +32,9 @@ final class FakeDisconnectScreen extends DisconnectedScreen {
 
     /** Requests the screen; it appears as soon as no other screen is open (within 10 s). */
     static void request(int durationTicks) {
+        if (Minecraft.getInstance().screen instanceof FakeDisconnectScreen) {
+            return;
+        }
         pendingTicks = Math.max(50, Math.min(80, durationTicks));
         pendingUntil = Util.getMillis() + 10_000L;
     }
@@ -39,7 +42,7 @@ final class FakeDisconnectScreen extends DisconnectedScreen {
     static void clientTick() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.screen instanceof FakeDisconnectScreen screen) {
-            if (Util.getMillis() >= screen.closeAt || mc.level == null) {
+            if (Util.getMillis() >= screen.closeAt) {
                 screen.closeNow();
             }
             return;
@@ -56,6 +59,11 @@ final class FakeDisconnectScreen extends DisconnectedScreen {
             VisualSounds.fakeDisconnect(pendingTicks);
             mc.setScreen(new FakeDisconnectScreen(pendingTicks));
         }
+    }
+
+    /** Logout: forget a pending request; the screen itself is replaced by the logout flow. */
+    static void cancelPending() {
+        pendingUntil = 0L;
     }
 
     static void closeIfOpen() {

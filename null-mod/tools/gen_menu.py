@@ -4,13 +4,12 @@
 Everything is synthesised with numpy + PIL; no external images are used.
 
 Outputs (under src/main/resources/assets/null/):
-  textures/font/horror.png (+.mcmeta)       distressed serif glyph sheet (A-Z, 0-9, punctuation)
+  textures/font/horror.png                  distressed serif glyph sheet (A-Z, 0-9, punctuation)
   font/horror.json                          bitmap font "null:horror" built on that sheet
-  textures/gui/menu/apparitions.png (+.mcmeta)
-                                            atlas: faces, eye pairs, eye glints, mouths, silhouettes
+  textures/gui/menu/apparitions.png         atlas: faces, eye pairs, eye glints, mouths, silhouettes
   textures/gui/menu/grain.png               tileable film grain / static
-  textures/gui/menu/fog.png (+.mcmeta)      tileable drifting darkness
-  textures/gui/menu/vignette.png (+.mcmeta) edge darkening
+  textures/gui/menu/fog.png                 tileable drifting darkness
+  textures/gui/menu/vignette.png            edge darkening
   textures/gui/menu/art.json                atlas regions, eye anchors and glyph metrics for the menu code
 
 All PNGs are written as RGBA (Minecraft uploads grey/grey-alpha PNGs with the wrong channel layout).
@@ -168,13 +167,12 @@ def to_rgba(lum, alpha):
     return Image.fromarray(out, "RGBA")
 
 
-def save_png(img, path, mcmeta=None):
+def save_png(img, path):
+    """Writes an RGBA PNG. The menu loads these itself and sets filtering in code, so no .mcmeta."""
     path.parent.mkdir(parents=True, exist_ok=True)
     img.convert("RGBA").save(path, optimize=True)
     meta = path.with_name(path.name + ".mcmeta")
-    if mcmeta is not None:
-        meta.write_text(json.dumps(mcmeta, indent=2) + "\n", encoding="utf-8")
-    elif meta.exists():
+    if meta.exists():
         meta.unlink()
 
 
@@ -967,18 +965,18 @@ def main():
     args = ap.parse_args()
 
     g_lum, g_alpha, gmeta = build_glyphs()
-    save_png(to_rgba(g_lum, g_alpha), FONT_TEX_DIR / "horror.png", {"texture": {"blur": True, "clamp": True}})
+    save_png(to_rgba(g_lum, g_alpha), FONT_TEX_DIR / "horror.png")
     FONT_DEF_DIR.mkdir(parents=True, exist_ok=True)
     (FONT_DEF_DIR / "horror.json").write_text(json.dumps(font_definition(), indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
 
     a_lum, a_alpha, aw, ah, ameta = build_atlas()
-    save_png(to_rgba(a_lum, a_alpha), MENU_DIR / "apparitions.png", {"texture": {"blur": True, "clamp": True}})
+    save_png(to_rgba(a_lum, a_alpha), MENU_DIR / "apparitions.png")
     gl, ga = make_grain()
-    save_png(to_rgba(gl, ga), MENU_DIR / "grain.png", None)
+    save_png(to_rgba(gl, ga), MENU_DIR / "grain.png")
     fl, fa = make_fog()
-    save_png(to_rgba(fl, fa), MENU_DIR / "fog.png", {"texture": {"blur": True, "clamp": False}})
+    save_png(to_rgba(fl, fa), MENU_DIR / "fog.png")
     vl, va = make_vignette()
-    save_png(to_rgba(vl, va), MENU_DIR / "vignette.png", {"texture": {"blur": True, "clamp": True}})
+    save_png(to_rgba(vl, va), MENU_DIR / "vignette.png")
 
     art = {
         "version": 1,

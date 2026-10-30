@@ -133,24 +133,11 @@ def r_bp(fc, q):
     return resp
 
 
-def r_tilt(db_per_octave, f0=1000.0):
-    return lambda f: (np.maximum(f, 20.0) / f0) ** (db_per_octave / 6.0206)
-
-
 def r_mul(*responses):
     def resp(f):
         out = np.ones_like(f)
         for r in responses:
             out = out * r(f)
-        return out
-    return resp
-
-
-def r_sum(*pairs):
-    def resp(f):
-        out = np.zeros_like(f)
-        for gain, r in pairs:
-            out = out + gain * r(f)
         return out
     return resp
 
@@ -331,10 +318,6 @@ def additive(freq, n, partials, sr=SR, phase=None):
     return out
 
 
-def saw_bl(freq, n, sr=SR, harmonics=40, rolloff=1.0):
-    return additive(freq, n, [(k, (1.0 / k) ** rolloff) for k in range(1, harmonics + 1)], sr)
-
-
 def square_raw(freq, n, sr=SR, duty=0.5):
     """Naive (aliasing) square: the harsh digital buzz is intended."""
     ph = (np.cumsum(np.broadcast_to(np.asarray(freq, float), (n,))) / sr) % 1.0
@@ -418,11 +401,6 @@ def reverb(x, rng, rt60, wet=0.3, dry=1.0, bright=0.5, predelay=0.012, sr=SR, si
     return out + wet * w
 
 
-def circ_reverb(x, rng, rt60, wet=0.3, dry=1.0, bright=0.5, predelay=0.012, sr=SR):
-    ir = reverb_ir(rng, rt60, sr, bright, predelay)
-    return dry * x + wet * circconv(x, ir)
-
-
 # ---- finishing ----------------------------------------------------------------------------
 
 def db(v):
@@ -465,14 +443,6 @@ def bass_exciter(x, sr=SR, amount=0.5, cutoff=140.0, drive=4.0, circular=False):
     harm = np.tanh(drive * low / peak) * peak
     harm = spectral(harm, r_mul(r_hp(cutoff * 1.1, 2), r_lp(900.0, 2)), sr, circular=circular)
     return x + amount * harm
-
-
-def to_stereo(left, right):
-    n = max(len(left), len(right))
-    out = np.zeros((n, 2))
-    out[:len(left), 0] = left
-    out[:len(right), 1] = right
-    return out
 
 
 def pan(x, position):
@@ -677,7 +647,7 @@ def door_knock(rng, strength=1.0, sr=SR, modes=None):
     return fade(body + iir(click, "hp", 1800, 0.7, sr=sr), 0.0003, 0.05, sr)
 
 
-def friction_creak(rng, dur, rate_points, res_freqs, res_q=10.0, wet=0.0, sr=SR, jitter=0.15, grit=0.25):
+def friction_creak(rng, dur, rate_points, res_freqs, res_q=10.0, sr=SR, jitter=0.15, grit=0.25):
     """Stick-slip creak: an irregular pulse train (rate in Hz follows rate_points) exciting resonances."""
     n = ns(dur, sr)
     rate = env_points(n, rate_points, sr) * (1.0 + jitter * smooth_random(n, rng, 18.0, sr))
@@ -878,7 +848,7 @@ def low_hum_loop(rng, v, sr, length):
 
 
 @sound("ambient.low_hum", variants=2, subtitle="A low hum", attenuation=32, sr=22050, rms_db=-16.0, peak=-3.0,
-       quality=4, loop=True)
+       quality=4, loop=True, stream=True)
 def s_low_hum(rng, v, sr):
     return low_hum_loop(rng, v, sr, 12.0)
 
@@ -2193,11 +2163,54 @@ def decode(path: pathlib.Path, sr: int, channels: int) -> np.ndarray:
     return data.reshape(-1, channels) if channels > 1 else data
 
 
-def seam_jump(x: np.ndarray) -> float:
-    """Loop seam discontinuity relative to the signal's typical sample-to-sample step."""
-    mono = x if x.ndim == 1 else x.mean(axis=1)
-    steps = np.abs(np.diff(mono))
-    return float(abs(mono[0] - mono[-1]) / (np.percentile(steps, 99) + 1e-12))
+def seam_click(x: np.ndarray) -> float:
+    """How click-like the loop seam is: high-frequency (second difference) energy in a 64-sample
+    window straddling the wrap from the end back to the start, relative to the 99th percentile
+    of the same measure over the whole file. Below 1 the seam is indistinguishable from the
+    sound's own texture. Worst channel for stereo."""
+    chans = [x] if x.ndim == 1 else [x[:, c] for c in range(x.shape[1])]
+    worst = 0.0
+    w = 64
+    for ch in chans:
+        d2 = np.diff(np.concatenate([ch[-2:], ch]), n=2)
+        e = np.convolve(d2 * d2, np.ones(w) / w, mode="valid")
+        seam = np.mean(np.concatenate([d2[-w // 2:], d2[:w // 2]]) ** 2)
+        worst = max(worst, float(seam / (np.percentile(e, 99) + 1e-20)))
+    return worst
+
+
+def loop_rotations(sig: np.ndarray, sr: int, count: int = 8) -> list[int]:
+    """Candidate start points for a periodic loop: where the waveform is near zero with a small
+    slope (Vorbis reproduces the file edges least exactly, so the seam should sit somewhere quiet)."""
+    x = sig if sig.ndim == 1 else sig
+    step = np.abs(np.roll(x, -1, axis=0) - x)
+    cost = np.abs(x) + 4.0 * step
+    if cost.ndim == 2:
+        cost = cost.sum(axis=1)
+    order = np.argsort(cost, kind="stable")
+    n = len(cost)
+    spacing = ns(0.1, sr)
+    picked: list[int] = []
+    for idx in order[:20000]:
+        idx = int(idx)
+        if all(min(abs(idx - c), n - abs(idx - c)) > spacing for c in picked):
+            picked.append(idx)
+            if len(picked) == count:
+                break
+    return picked or [0]
+
+
+def encode_checked(sig: np.ndarray, path: pathlib.Path, sr: int, channels: int, quality: int):
+    """Encodes, decodes again and, if the codec pushed the peak above -1 dBFS, lowers the gain and
+    re-encodes. Returns (decoded samples, decoded peak, final input signal)."""
+    for attempt in range(4):
+        encode(sig, path, sr, channels, quality)
+        dec = decode(path, sr, channels)
+        peak = float(np.max(np.abs(dec)))
+        if db(peak) <= -1.05 or attempt == 3:
+            return dec, peak, sig
+        sig = sig * 10 ** ((-1.25 - db(peak)) / 20.0)
+    raise AssertionError("unreachable")
 
 
 def render_variant(event: str, index: int) -> dict:
@@ -2224,21 +2237,28 @@ def render_variant(event: str, index: int) -> dict:
     sig = normalise(sig, spec["peak"], spec["rms"])
     path, ref = variant_path(event, index, spec["variants"])
     channels = 2 if stereo else 1
-    for attempt in range(4):
-        encode(sig, path, sr, channels, spec["quality"])
-        dec = decode(path, sr, channels)
-        peak = float(np.max(np.abs(dec)))
-        if db(peak) <= -1.0 or attempt == 3:
-            break
-        sig = sig * 10 ** ((-1.15 - db(peak)) / 20.0)
-    info = {
-        "event": event, "index": index, "path": str(path.relative_to(ROOT)), "ref": ref,
-        "seconds": len(dec) / sr, "peak_db": db(peak), "rms_db": db(rms(dec)), "bytes": path.stat().st_size,
-        "channels": channels, "sr": sr,
-    }
+    info = {"event": event, "index": index, "path": str(path.relative_to(ROOT)), "ref": ref,
+            "channels": channels, "sr": sr}
     if spec["loop"]:
-        info["seam"] = seam_jump(dec)
-        info["length_ok"] = (dec.shape[0] == sig.shape[0])
+        # The loop is exactly periodic, so any rotation of it is the same loop: try a few quiet
+        # start points and keep the one whose decoded seam is cleanest.
+        best = None
+        for rot in loop_rotations(sig, sr):
+            rotated = np.roll(sig, -rot, axis=0)
+            dec, peak, final = encode_checked(rotated, path, sr, channels, spec["quality"])
+            click = seam_click(dec)
+            if best is None or click < best[0]:
+                best = (click, rot, final)
+            if click < 0.25:
+                break
+        click, rot, final = best
+        dec, peak, _ = encode_checked(final, path, sr, channels, spec["quality"])
+        info["seam"] = seam_click(dec)
+        info["length_ok"] = dec.shape[0] == final.shape[0]
+    else:
+        dec, peak, _ = encode_checked(sig, path, sr, channels, spec["quality"])
+    info.update({"seconds": dec.shape[0] / sr, "peak_db": db(peak), "rms_db": db(rms(dec)),
+                 "bytes": path.stat().st_size})
     return info
 
 

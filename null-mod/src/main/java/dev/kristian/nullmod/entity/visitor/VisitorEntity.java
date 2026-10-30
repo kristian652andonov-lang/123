@@ -85,6 +85,15 @@ public class VisitorEntity extends PlayerLikeEntity {
         return "visitor";
     }
 
+    @Override
+    protected void onFirstSeen(ServerPlayer player) {
+        // Rarely, the first sight of one comes with the faintest sting, for that player only.
+        if (personality != VisitorPersonality.STALKER && personality != VisitorPersonality.FOLLOWER
+                && this.random.nextFloat() < 0.12F && this.distanceToSqr(player) > 12.0 * 12.0) {
+            sendSound(player, NullSounds.VISITOR_APPEAR.get(), this.blockPosition().above(), 0.22F, 0.9F + this.random.nextFloat() * 0.15F);
+        }
+    }
+
     // ------------------------------------------------------------------ behaviour
 
     @Override

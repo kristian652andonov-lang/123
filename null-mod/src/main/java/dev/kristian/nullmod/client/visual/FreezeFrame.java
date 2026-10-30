@@ -2,6 +2,7 @@ package dev.kristian.nullmod.client.visual;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
+import com.mojang.blaze3d.platform.GlConst;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -12,8 +13,6 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import org.joml.Matrix4f;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL30;
 
 /**
  * The visual freeze: the first frame of a freeze is copied out of the main render target into a
@@ -41,11 +40,11 @@ final class FreezeFrame {
         } else if (target.width != main.width || target.height != main.height) {
             target.resize(main.width, main.height, Minecraft.ON_OSX);
         }
-        GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, main.frameBufferId);
-        GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, target.frameBufferId);
+        GlStateManager._glBindFramebuffer(GlConst.GL_READ_FRAMEBUFFER, main.frameBufferId);
+        GlStateManager._glBindFramebuffer(GlConst.GL_DRAW_FRAMEBUFFER, target.frameBufferId);
         GlStateManager._glBlitFrameBuffer(0, 0, main.width, main.height, 0, 0, target.width, target.height,
-                GL11.GL_COLOR_BUFFER_BIT, GL11.GL_NEAREST);
-        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, 0);
+                GlConst.GL_COLOR_BUFFER_BIT, GlConst.GL_NEAREST);
+        GlStateManager._glBindFramebuffer(GlConst.GL_FRAMEBUFFER, 0);
         main.bindWrite(true);
         captured = true;
     }

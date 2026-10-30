@@ -1,6 +1,7 @@
 package dev.kristian.nullmod.client.visual;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.kristian.nullmod.NullMod;
@@ -36,6 +37,9 @@ import org.joml.Matrix4fStack;
 final class SilhouetteRenderer {
     private static final ResourceLocation TEXTURE = NullMod.id("textures/gui/visual/silhouette.png");
     private static final PoseStack IDENTITY = new PoseStack();
+    private static final BlockPos.MutableBlockPos LIGHT_POS = new BlockPos.MutableBlockPos();
+    /** Our own small buffer, so drawing the figure never flushes vanilla's pending batches. */
+    private static MultiBufferSource.BufferSource buffers;
     /** cos(7 degrees): looking straight at it. */
     private static final double LOOK_DOT = 0.9925;
 
@@ -211,9 +215,11 @@ final class SilhouetteRenderer {
         float rz = dx / horizontal * width * 0.5F;
         float u0 = variant * 0.25F;
         float u1 = u0 + 0.25F;
-        int light = LevelRenderer.getLightColor(level, BlockPos.containing(fx, fy + 1.0, fz));
+        int light = LevelRenderer.getLightColor(level, LIGHT_POS.set(fx, fy + 1.0, fz));
 
-        MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
+        if (buffers == null) {
+            buffers = MultiBufferSource.immediate(new ByteBufferBuilder(1536));
+        }
         RenderType type = RenderType.entityTranslucent(TEXTURE);
         VertexConsumer consumer = buffers.getBuffer(type);
         PoseStack.Pose pose = IDENTITY.last();

@@ -1,5 +1,6 @@
 package dev.kristian.nullmod.client.visual;
 
+import dev.kristian.nullmod.NullMod;
 import dev.kristian.nullmod.client.ClientCorruptionState;
 import dev.kristian.nullmod.client.ClientLimits;
 import dev.kristian.nullmod.core.CorruptionStage;
@@ -92,9 +93,12 @@ public final class VisualDistortionManager {
         /** Flicker segment length in ticks, or pulse speed in radians per tick. */
         float param;
         long seed;
+        /** Effects added together (one storm, one distortion) share a group and count once. */
+        long group;
     }
 
     private static final Effect[] SLOTS = new Effect[MAX_SLOTS];
+    private static final float[] SLOT_VALUES = new float[MAX_SLOTS];
     private static final float[] LEVELS = new float[CHANNELS];
     private static final float[] REMAINING = new float[CHANNELS];
     private static final RandomSource RANDOM = RandomSource.create();
@@ -104,6 +108,9 @@ public final class VisualDistortionManager {
             SLOTS[i] = new Effect();
         }
     }
+
+    private static long nextGroup = 1L;
+    private static long openGroup;
 
     // Visual clock in ticks: advances with real time while the game is not paused.
     private static double time;
@@ -139,6 +146,12 @@ public final class VisualDistortionManager {
     // NULLROOT capture overlay (separate channel).
     private static float captureTarget;
     private static float captureValue;
+    private static double captureTouched;
+
+    /** A transition fade held this long without news is released (its driver must have died). */
+    private static final double FADE_WATCHDOG_TICKS = 20.0 * 60.0;
+    /** A capture overlay nobody has updated for this long is released. */
+    private static final double CAPTURE_WATCHDOG_TICKS = 20.0 * 30.0;
 
     // Glitch text.
     private static String glitchText;
@@ -190,6 +203,7 @@ public final class VisualDistortionManager {
     /** 0..1 tendrils closing in over the screen edges while a NULLROOT holds the player. */
     public static void setCaptureOverlay(float amount) {
         captureTarget = SmoothNoise.clamp01(Float.isNaN(amount) ? 0.0F : amount);
+        captureTouched = time;
     }
 
     /** Big (or smaller) centred corrupted text. Replaces any glitch text already showing. */
@@ -209,19 +223,8 @@ public final class VisualDistortionManager {
      * The transition fade and the capture overlay are left alone: their owners drive them.
      */
     public static void clearAll() {
-        for (Effect e : SLOTS) {
-            e.active = false;
-        }
-        Arrays.fill(LEVELS, 0.0F);
-        cameraYaw = 0.0F;
-        cameraPitch = 0.0F;
-        cameraRoll = 0.0F;
-        fovOffset = 0.0F;
-        glitchText = null;
-        FreezeFrame.release();
+        clearEffects();
         ClientBlockGlitchManager.restoreAll();
-        ChunkFlickerRenderer.clear();
-        SilhouetteRenderer.clear();
         FakeDisconnectScreen.closeIfOpen();
     }
 
@@ -253,6 +256,12 @@ public final class VisualDistortionManager {
      */
     static boolean addEffect(int channel, float intensity, int durationTicks, long seed, int style,
                              float attack, float release, float param) {
+        return addEffect(channel, intensity, durationTicks, seed, style, attack, release, param, 0);
+    }
+
+    /** As above, starting {@code delayTicks} from now. */
+    static boolean addEffect(int channel, float intensity, int durationTicks, long seed, int style,
+                             float attack, float release, float param, int delayTicks) {
         if (!(intensity > 0.0F) || durationTicks <= 0) {
             return false;
         }
@@ -306,7 +315,8 @@ public final class VisualDistortionManager {
         if (strength < EPSILON) {
             return false;
         }
-        Effect slot = claimSlot(cap, strength);
+        long group = openGroup != 0L ? openGroup : nextGroup++;
+        Effect slot = claimSlot(cap, strength, group);
         if (slot == null) {
             return false;
         }
@@ -314,13 +324,26 @@ public final class VisualDistortionManager {
         slot.channel = channel;
         slot.style = style;
         slot.strength = strength;
-        slot.start = time;
+        slot.start = time + Math.max(0, delayTicks);
         slot.duration = duration;
         slot.attack = attack;
         slot.release = release;
         slot.param = param;
         slot.seed = seed;
+        slot.group = group;
         return true;
+    }
+
+    /**
+     * Everything added until {@link #endGroup()} is one effect as far as the effect cap is
+     * concerned: an RGB storm made of seven layers still counts once, and is dropped as a whole.
+     */
+    static void beginGroup() {
+        openGroup = nextGroup++;
+    }
+
+    static void endGroup() {
+        openGroup = 0L;
     }
 
     static RandomSource random() {
@@ -427,8 +450,17 @@ public final class VisualDistortionManager {
         refresh();
     }
 
-    /** Stage-driven ambience scheduled per client tick. */
+    /** Stage-driven ambience scheduled per client tick, plus the safety watchdogs. */
     static void clientTick() {
+        // Never leave the screen black or wrapped in tendrils because whoever drives those
+        // channels stopped talking (lost packet, crashed system): give the game back.
+        if (fadeTo > 0.0F && time - (fadeStart + fadeDuration) > FADE_WATCHDOG_TICKS) {
+            NullMod.LOGGER.warn("NULL transition fade was held for over a minute without updates; releasing it");
+            setTransitionFade(0.0F, 60);
+        }
+        if (captureTarget > 0.0F && time - captureTouched > CAPTURE_WATCHDOG_TICKS) {
+            captureTarget = 0.0F;
+        }
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.isPaused() || !ClientCorruptionState.synced()) {
             return;
@@ -446,7 +478,10 @@ public final class VisualDistortionManager {
 
     /** Logout: everything goes, including the transition fade and the capture overlay. */
     static void reset() {
-        clearAll();
+        // The world is being torn down: forget everything without touching it or the screen.
+        clearEffects();
+        ClientBlockGlitchManager.forgetAll();
+        FakeDisconnectScreen.cancelPending();
         fadeFrom = 0.0F;
         fadeTo = 0.0F;
         fadeDuration = 0.0F;
@@ -470,49 +505,123 @@ public final class VisualDistortionManager {
 
     // ===================================================================== internals
 
-    private static void freeze(int durationTicks, long seed) {
+    private static void clearEffects() {
+        for (Effect e : SLOTS) {
+            e.active = false;
+        }
+        Arrays.fill(LEVELS, 0.0F);
+        cameraYaw = 0.0F;
+        cameraPitch = 0.0F;
+        cameraRoll = 0.0F;
+        fovOffset = 0.0F;
+        glitchText = null;
+        FreezeFrame.release();
+        ChunkFlickerRenderer.clear();
+        SilhouetteRenderer.clear();
+    }
+
+    /** Starts a freeze; false if it was softened (intense effects off) or did not fit. */
+    static boolean freeze(int durationTicks, long seed) {
         if (!ClientLimits.intenseAllowed()) {
             // Too intense for this player: the colour drains for a moment instead.
             addEffect(DESATURATE, 0.35F, Math.max(30, durationTicks), seed, STYLE_SMOOTH, 6.0F, 14.0F, 0.0F);
-            return;
+            return false;
         }
         if (LEVELS[FREEZE] <= 0.0F) {
             FreezeFrame.release();
         }
-        addEffect(FREEZE, 1.0F, Mth.clamp(durationTicks, 4, 120), seed, STYLE_SMOOTH, 0.0F, 0.0F, 0.0F);
+        return addEffect(FREEZE, 1.0F, Mth.clamp(durationTicks, 4, 120), seed, STYLE_SMOOTH, 0.0F, 0.0F, 0.0F);
     }
 
-    private static Effect claimSlot(int cap, float strength) {
-        int active = 0;
+    /**
+     * A free slot for an effect of {@code group}. A new group needs room under the cap; when
+     * there is none the weakest whole group goes, but only if it is weaker than the newcomer.
+     */
+    private static Effect claimSlot(int cap, float strength, long group) {
         Effect free = null;
-        Effect weakest = null;
-        float weakestValue = Float.MAX_VALUE;
-        for (Effect e : SLOTS) {
+        boolean groupActive = false;
+        for (int i = 0; i < MAX_SLOTS; i++) {
+            Effect e = SLOTS[i];
+            SLOT_VALUES[i] = 0.0F;
             if (e.active) {
-                float v = evaluate(e, time);
-                if (!e.active) {
-                    if (free == null) {
-                        free = e;
-                    }
-                    continue;
-                }
-                active++;
-                if (v < weakestValue) {
-                    weakestValue = v;
-                    weakest = e;
-                }
-            } else if (free == null) {
+                // A delayed effect that has not started yet counts at its full strength.
+                SLOT_VALUES[i] = time < e.start ? e.strength : evaluate(e, time);
+                groupActive |= e.active && e.group == group;
+            }
+            if (!e.active && free == null) {
                 free = e;
             }
         }
-        if (active < Math.min(cap, MAX_SLOTS) && free != null) {
+        if (!groupActive) {
+            int groups = 0;
+            long weakestGroup = 0L;
+            float weakestValue = Float.MAX_VALUE;
+            for (int i = 0; i < MAX_SLOTS; i++) {
+                Effect e = SLOTS[i];
+                if (!e.active || firstOfGroup(i) != i) {
+                    continue;
+                }
+                groups++;
+                float value = groupValue(e.group);
+                if (value < weakestValue) {
+                    weakestValue = value;
+                    weakestGroup = e.group;
+                }
+            }
+            if (groups >= cap) {
+                if (weakestValue >= strength) {
+                    return null;
+                }
+                free = dropGroup(weakestGroup, free);
+            }
+        }
+        if (free != null) {
             return free;
         }
-        if (weakest != null && weakestValue < strength) {
-            weakest.active = false;
-            return weakest;
+        // Every slot is busy: the single weakest layer of another effect makes room.
+        int weakest = -1;
+        for (int i = 0; i < MAX_SLOTS; i++) {
+            if (SLOTS[i].active && SLOTS[i].group != group && (weakest < 0 || SLOT_VALUES[i] < SLOT_VALUES[weakest])) {
+                weakest = i;
+            }
+        }
+        if (weakest >= 0 && SLOT_VALUES[weakest] < strength) {
+            SLOTS[weakest].active = false;
+            return SLOTS[weakest];
         }
         return null;
+    }
+
+    private static int firstOfGroup(int index) {
+        long group = SLOTS[index].group;
+        for (int i = 0; i < index; i++) {
+            if (SLOTS[i].active && SLOTS[i].group == group) {
+                return i;
+            }
+        }
+        return index;
+    }
+
+    private static float groupValue(long group) {
+        float value = 0.0F;
+        for (int i = 0; i < MAX_SLOTS; i++) {
+            if (SLOTS[i].active && SLOTS[i].group == group) {
+                value = Math.max(value, SLOT_VALUES[i]);
+            }
+        }
+        return value;
+    }
+
+    private static Effect dropGroup(long group, Effect free) {
+        for (Effect e : SLOTS) {
+            if (e.active && e.group == group) {
+                e.active = false;
+                if (free == null) {
+                    free = e;
+                }
+            }
+        }
+        return free;
     }
 
     private static float evaluate(Effect e, double now) {

@@ -46,6 +46,7 @@ final class RetroHouse {
         boolean stairsInward;
         boolean solidInterior;
         boolean rotatedSegment;
+        boolean mirroredWall;
         boolean doorOnRoof;
     }
 
@@ -197,6 +198,9 @@ final class RetroHouse {
         if (s.rotatedSegment) {
             rotateSideWall(bp, s, w, d, h);
         }
+        if (s.mirroredWall) {
+            mirrorSideWall(bp, d, h);
+        }
         if (s.moss > 0.0F) {
             BlockState cobble = NullBlocks.RETRO_COBBLESTONE.get().defaultBlockState();
             BlockState mossy = NullBlocks.RETRO_MOSSY_COBBLESTONE.get().defaultBlockState();
@@ -244,6 +248,22 @@ final class RetroHouse {
             }
             if (left + 1 >= right) {
                 break;
+            }
+        }
+    }
+
+    /**
+     * The left wall was mirrored to the wrong side of a line two blocks outside the house: it
+     * stands there on its own, and the house is open where it should be.
+     */
+    private static void mirrorSideWall(Blueprint bp, int d, int h) {
+        for (int y = 1; y <= h; y++) {
+            for (int z = 1; z <= d - 2; z++) {
+                BlockState state = bp.get(0, y, z);
+                bp.remove(0, y, z);
+                if (state != null) {
+                    bp.set(-3, y, d - 1 - z, state);
+                }
             }
         }
     }

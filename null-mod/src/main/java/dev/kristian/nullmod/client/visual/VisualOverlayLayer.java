@@ -164,7 +164,7 @@ final class VisualOverlayLayer {
             } else {
                 // A displaced rectangle: a block of the picture that failed to draw.
                 float w = 6.0F + SmoothNoise.hash01(seed, k + 3L) * width * (0.06F + 0.18F * amount);
-                float h = 2.0F + SmoothNoise.hash01(seed, k + 4L) * (6.0F + 22.0F * amount);
+                float h = 1.0F + SmoothNoise.hash01(seed, k + 4L) * (3.0F + 12.0F * amount);
                 float x = SmoothNoise.hash01(seed, k + 5L) * (width - w);
                 float tone = SmoothNoise.hash01(seed, k + 6L);
                 int a = GuiQuads.alpha((0.35F + 0.55F * amount) * alphaScale);

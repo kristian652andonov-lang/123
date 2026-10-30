@@ -1,0 +1,6 @@
+-proc:none
+-Xmaxerrs
+100000
+-d
+/tmp/tmp.1axOsqPq5j
+@/tmp/claude-0/-home-user-123/12da7675-6bb2-55ff-9091-ac352477170a/scratchpad/world/files.txt

@@ -1176,21 +1176,15 @@ def registered_blocks() -> list[str]:
 
 
 def contact_sheet(path: pathlib.Path, rendered: dict[str, list[np.ndarray]]):
+    """Every texture enlarged 6x on a checker background (animated ones show their first frames)."""
     scale = 6
     cell = S * scale
     label_h = 14
-    names = sorted(rendered)
     cols = 8
-    rows_needed = 0
-    entries = []
-    for name in names:
-        frames = rendered[name]
-        shown = frames if len(frames) == 1 else frames[:min(len(frames), 4)]
-        entries.append((name, shown))
-        rows_needed += 1
     pad = 6
-    width = cols * (cell * 1 + pad) + pad
-    # Animated entries take as many columns as frames shown.
+    entries = [(name, rendered[name][:4]) for name in sorted(rendered)]
+    width = cols * (cell + pad) + pad
+    # Animated entries take as many cells as frames shown.
     layout = []
     x = pad
     y = pad

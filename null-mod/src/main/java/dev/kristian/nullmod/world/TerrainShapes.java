@@ -22,7 +22,7 @@ public final class TerrainShapes {
     public record IslandPalette(BlockState top, BlockState sub, BlockState core, boolean vanillaGrass, boolean retro) {
 
         /** Outdated terrain: bright retro grass over retro dirt and stone. */
-        public static IslandPalette retro() {
+        public static IslandPalette oldLand() {
             return new IslandPalette(NullBlocks.RETRO_GRASS_BLOCK.get().defaultBlockState(), NullBlocks.RETRO_DIRT.get().defaultBlockState(),
                     NullBlocks.RETRO_STONE.get().defaultBlockState(), false, true);
         }
@@ -30,7 +30,7 @@ public final class TerrainShapes {
         /** Terrain that looks like the ground the piece was torn from. */
         public static IslandPalette forGround(BlockState ground, RandomSource random) {
             if (random.nextFloat() < 0.25F) {
-                return retro();
+                return oldLand();
             }
             Block block = ground.getBlock();
             BlockState dirt = Blocks.DIRT.defaultBlockState();
