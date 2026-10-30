@@ -4,8 +4,6 @@ on:
   push:
     paths:
       - 'null-mod/**'
-      - '!null-mod/ci/api-queries.txt'
-      - '!null-mod/ci/api-export-request.txt'
       - '!null-mod/dist/**'
       - '!null-mod/**/*.md'
       - '.github/workflows/build-null-mod.yml'

@@ -62,5 +62,3 @@ its persistent state in `CorruptionData.systemTag`.
   dimension → player list → back to Stage 1 → quit, with screenshots. It only runs when the
   JVM has `-Dnull.autotest` set.
 - `tools/syntax_check.sh` parses the sources without Minecraft on the classpath.
-- `ci/api-*.sh` and the *NULL API query/export* workflows index the real 1.21.1 game jar on a
-  runner, for development environments that cannot download Minecraft.
