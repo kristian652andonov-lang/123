@@ -1,0 +1,26 @@
+{
+  "providers": [
+    {
+      "type": "space",
+      "advances": {
+        " ": 4
+      }
+    },
+    {
+      "type": "bitmap",
+      "file": "null:font/horror.png",
+      "height": 13,
+      "ascent": 10,
+      "chars": [
+        "ABCDEFGHIJKLMNOP",
+        "QRSTUVWXYZ012345",
+        "6789.,:;!?-'\"()/",
+        "#%&+=_*<>[]@\u0000\u0000\u0000\u0000"
+      ]
+    },
+    {
+      "type": "reference",
+      "id": "minecraft:default"
+    }
+  ]
+}
