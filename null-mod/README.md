@@ -17,7 +17,8 @@ is to make it feel like the game itself is failing.
 
 1. Install NeoForge for Minecraft 1.21.1.
 2. Put `null-<version>.jar` in your `mods/` folder — on the client, and on the server for
-   multiplayer (both sides need it).
+   multiplayer (both sides need it). A player with NULL installed can still join servers that
+   do not have it; nothing happens there.
 3. Start a world. NULL begins immediately.
 
 A ready-built jar is in [`dist/`](dist/). GitHub Actions also builds one on every push
@@ -60,17 +61,19 @@ All settings are saved in `config/null-client.toml`.
 ### Desktop interference
 
 NULL can show small black "error" windows on your desktop, outside the game window. This is
-**off until you turn it on and accept an explanation screen**. Every window is labelled as
+**off until you turn it on and accept an explanation screen**. The acceptance belongs to the
+Minecraft account that gave it, so a copied or pre-made config file cannot switch it on for
+anyone else (only a one-way code is stored, in your own config file). Every window is labelled as
 coming from the NULL Minecraft mod, can be closed by clicking it or pressing Esc, closes on its
 own, never takes keyboard or mouse focus, never imitates real system or security dialogs, and
 never appears after Minecraft has closed. NULL does not change anything on your computer and
 collects nothing. It is unavailable on macOS and on systems without a desktop, and is never
 used on dedicated servers.
 
-Once it is on, the settings screen controls how often windows appear, the shortest pause
-between two windows (45 s by default) and a separate chance for each kind of window: small
-corner notifications (A), error windows (B), distorted messages (C), larger NULL reports (D)
-and the Stage 5 final interference (E). **Show test message** shows one window right away. Stage 1
+Once it is on, the settings screen controls how often windows appear ("Never" stops them
+all), the shortest pause between two windows (45 s by default) and a separate chance for each
+kind of window: small corner notifications (A), error windows (B), distorted messages (C),
+larger NULL reports (D) and the Stage 5 final interference (E). **Show test message** shows one window right away. Stage 1
 has almost none; they become more frequent and stranger with every stage.
 
 ## Server / world configuration
@@ -85,7 +88,8 @@ counts, and whether the final transition happens automatically.
 has placed blocks and scans for built-looking blocks before changing anything, and it only
 ever replaces natural terrain or places blocks into air. `allowWorldModification = false`
 makes all corruption purely visual; `replaceNaturalBlocks = false` keeps natural terrain
-untouched while still allowing structures in the air. The NULL dimension is separate: the
+untouched while still allowing structures in the air. Leaves you placed, waterlogged blocks
+and light blocks always count as built. The NULL dimension is separate: the
 original world is never deleted.
 
 ## Commands (operators)
