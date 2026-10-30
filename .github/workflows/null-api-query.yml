@@ -1,31 +1,12 @@
 name: NULL API query
-run-name: api-query ${{ inputs.tag }}
 
 # Answers "what is the exact 1.21.1 signature of ...?" for the NULL mod. The development
 # container cannot download Minecraft, so this indexes the real game jar on a runner and
-# prints the requested members into the job log.
+# prints the lookups listed in null-mod/ci/api-queries.txt into the job log.
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Unique tag, used to find this run'
-        required: true
-        type: string
-      classes:
-        description: 'Space separated fully qualified class names (inner classes with $)'
-        required: false
-        default: ''
-        type: string
-      grep:
-        description: 'Extended regex over "Class :: member" lines'
-        required: false
-        default: ''
-        type: string
-      max_lines:
-        description: 'Maximum lines to print'
-        required: false
-        default: '600'
-        type: string
+  push:
+    paths:
+      - 'null-mod/ci/api-queries.txt'
 
 jobs:
   query:
@@ -63,8 +44,4 @@ jobs:
           bash ci/api-index.sh
 
       - name: Query
-        env:
-          CLASSES: ${{ inputs.classes }}
-          GREP: ${{ inputs.grep }}
-          MAX: ${{ inputs.max_lines }}
         run: bash ci/api-query.sh

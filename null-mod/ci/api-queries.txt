@@ -1,0 +1,10 @@
+class net.minecraft.network.codec.StreamCodec
+class net.minecraft.world.level.saveddata.SavedData$Factory
+class net.minecraft.sounds.SoundEvent
+class net.minecraft.world.level.block.TransparentBlock
+class net.minecraft.world.level.block.CarpetBlock
+grep BlockBehaviour\$Properties :: .*(isValidSpawn|emissiveRendering|isSuffocating|isViewBlocking|isRedstoneConductor|lightLevel|noLootTable|pushReaction)
+grep ServerPlayer :: .*(serverLevel|server;|getServer)
+grep FriendlyByteBuf :: .*(readUtf|writeUtf|readBlockPos|writeBlockPos|readUUID|writeUUID)
+grep \.TitleScreen :: 
+grep \.Screen :: .*(addRenderableWidget|addRenderableOnly|addWidget|init\(|render\(|renderBackground|onClose|shouldCloseOnEsc|isPauseScreen|removed\(|tick\(|resize)
