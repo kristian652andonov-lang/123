@@ -798,7 +798,7 @@ def s_static_faint(rng, v, sr):
     return hiss + 0.9 * crackle + hum * (0.5 + 0.5 * smooth_random(n, rng, 0.4, sr))
 
 
-@sound("ambient.static_burst", variants=3, subtitle="Static bursts", attenuation=32, peak=-1.5, fades=(0.001, 0.006))
+@sound("ambient.static_burst", variants=3, subtitle="Static crackles", attenuation=32, peak=-1.5, fades=(0.001, 0.006))
 def s_static_burst(rng, v, sr):
     dur = [0.7, 1.0, 1.35][v]
     n = ns(dur, sr)
@@ -823,7 +823,7 @@ def s_static_burst(rng, v, sr):
     return (out + iir(buzz, "lp", 900, 0.7, sr=sr)) * env
 
 
-@sound("ambient.digital_interference", variants=3, subtitle="Digital interference", attenuation=24, peak=-2.0)
+@sound("ambient.digital_interference", variants=3, subtitle="Interference buzzes", attenuation=24, peak=-2.0)
 def s_digital_interference(rng, v, sr):
     dur = [2.6, 3.2, 3.8][v]
     n = ns(dur, sr)
@@ -877,7 +877,7 @@ def low_hum_loop(rng, v, sr, length):
     return tone + 0.18 * bed
 
 
-@sound("ambient.low_hum", variants=2, subtitle="Low hum", attenuation=32, sr=22050, rms_db=-16.0, peak=-3.0,
+@sound("ambient.low_hum", variants=2, subtitle="A low hum", attenuation=32, sr=22050, rms_db=-16.0, peak=-3.0,
        quality=4, loop=True)
 def s_low_hum(rng, v, sr):
     return low_hum_loop(rng, v, sr, 12.0)
@@ -902,7 +902,7 @@ def s_rumble(rng, v, sr):
     return bass_exciter(bed * swell + groan, sr, 0.5, 140.0) + crumble * 0.6 * swell
 
 
-@sound("ambient.underground", variants=3, subtitle="Something moves underground", attenuation=32, peak=-2.0)
+@sound("ambient.underground", variants=3, subtitle="Something moves below", attenuation=32, peak=-2.0)
 def s_underground(rng, v, sr):
     dur = [5.0, 6.0, 6.5][v]
     n = ns(dur, sr)
@@ -935,7 +935,7 @@ def s_underground(rng, v, sr):
     return out[:n + ns(1.0, sr)]
 
 
-@sound("ambient.reversed", variants=3, subtitle="Something plays backwards", attenuation=24, peak=-2.0, fades=(0.05, 0.006))
+@sound("ambient.reversed", variants=3, subtitle="Sound runs backwards", attenuation=24, peak=-2.0, fades=(0.05, 0.006))
 def s_reversed(rng, v, sr):
     if v == 0:
         src = whisper(rng, 0.9, rate=1.2, sr=sr)
@@ -961,7 +961,7 @@ def s_reversed(rng, v, sr):
     return np.concatenate([np.zeros(lead), out])
 
 
-@sound("ambient.whisper", variants=4, subtitle="Whispering", attenuation=16, peak=-3.0, fades=(0.02, 0.08))
+@sound("ambient.whisper", variants=4, subtitle="Whispering", attenuation=24, peak=-3.0, fades=(0.02, 0.08))
 def s_whisper(rng, v, sr):
     dur = [2.2, 2.8, 3.4, 2.5][v]
     scale = [1.0, 0.92, 1.08, 0.97][v]
@@ -1012,7 +1012,7 @@ def s_heartbeat(rng, v, sr):
     return lowpass(out, 650, 2, sr)
 
 
-@sound("ambient.wrong_wind", variants=3, subtitle="Wind that should not be there", attenuation=32, peak=-3.0, fades=(0.6, 0.8))
+@sound("ambient.wrong_wind", variants=3, subtitle="Wind moans", attenuation=32, peak=-3.0, fades=(0.6, 0.8))
 def s_wrong_wind(rng, v, sr):
     dur = [5.5, 6.5, 7.5][v]
     n = ns(dur, sr)
@@ -1140,7 +1140,7 @@ def s_knock(rng, v, sr):
     return reverb(out, rng, 0.6, wet=0.22, dry=1.0, bright=0.35, sr=sr)[:n]
 
 
-@sound("event.glitch", variants=4, subtitle="Something glitches", attenuation=24, peak=-2.0, fades=(0.001, 0.004))
+@sound("event.glitch", variants=4, subtitle="Glitching", attenuation=24, peak=-2.0, fades=(0.001, 0.004))
 def s_glitch(rng, v, sr):
     if v == 0:
         parts = []
@@ -1226,7 +1226,7 @@ def s_screen_tear(rng, v, sr):
     return out * env_points(n, [(0, 0.2), (0.01, 1), (dur * 0.7, 0.8), (dur, 0)], sr)
 
 
-@sound("event.freeze", variants=2, subtitle="Sound freezes", attenuation=24, peak=-2.0, fades=(0.001, 0.003))
+@sound("event.freeze", variants=2, subtitle="Sound stutters", attenuation=24, peak=-2.0, fades=(0.001, 0.003))
 def s_freeze(rng, v, sr):
     def chunk_source(m):
         t = tvec(m, sr)
@@ -1272,7 +1272,7 @@ def s_disconnect(rng, v, sr):
     return out
 
 
-@sound("event.sky_flicker", variants=3, subtitle="Electric crackle", attenuation=32, peak=-3.0, fades=(0.001, 0.02))
+@sound("event.sky_flicker", variants=3, subtitle="The sky crackles", attenuation=32, peak=-3.0, fades=(0.001, 0.02))
 def s_sky_flicker(rng, v, sr):
     dur = [0.35, 0.5, 0.65][v]
     n = ns(dur, sr)
@@ -1326,7 +1326,7 @@ def breath_cycle(rng, inhale, exhale, gap, sr, rasp=0.0, shaky=0.0, darkness=1.0
     return y + bandpass(clicks, 2500, 2, sr)
 
 
-@sound("event.breath_behind", variants=3, subtitle="Something breathes", attenuation=12, peak=-3.0, fades=(0.05, 0.15))
+@sound("event.breath_behind", variants=3, subtitle="Something breathes", attenuation=16, peak=-3.0, fades=(0.05, 0.15))
 def s_breath_behind(rng, v, sr):
     parts = []
     for k in range([1, 1, 2][v]):
@@ -1615,7 +1615,7 @@ def s_nullroot_grow(rng, v, sr):
 
 # ---- Visitors and simulated players ------------------------------------------------------
 
-@sound("visitor.vanish", variants=3, subtitle="Something vanishes", attenuation=48, peak=-3.0, fades=(0.01, 0.004))
+@sound("visitor.vanish", variants=3, subtitle="Air shifts", attenuation=48, peak=-3.0, fades=(0.01, 0.004))
 def s_visitor_vanish(rng, v, sr):
     dur = [0.55, 0.7, 0.9][v]
     n = ns(dur, sr)
@@ -1643,7 +1643,7 @@ def s_visitor_appear(rng, v, sr):
     return out
 
 
-@sound("visitor.breath", variants=3, subtitle="Heavy breathing", attenuation=16, peak=-3.0, fades=(0.05, 0.2))
+@sound("visitor.breath", variants=3, subtitle="Heavy breathing", attenuation=24, peak=-3.0, fades=(0.05, 0.2))
 def s_visitor_breath(rng, v, sr):
     out = breath_cycle(rng, rng.uniform(0.9, 1.3), rng.uniform(1.3, 1.8), rng.uniform(0.15, 0.35), sr,
                        rasp=[0.6, 0.9, 0.4][v], darkness=0.72)
@@ -1730,7 +1730,7 @@ def dimension_hum_loop(rng, sr, length):
     return tone + data + bed
 
 
-@sound("dimension.hum", variants=1, subtitle="A digital hum", attenuation=32, sr=22050, rms_db=-16.0, peak=-3.0,
+@sound("dimension.hum", variants=1, subtitle="Data hums", attenuation=32, sr=22050, rms_db=-16.0, peak=-3.0,
        loop=True, stream=True, quality=4)
 def s_dimension_hum(rng, v, sr):
     return dimension_hum_loop(rng, sr, 20.0)
