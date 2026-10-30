@@ -1,5 +1,6 @@
 package dev.kristian.nullmod;
 
+import dev.kristian.nullmod.autotest.ServerAutoTest;
 import dev.kristian.nullmod.command.NullCommand;
 import dev.kristian.nullmod.core.CorruptionManager;
 import net.minecraft.server.level.ServerPlayer;
@@ -23,6 +24,7 @@ public final class NullCommon {
         game.addListener(NullCommon::onPlayerLoggedOut);
         game.addListener(NullCommon::onServerStopping);
         NullSystems.init(modBus, game);
+        ServerAutoTest.init(game);
     }
 
     private static void onServerTick(ServerTickEvent.Post event) {

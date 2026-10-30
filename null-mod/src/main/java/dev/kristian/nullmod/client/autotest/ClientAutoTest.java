@@ -1,6 +1,7 @@
 package dev.kristian.nullmod.client.autotest;
 
 import dev.kristian.nullmod.NullMod;
+import dev.kristian.nullmod.client.ClientCorruptionState;
 import dev.kristian.nullmod.core.CorruptionStage;
 import dev.kristian.nullmod.event.NullEventDefinition;
 import dev.kristian.nullmod.event.NullEventRegistry;
@@ -39,7 +40,7 @@ public final class ClientAutoTest {
     private static final String TAG = "NULL-AUTOTEST: ";
     private static final String WORLD = "null-autotest";
 
-    private enum Phase { WAIT_MENU, RUN, WAIT_WORLD, DONE }
+    private enum Phase { WAIT_MENU, RUN, WAIT_WORLD, WAIT_SERVER, DONE }
 
     private record Step(String name, int waitAfter, Runnable action) {
     }
@@ -63,7 +64,15 @@ public final class ClientAutoTest {
             return;
         }
         NullMod.LOGGER.info(TAG + "enabled ({})", System.getProperty(PROPERTY));
+        if (multiplayer()) {
+            phase = Phase.WAIT_SERVER;
+        }
         gameBus.addListener(ClientAutoTest::onClientTick);
+    }
+
+    /** The multiplayer scenario joins a dedicated server (started with --quickPlayMultiplayer). */
+    private static boolean multiplayer() {
+        return "multiplayer".equals(System.getProperty(PROPERTY));
     }
 
     private static void onClientTick(ClientTickEvent.Post event) {
@@ -92,6 +101,19 @@ public final class ClientAutoTest {
                     if (++stableTicks >= 200) {
                         stableTicks = 0;
                         log("world loaded in " + mc.level.dimension().location());
+                        phase = Phase.RUN;
+                    }
+                } else {
+                    stableTicks = 0;
+                }
+            }
+            case WAIT_SERVER -> {
+                if (mc.level != null && mc.player != null && mc.screen == null && mc.getConnection() != null
+                        && !mc.isLocalServer()) {
+                    if (++stableTicks >= 200) {
+                        stableTicks = 0;
+                        log("joined the dedicated server in " + mc.level.dimension().location());
+                        queueMultiplayerSteps();
                         phase = Phase.RUN;
                     }
                 } else {
@@ -213,6 +235,61 @@ public final class ClientAutoTest {
         STEPS.add(new Step("final status", 40, () -> command("null status")));
     }
 
+    private static void queueMultiplayerSteps() {
+        STEPS.add(new Step("screenshot joined", 20, () -> screenshot("mp_01_joined")));
+        STEPS.add(new Step("check stage sync", 10, () -> {
+            if (!ClientCorruptionState.synced()) {
+                fail("the server never synced the corruption state to this client");
+            } else {
+                log("synced: stage " + ClientCorruptionState.stage().number());
+            }
+        }));
+        for (CorruptionStage stage : CorruptionStage.values()) {
+            if (stage == CorruptionStage.NULL) {
+                break;
+            }
+            int number = stage.number();
+            STEPS.add(new Step("set stage " + number, 80, () -> command("null stage " + number)));
+            STEPS.add(new Step("check stage " + number + " arrived", 10, () -> {
+                if (ClientCorruptionState.stage() != stage) {
+                    fail("client shows stage " + ClientCorruptionState.stage().number() + " instead of " + number);
+                }
+            }));
+            for (NullEventDefinition event : eventsStartingAt(stage)) {
+                STEPS.add(new Step("event " + event.id(), 30, () -> command("null event " + event.id())));
+            }
+            STEPS.add(new Step("screenshot stage " + number, 10, () -> screenshot("mp_02_stage" + number)));
+        }
+        STEPS.add(new Step("set stage 5", 20 * 22, () -> command("null stage 5")));
+        STEPS.add(new Step("check NULL dimension", 20, () -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level == null || mc.level.dimension() != NullDimensions.NULL_LEVEL) {
+                fail("not moved into the NULL dimension on the dedicated server");
+            } else {
+                log("arrived in the NULL dimension on the dedicated server");
+            }
+        }));
+        STEPS.add(new Step("screenshot NULL", 10, () -> screenshot("mp_03_null")));
+        for (NullEventDefinition event : eventsStartingAt(CorruptionStage.NULL)) {
+            STEPS.add(new Step("event " + event.id(), 30, () -> command("null event " + event.id())));
+        }
+        STEPS.add(new Step("hold tab", 4, () -> Minecraft.getInstance().options.keyPlayerList.setDown(true)));
+        STEPS.add(new Step("screenshot player list", 4, () -> screenshot("mp_04_player_list")));
+        STEPS.add(new Step("release tab", 20, () -> Minecraft.getInstance().options.keyPlayerList.setDown(false)));
+        STEPS.add(new Step("back to stage 1", 20 * 15, () -> command("null stage 1")));
+        STEPS.add(new Step("check return", 20, () -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level == null || NullDimensions.isNull(mc.level)) {
+                fail("not returned from the NULL dimension on the dedicated server");
+            }
+        }));
+        STEPS.add(new Step("reset", 40, () -> {
+            command("null reset");
+            command("null reset");
+        }));
+        STEPS.add(new Step("stop the server", 20 * 10, () -> command("stop")));
+    }
+
     /** NULL's settings screen, looked up reflectively so the harness never blocks a build. */
     private static Screen settingsScreen(Screen parent) {
         try {
@@ -238,9 +315,14 @@ public final class ClientAutoTest {
 
     private static void command(String command) {
         Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) {
+            fail("no player for command '" + command + "'");
+            return;
+        }
         IntegratedServer server = mc.getSingleplayerServer();
-        if (server == null || mc.player == null) {
-            fail("no integrated server for command '" + command + "'");
+        if (server == null) {
+            // Dedicated server: the test player was made an operator by ServerAutoTest.
+            mc.player.connection.sendCommand(command);
             return;
         }
         UUID id = mc.player.getUUID();

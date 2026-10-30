@@ -5,3 +5,7 @@ runs/
 out/
 *.iml
 .idea/
+run-server/
+server/
+screens/
+*.log

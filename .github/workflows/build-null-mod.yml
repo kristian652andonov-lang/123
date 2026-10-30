@@ -74,6 +74,39 @@ jobs:
           timeout 2400 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClient -PnullAutotest=smoke --stacktrace > client.log 2>&1 || echo "client exited with $?"
           bash ci/check-client.sh client.log
 
+      # Installs a real NeoForge dedicated server with the built jar, joins it with the
+      # scripted client and drives every stage, every event and the NULL transition over the
+      # network. Catches client classes leaking onto the server and broken stage syncing.
+      - name: Multiplayer smoke test
+        id: multiplayer
+        if: always() && steps.build.outcome == 'success'
+        run: |
+          set +e
+          NEO=$(grep '^neo_version=' gradle.properties | cut -d= -f2)
+          mkdir -p server
+          cd server
+          curl -sSfL -o installer.jar "https://maven.neoforged.net/releases/net/neoforged/neoforge/$NEO/neoforge-$NEO-installer.jar" \
+            || { echo "FAIL: could not download the NeoForge installer"; exit 1; }
+          java -jar installer.jar --installServer > install.log 2>&1 || { tail -n 40 install.log; echo "FAIL: server install failed"; exit 1; }
+          echo "eula=true" > eula.txt
+          cp ../ci/server.properties server.properties
+          mkdir -p mods
+          cp ../build/libs/null-*.jar mods/
+          echo "-Dnull.autotest=server" >> user_jvm_args.txt
+          (timeout 1800 ./run.sh nogui > console.log 2>&1 &)
+          for i in $(seq 1 300); do grep -q "Done (" console.log 2>/dev/null && break; sleep 2; done
+          grep -q "Done (" console.log || { tail -n 150 console.log; echo "FAIL: the dedicated server did not start"; exit 1; }
+          cd ..
+          export LIBGL_ALWAYS_SOFTWARE=1
+          timeout 1800 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClient -PnullAutotest=multiplayer -PnullQuickPlay=localhost:25565 --stacktrace > mpclient.log 2>&1 || echo "client exited with $?"
+          sleep 20
+          bash ci/check-client.sh mpclient.log
+          c=$?
+          bash ci/check-server.sh server/logs/latest.log
+          s=$?
+          pkill -f "unix_args.txt" || true
+          exit $(( c | s ))
+
       - name: Prepare screenshots
         if: always() && steps.build.outcome == 'success'
         run: |
@@ -100,6 +133,10 @@ jobs:
           path: |
             null-mod/gametest.log
             null-mod/client.log
+            null-mod/mpclient.log
+            null-mod/server/logs/latest.log
+            null-mod/server/console.log
+            null-mod/server/crash-reports/
             null-mod/run/logs/latest.log
             null-mod/run/crash-reports/
           if-no-files-found: ignore

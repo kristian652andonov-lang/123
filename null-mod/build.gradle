@@ -23,11 +23,19 @@ neoForge {
             if (project.hasProperty('nullAutotest')) {
                 systemProperty 'null.autotest', project.property('nullAutotest').toString()
             }
+            // ...and can point it straight at a server with -PnullQuickPlay=<address>.
+            if (project.hasProperty('nullQuickPlay')) {
+                programArguments.addAll '--quickPlayMultiplayer', project.property('nullQuickPlay').toString()
+            }
         }
         server {
             server()
+            gameDirectory = project.file('run-server')
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            if (project.hasProperty('nullAutotest')) {
+                systemProperty 'null.autotest', project.property('nullAutotest').toString()
+            }
         }
         gameTestServer {
             type = 'gameTestServer'
