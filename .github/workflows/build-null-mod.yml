@@ -5,6 +5,7 @@ on:
     paths:
       - 'null-mod/**'
       - '!null-mod/ci/api-queries.txt'
+      - '!null-mod/ci/api-export-request.txt'
       - '.github/workflows/build-null-mod.yml'
   workflow_dispatch:
     inputs:
