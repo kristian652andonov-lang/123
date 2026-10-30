@@ -40,7 +40,9 @@ neoForge {
     }
 
     mods {
-        "${mod_id}" {
+        // Grouping label only; the jar's module is named after the first entry in
+        // neoforge.mods.toml ("nullmod"), because "null" is not a valid Java module name.
+        nullmod {
             sourceSet(sourceSets.main)
         }
     }

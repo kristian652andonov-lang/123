@@ -2,6 +2,16 @@ modLoader="javafml"
 loaderVersion="${loader_version_range}"
 license="${mod_license}"
 
+# NeoForge names a mod jar's Java module after the FIRST mod id listed here, and "null" is a
+# reserved word in Java, so it cannot be a module name. This first entry only gives the jar a
+# valid module name ("nullmod"); it has no code or content. The mod itself is "null" below.
+[[mods]]
+modId="nullmod"
+version="${mod_version}"
+displayName="NULL (module)"
+authors="${mod_authors}"
+description='''Technical entry for NULL's jar. Java does not allow a module to be called "null", so the jar's module is named after this entry. It has no content of its own.'''
+
 [[mods]]
 modId="${mod_id}"
 version="${mod_version}"
