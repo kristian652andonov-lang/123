@@ -1,5 +1,6 @@
 package dev.kristian.nullmod.client;
 
+import dev.kristian.nullmod.client.autotest.ClientAutoTest;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
@@ -12,5 +13,6 @@ final class NullClientSystems {
 
     static void init(IEventBus modBus, IEventBus gameBus, ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
+        ClientAutoTest.init(gameBus);
     }
 }

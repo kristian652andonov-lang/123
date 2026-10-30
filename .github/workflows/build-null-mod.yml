@@ -6,13 +6,9 @@ on:
       - 'null-mod/**'
       - '!null-mod/ci/api-queries.txt'
       - '!null-mod/ci/api-export-request.txt'
+      - '!null-mod/dist/**'
       - '.github/workflows/build-null-mod.yml'
   workflow_dispatch:
-    inputs:
-      api_dump:
-        description: 'Print the public Minecraft API listed in null-mod/ci/api-classes.txt'
-        type: boolean
-        default: false
 
 concurrency:
   group: null-mod-${{ github.ref }}
@@ -53,31 +49,107 @@ jobs:
           path: null-mod/build/libs/null-*.jar
           if-no-files-found: error
 
-  # Prints the public signatures of the Minecraft classes in null-mod/ci/api-classes.txt
-  # into this job's log, so the code can be checked against the real 1.21.1 API.
-  api-dump:
-    if: inputs.api_dump || contains(github.event.head_commit.message, '[api-dump]')
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: null-mod
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Dump Minecraft API signatures
+      # Runs every @GameTest in a real dedicated-server environment (registries, datapacks,
+      # the NULL dimension, entities, commands) and fails on any failed test.
+      - name: GameTests
+        id: gametests
+        if: steps.build.outcome == 'success'
         run: |
-          ./gradlew createMinecraftArtifacts --quiet
-          bash ci/api-dump.sh > /dev/null
-          echo "=====API-DUMP-BEGIN====="
-          cat build/api-dump.txt
-          echo "=====API-DUMP-END====="
+          timeout 1200 ./gradlew runGameTestServer --stacktrace > gametest.log 2>&1 || echo "game test server exited with $?"
+          bash ci/check-gametests.sh gametest.log
+
+      # Boots the real client on a virtual display with software OpenGL and lets
+      # ClientAutoTest walk a fresh world through every stage, every random event and the
+      # NULL dimension, taking screenshots on the way.
+      - name: Client smoke test
+        id: client
+        if: always() && steps.build.outcome == 'success'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri > /dev/null
+          mkdir -p run
+          cp ci/client-options.txt run/options.txt
+          export LIBGL_ALWAYS_SOFTWARE=1
+          timeout 2400 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClient -PnullAutotest=smoke --stacktrace > client.log 2>&1 || echo "client exited with $?"
+          bash ci/check-client.sh client.log
+
+      - name: Prepare screenshots
+        if: always() && steps.build.outcome == 'success'
+        run: |
+          mkdir -p screens
+          for f in run/screenshots/*.png; do
+            [ -f "$f" ] || continue
+            ffmpeg -loglevel error -y -i "$f" -vf scale=720:-1 -q:v 6 "screens/$(basename "${f%.png}").jpg"
+          done
+          ls -la screens
+
+      - name: Upload screenshots
+        if: always() && steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-screens
+          path: null-mod/screens/*.jpg
+          if-no-files-found: ignore
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: |
+            null-mod/gametest.log
+            null-mod/client.log
+            null-mod/run/logs/latest.log
+            null-mod/run/crash-reports/
+          if-no-files-found: ignore
+
+      - name: Publish the built jar into the repository
+        if: success() && contains(github.event.head_commit.message, '[publish]')
+        working-directory: .
+        run: |
+          set -euo pipefail
+          mkdir -p null-mod/dist
+          rm -f null-mod/dist/*.jar
+          cp null-mod/build/libs/null-*.jar null-mod/dist/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add null-mod/dist
+          if git diff --cached --quiet; then
+            echo "jar unchanged, nothing to publish"
+            exit 0
+          fi
+          git commit -m "Build NULL jar [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+  # Prints the screenshots (as base64 JPEG) into job logs, split over a few jobs, so they
+  # can be inspected from an environment that cannot download artifacts.
+  screens:
+    needs: build
+    if: always() && needs.build.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [0, 1, 2, 3, 4]
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: client-screens
+          path: screens
+
+      - name: Print screenshots part ${{ matrix.part }}
+        env:
+          PART: ${{ matrix.part }}
+        run: |
+          [ -d screens ] || { echo "no screenshots"; exit 0; }
+          i=0
+          for f in $(ls screens/*.jpg 2>/dev/null | sort); do
+            if [ $((i % 5)) -eq "$PART" ]; then
+              echo "=====SCREEN-BEGIN===== $(basename "$f")"
+              base64 -w 120 "$f"
+              echo "=====SCREEN-END====="
+            fi
+            i=$((i + 1))
+          done
