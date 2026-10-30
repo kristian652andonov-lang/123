@@ -92,7 +92,7 @@ jobs:
           cp ../ci/server.properties server.properties
           mkdir -p mods
           cp ../build/libs/null-*.jar mods/
-          echo "-Dnull.autotest=server" >> user_jvm_args.txt
+          printf '\n-Dnull.autotest=server\n' >> user_jvm_args.txt
           (timeout 1800 ./run.sh nogui > console.log 2>&1 &)
           for i in $(seq 1 300); do grep -q "Done (" console.log 2>/dev/null && break; sleep 2; done
           grep -q "Done (" console.log || { tail -n 150 console.log; echo "FAIL: the dedicated server did not start"; exit 1; }

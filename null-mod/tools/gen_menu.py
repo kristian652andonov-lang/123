@@ -129,7 +129,21 @@ def ellipse_d(X, Y, cx, cy, rx, ry, rot=0.0):
 
 
 def smin(a, b, k=8.0):
+    """Exponential smooth minimum for normalised distances (k = sharpness)."""
     return -np.log(np.exp(-k * a) + np.exp(-k * b)) / k
+
+
+def smin_px(a, b, r):
+    """Polynomial smooth minimum for pixel distances (r = blend radius in pixels)."""
+    hh = np.clip(0.5 + 0.5 * (b - a) / r, 0, 1)
+    return b * (1 - hh) + a * hh - r * hh * (1 - hh)
+
+
+def border_window(h, w, margin):
+    """1 inside, fading to 0 within `margin` pixels of the sprite edge."""
+    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
+    dist = np.minimum(np.minimum(xs, w - 1 - xs), np.minimum(ys, h - 1 - ys))
+    return smoothstep(0.0, margin, dist)
 
 
 def downsample(a, ss):
@@ -258,11 +272,13 @@ def make_face(seed, p, W=256, H=320, ss=2):
     gx, gy = gx * rel, gy * rel
     inv = 1.0 / np.sqrt(1 + gx * gx + gy * gy)
     nx, ny, nz = -gx * inv, -gy * inv, inv
-    light = np.array([p.get("lx", 0.10), -0.70, 0.70])
+    light = np.array([p.get("lx", 0.10), -0.45, 0.89])
     light /= np.linalg.norm(light)
     lam = np.clip(nx * light[0] + ny * light[1] + nz * light[2], 0, 1)
     ao = np.clip(1 - 2.6 * (blur(hgt, 16 * ss) - hgt), 0.2, 1.0)
     lum = (0.02 + 0.78 * lam ** 2.6 + 0.22 * lam ** 18) * ao * (0.35 + 0.65 * dome)
+    # a dim light on the middle of the face; the skull top and the edges sink into the dark
+    lum *= 0.22 + 0.78 * gauss(X, Y, 0.0, p.get("spot_y", 0.08), 0.60, 0.62)
 
     sock = np.maximum(
         smoothstep(1.45, 0.45, ellipse_d(Xr, Yr, -ex, ey, 0.15 * es, 0.13 * es, 0.35)),
@@ -289,8 +305,9 @@ def make_face(seed, p, W=256, H=320, ss=2):
         lum *= 1 - abs(hide) * side
         head = head * (1 - 0.8 * abs(hide) * side)
     low = smoothstep(1.50, 0.80, Y)
-    lum *= low
-    alpha = head * (0.30 + 0.70 * low)
+    top = smoothstep(-1.30, -0.40, Y)
+    lum *= low * top ** 1.3
+    alpha = head * (0.30 + 0.70 * low) * (0.20 + 0.80 * top)
     alpha = np.maximum(alpha, mouth * head * 0.95)
     lum *= 0.94 + 0.06 * np.clip(fnoise(h, w, rng, 0.2), -2, 2) / 2
     sm = p.get("smear", 0.18)
@@ -367,8 +384,8 @@ def make_eye_pair(seed, p, W=160, H=64, ss=2):
             core = np.exp(-(((X - cx) / (0.012 * r / 0.08)) ** 2 + ((Y - cy) / (0.05 * r / 0.08)) ** 2) / 2)
         else:
             core = np.exp(-(((X - cx) ** 2 + (Y - cy) ** 2) / (2 * (0.016 * r / 0.08) ** 2)))
-        iris = 0.22 * np.exp(-((d - r * 0.55) / (r * 0.12)) ** 2 / 2)
-        eyeball = 0.10 * smoothstep(r * 1.15, r * 0.6, d)
+        iris = 0.30 * np.exp(-((d - r * 0.55) / (r * 0.12)) ** 2 / 2)
+        eyeball = 0.17 * smoothstep(r * 1.15, r * 0.6, d)
         lid = smoothstep(r * 0.42 * p.get("open", 1.0), r * 0.30 * p.get("open", 1.0), np.abs(Y - cy))
         halo = 0.18 * np.exp(-(((X - cx) ** 2 + (Y - cy) ** 2) / (2 * (r * 0.9) ** 2)))
         glow = np.maximum(glow, (core + iris + eyeball) * lid + halo * 0.6)
@@ -394,41 +411,86 @@ EYE_VARIANTS = [
 ]
 
 
+def mouth_sdf(X, Y, p):
+    """Signed distance (sprite pixels, negative inside) of a mouth opening centred on 0,0."""
+    kind = p["kind"]
+    if kind in ("grin", "slit"):
+        hw = p["w"]
+        u = np.clip(X / hw, -1.5, 1.5)
+        mid = -p["curve"] * u * u
+        thick = p["h"] * np.clip(1 - u * u, 0, 1) ** 0.75
+        return np.maximum(np.abs(Y - mid) - thick, np.abs(X) - hw)
+    rx, ry, rot = p["w"], p["h"], p.get("rot", 0.0)
+    d = (ellipse_d(X, Y, 0, 0, rx, ry, rot) - 1) * min(rx, ry)
+    if kind == "torn":
+        for side in (-1, 1):
+            d = smin_px(d, sd_capsule(X, Y, side * rx * 0.85, 0.0, side * rx * 1.9, -ry * 0.75, ry * 0.10, ry * 0.03), 3.0)
+    return d
+
+
 def make_mouth(seed, p, W=256, H=160, ss=2):
-    """A mouth emerging from the dark: faint skin, stretched black hole, needle teeth."""
+    """A mouth appearing out of nothing: a dim patch of skin lit from above, a black opening,
+    a pale lower lip, a shadowed upper lip and faint needle teeth."""
     rng = np.random.default_rng(seed)
     w, h = W * ss, H * ss
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
-    X = (xs + 0.5) / w * 2 - 1
-    Y = ((ys + 0.5) / h * 2 - 1) * (H / W)
-    warp = 0.025
-    Xr = X + fnoise(h, w, rng, 3.4) * warp
-    Yr = Y + fnoise(h, w, rng, 3.4) * warp
-    rx, ry, rot = p["w"], p["h"], p.get("rot", 0.0)
-    md = ellipse_d(Xr, Yr, 0, 0, rx, ry, rot)
-    if p.get("corners"):
-        md = np.minimum(md, ellipse_d(Xr, Yr, 0, 0.0, rx * 1.35, ry * 0.18, rot) + 0.02)
-    hole = smoothstep(1.06, 0.74, md + 0.05 * fnoise(h, w, rng, 3.0))
-    skin_d = ellipse_d(X, Y, 0, -0.04, rx * 2.1 + 0.18, ry * 2.0 + 0.16, rot)
-    skin_mask = smoothstep(1.0, 0.35, skin_d)
-    # top light: brighter above the mouth, the lower lip catches a little
-    hgt = np.sqrt(np.clip(1 - np.minimum(skin_d, 1) ** 2, 0, 1)) - 0.35 * smoothstep(1.6, 0.9, md)
-    hgt = blur(hgt, 3 * ss)
-    gy, gx = np.gradient(hgt)
-    gx, gy = gx * w * 0.35, gy * w * 0.35
-    inv = 1 / np.sqrt(1 + gx * gx + gy * gy)
-    light = np.array([0.05, -0.75, 0.66])
-    light /= np.linalg.norm(light)
-    lam = np.clip(-gx * inv * light[0] - gy * inv * light[1] + inv * light[2], 0, 1)
-    lum = (0.05 + 0.55 * lam ** 2.4) * skin_mask * (1 - hole)
-    lum *= 0.9 + 0.1 * np.clip(fnoise(h, w, rng, 0.3), -2, 2) / 2
-    teeth = needle_teeth(w, h, w / 2, h / 2, rx * w / 2, ry * w / 2, rot, rng, p.get("teeth", 9), w / 2.6,
-                         length=p.get("tlen", (0.05, 0.15)))
-    teeth = blur(teeth, 0.6 * ss)
-    lum = np.maximum(lum, teeth * smoothstep(1.06, 0.9, md) * 0.62)
-    alpha = np.maximum(skin_mask * 0.85, hole * smoothstep(1.2, 0.5, skin_d))
-    lum = blur(lum, 1.1 * ss)
-    alpha = blur(alpha, 1.4 * ss)
+    X = (xs + 0.5) / ss - W / 2
+    Y = (ys + 0.5) / ss - H / 2
+    Xw = X + fnoise(h, w, rng, 3.4) * 2.2
+    Yw = Y + fnoise(h, w, rng, 3.4) * 1.6
+    d = mouth_sdf(Xw, Yw, p) + fnoise(h, w, rng, 3.0) * 0.9
+    hole = smoothstep(1.2, -1.2, d)
+    gy, gx = np.gradient(blur(d, 2.0 * ss))
+    ny = gy / (np.sqrt(gx * gx + gy * gy) + 1e-6)
+    lip = smoothstep(9.0, 1.0, d) * (1 - hole)
+    lower = np.clip(ny, 0, 1)
+    upper = np.clip(-ny, 0, 1)
+    size = max(p["w"], p["h"])
+    patch = gauss(X, Y, 0, p["h"] * 0.25, size * 1.15 + 18, p["h"] * 1.3 + 22)
+    patch = patch * smoothstep(1.0, 0.55, ellipse_d(X, Y, 0, 0, W * 0.49, H * 0.47))
+    lum = 0.16 * patch
+    lum = lum + 0.34 * lip * lower * smoothstep(0.0, 4.0, d)
+    lum = lum + 0.12 * lip * upper * smoothstep(3.0, 7.0, d)
+    lum = lum * (1 - 0.75 * lip * upper * smoothstep(5.0, 0.5, d))
+    lum = lum * (1 - hole)
+    lum = lum * (0.9 + 0.1 * np.clip(fnoise(h, w, rng, 0.3), -2, 2) / 2)
+    timg = Image.new("L", (w, h), 0)
+    td = ImageDraw.Draw(timg)
+    n = p.get("teeth", 10)
+    for row in (-1, 1):
+        for i in range(n):
+            if rng.random() < 0.2:
+                continue
+            u = -0.88 + 1.76 * (i + 0.5 + rng.uniform(-0.3, 0.3)) / n
+            if p["kind"] in ("grin", "slit"):
+                x = u * p["w"]
+                th = p["h"] * max(0.0, 1 - u * u) ** 0.75
+                y0 = -p["curve"] * u * u + row * th
+                ln = th * rng.uniform(0.45, 0.95)
+            else:
+                ang = np.pi * (0.5 + 0.40 * u)
+                rx, ry, rot = p["w"], p["h"], p.get("rot", 0.0)
+                ex, ey = -np.cos(ang) * rx, row * np.sin(ang) * ry
+                c, s = np.cos(rot), np.sin(rot)
+                x = c * ex - s * ey
+                y0 = s * ex + c * ey
+                ln = ry * rng.uniform(0.18, 0.45) * (0.4 + 0.6 * np.sin(ang))
+            if rng.random() < 0.2:
+                ln *= 0.5
+            base = rng.uniform(0.9, 1.8)
+            tipx = x + rng.uniform(-1.2, 1.2)
+            tipy = y0 - row * ln
+            pts = [((x - base + W / 2) * ss, (y0 + H / 2) * ss), ((x + base + W / 2) * ss, (y0 + H / 2) * ss),
+                   ((tipx + W / 2) * ss, (tipy + H / 2) * ss)]
+            td.polygon(pts, fill=int(rng.uniform(120, 215)))
+    teeth = blur(np.asarray(timg).astype(np.float32) / 255.0, 0.55 * ss)
+    lum = np.maximum(lum, teeth * smoothstep(1.5, -1.0, d) * 0.62)
+    alpha = np.clip(np.maximum(patch * 0.80, hole * np.clip(patch * 1.6, 0, 1)), 0, 1)
+    win = border_window(h, w, 26 * ss)
+    alpha = alpha * win
+    lum = lum * win
+    lum = blur(lum, 0.9 * ss)
+    alpha = blur(alpha, 1.2 * ss)
     lum = downsample(lum, ss)
     alpha = downsample(alpha, ss)
     alpha[:2, :] = 0
@@ -439,70 +501,76 @@ def make_mouth(seed, p, W=256, H=160, ss=2):
 
 
 MOUTH_VARIANTS = [
-    dict(w=0.16, h=0.40, teeth=8),
-    dict(w=0.62, h=0.13, teeth=13, tlen=(0.04, 0.10)),
-    dict(w=0.34, h=0.20, rot=0.35, teeth=9),
-    dict(w=0.58, h=0.035, teeth=11, tlen=(0.02, 0.05)),
-    dict(w=0.30, h=0.26, corners=True, teeth=10),
+    dict(kind="gape", w=22, h=50, teeth=7),
+    dict(kind="grin", w=104, h=13, curve=26, teeth=16),
+    dict(kind="crooked", w=40, h=22, rot=0.35, teeth=8),
+    dict(kind="slit", w=110, h=4.5, curve=20, teeth=18),
+    dict(kind="torn", w=34, h=26, teeth=9),
 ]
 
 
-def make_silhouette(seed, kind, W=224, H=448, ss=2):
-    """A dark figure in faint mist. Returns (lum, alpha, eye anchors, eye radius)."""
+def sd_capsule(X, Y, ax, ay, bx, by, r0, r1=None):
+    r1 = r0 if r1 is None else r1
+    pax, pay = X - ax, Y - ay
+    bax, bay = bx - ax, by - ay
+    t = np.clip((pax * bax + pay * bay) / (bax * bax + bay * bay), 0, 1)
+    return np.sqrt((pax - bax * t) ** 2 + (pay - bay * t) ** 2) - (r0 + (r1 - r0) * t)
+
+
+def sd_ellipse(X, Y, cx, cy, rx, ry, rot=0.0):
+    return (ellipse_d(X, Y, cx, cy, rx, ry, rot) - 1) * min(rx, ry)
+
+
+def make_silhouette(seed, kind, ss=2):
+    """A dark figure standing in faint mist, dissolving into the dark at the bottom.
+    Returns (lum, alpha, eye anchors, eye radius)."""
     rng = np.random.default_rng(seed)
+    W, H = (256, 320) if kind.startswith("bust") else (160, 448)
     w, h = W * ss, H * ss
-    fig = Image.new("L", (w, h), 0)
-    dr = ImageDraw.Draw(fig)
-    cx = w / 2
-    eyes = []
-    if kind in ("bust", "bust_tilt"):
-        tilt = 0.0 if kind == "bust" else 0.22
-        hx, hy, hr = cx, h * 0.40, w * 0.17
-        if tilt:
-            hx += w * 0.06
-        dr.ellipse([hx - hr, hy - hr * 1.25, hx + hr, hy + hr * 1.25], fill=255)
-        dr.polygon([(cx - w * 0.07, hy + hr), (cx + w * 0.07, hy + hr), (cx + w * 0.09, h * 0.60), (cx - w * 0.09, h * 0.60)], fill=255)
-        sh = [(cx - w * 0.46, h), (cx - w * 0.40, h * 0.66), (cx - w * 0.18, h * 0.58), (cx + w * 0.18, h * 0.58),
-              (cx + w * 0.40, h * 0.66), (cx + w * 0.46, h)]
-        dr.polygon(sh, fill=255)
-        eyes = [[(hx - hr * 0.38) / ss, (hy - hr * 0.05) / ss], [(hx + hr * 0.38) / ss, (hy - hr * 0.02) / ss]]
-        er = hr * 0.10 / ss
-    else:
-        # very tall, thin figure: small head, narrow shoulders, arms hanging below the knees
-        lean = 0.0 if kind == "tall" else 0.06
-        hx, hy, hr = cx + lean * w, h * 0.10, w * 0.075
-        dr.ellipse([hx - hr, hy - hr * 1.3, hx + hr, hy + hr * 1.3], fill=255)
-        neck_y = hy + hr * 1.2
-        sw = w * 0.13
-        dr.polygon([(hx - w * 0.025, neck_y - 4), (hx + w * 0.025, neck_y - 4), (cx + w * 0.03, h * 0.20), (cx - w * 0.03, h * 0.20)], fill=255)
-        torso = [(cx - sw, h * 0.20), (cx + sw, h * 0.20), (cx + w * 0.09, h * 0.52), (cx - w * 0.09, h * 0.52)]
-        dr.polygon(torso, fill=255)
-        for side in (-1, 1):
-            sx = cx + side * sw
-            dr.line([(sx, h * 0.21), (sx + side * w * 0.05, h * 0.47), (sx + side * w * 0.03, h * 0.74)], fill=255,
-                    width=int(w * 0.035), joint="curve")
-            # long fingers
-            for f in range(3):
-                fx = sx + side * w * 0.03 + (f - 1) * w * 0.012
-                dr.line([(fx, h * 0.73), (fx + side * w * 0.006, h * 0.80)], fill=255, width=max(2, int(w * 0.008)))
-            lx = cx + side * w * 0.05
-            dr.line([(lx, h * 0.50), (lx + side * w * 0.015, h * 0.76), (lx + side * w * 0.01, h)], fill=255,
-                    width=int(w * 0.045), joint="curve")
-        eyes = [[(hx - hr * 0.4) / ss, (hy - hr * 0.05) / ss], [(hx + hr * 0.4) / ss, (hy - hr * 0.02) / ss]]
-        er = hr * 0.12 / ss
-    m = np.asarray(fig).astype(np.float32) / 255.0
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
-    amp = 2.0 * ss
-    m = sample(m, xs + fnoise(h, w, rng, 2.6) * amp, ys + fnoise(h, w, rng, 2.6) * amp)
-    m = blur(m, 1.6 * ss)
-    # mist behind the figure: an oval of faint light that fades out
-    X = (xs + 0.5) / w * 2 - 1
-    Y = (ys + 0.5) / h * 2 - 1
-    mist = smoothstep(1.0, 0.0, np.sqrt((X / 0.95) ** 2 + ((Y + 0.05) / 0.85) ** 2))
-    mist *= 0.75 + 0.25 * np.clip(fnoise(h, w, rng, 3.0), -2, 2) / 2
-    rim = np.clip(blur(m, 3.0 * ss) - m, 0, 1) * 1.6
-    lum = (mist * 0.32 + rim * 0.25) * (1 - m) + m * 0.008
-    alpha = np.clip(np.maximum(mist * 0.55, m), 0, 1)
+    X = (xs + 0.5) / ss - W / 2 + fnoise(h, w, rng, 3.8) * 1.6
+    Y = (ys + 0.5) / ss
+    if kind.startswith("bust"):
+        tilt = 0.0 if kind == "bust" else 0.20
+        hx, hy = (6.0 if tilt else 0.0), 112.0
+        hx, hy = (8.0 if tilt else 0.0), 104.0
+        head = sd_ellipse(X, Y, hx, hy, 37, 49, tilt)
+        neck = sd_capsule(X, Y, hx * 0.6, hy + 36, 0, 196, 15, 17)
+        shoulders = sd_capsule(X, Y, -74, 226, 74, 226, 27, 27)
+        chest = np.maximum(np.abs(X) - (100 + (Y - 226) * 0.06), 226 - Y)
+        body = smin_px(shoulders, chest, 10.0)
+        d = smin_px(smin_px(head, neck, 7.0), body, 22.0)
+        eyes = [[W / 2 + hx - 14, hy - 2], [W / 2 + hx + 14, hy + 1]]
+        er = 3.4
+        fade = smoothstep(H * 1.02, H * 0.70, Y)
+    else:
+        lean = 0.0 if kind == "tall" else 7.0
+        hx, hy = lean, 50.0
+        head = sd_ellipse(X, Y, hx, hy, 13, 18, 0.12 if lean else 0.0)
+        neck = sd_capsule(X, Y, hx, hy + 14, lean * 0.4, 92, 4.5, 6)
+        torso = sd_capsule(X, Y, lean * 0.3, 96, 0, 230, 15, 9)
+        shoulders = sd_capsule(X, Y, -21 + lean * 0.3, 98, 21 + lean * 0.3, 98, 6.5, 6.5)
+        d = smin_px(smin_px(head, neck, 2.5), smin_px(torso, shoulders, 3.5), 3.5)
+        for side in (-1, 1):
+            sx = side * 21 + lean * 0.3
+            ex, ey = sx + side * 8, 205
+            arm = smin_px(sd_capsule(X, Y, sx, 100, ex, ey, 4.2, 3.2), sd_capsule(X, Y, ex, ey, ex - side * 1, 318, 3.2, 2.4), 1.5)
+            for f in range(3):
+                fx = ex - side + (f - 1) * 2.6
+                arm = smin_px(arm, sd_capsule(X, Y, fx, 316, fx + side * (f - 1) * 1.5, 352 + f * 3, 1.1, 0.6), 1.0)
+            leg = sd_capsule(X, Y, side * 7, 224, side * 10, 448, 6.5, 4.0)
+            d = smin_px(d, smin_px(arm, leg, 2.0), 2.5)
+        eyes = [[W / 2 + hx - 5, hy - 1], [W / 2 + hx + 5, hy]]
+        er = 1.6
+        fade = smoothstep(H * 0.98, H * 0.62, Y)
+    m = blur(smoothstep(1.4, -1.4, d), 0.9 * ss)
+    Xn = ((xs + 0.5) / w) * 2 - 1
+    Yn = ((ys + 0.5) / h) * 2 - 1
+    mist = smoothstep(1.0, 0.0, np.sqrt((Xn / 0.98) ** 2 + ((Yn + 0.12) / 0.92) ** 2)) ** 1.3
+    mist = mist * (0.70 + 0.30 * np.clip(fnoise(h, w, rng, 3.0), -2, 2) / 2)
+    rim = np.clip(blur(m, 2.2 * ss) - m, 0, 1) * 1.4
+    lum = ((mist * 0.30 + rim * 0.22) * (1 - m) + m * 0.006) * fade
+    alpha = np.clip(np.maximum(mist * 0.55, m * fade), 0, 1) * (0.25 + 0.75 * fade)
     lum = downsample(lum, ss)
     alpha = downsample(alpha, ss)
     alpha[:2, :] = 0
@@ -601,7 +669,7 @@ def glyph_mask(font_path, ch, condense=0.86):
     return out
 
 
-def distress(mask, rng):
+def distress(mask, rng, scratches=True):
     """Old, worn print: rough eroded edges, pits, specks, a scratch or two, ink bleed, grain."""
     h, w = mask.shape
     ss = GLYPH_SS
@@ -616,7 +684,7 @@ def distress(mask, rng):
     m = m * (1 - smoothstep(2.6, 3.0, fnoise(h, w, rng, 0.8)) * 0.9)
     sc = Image.new("L", (w, h), 0)
     d = ImageDraw.Draw(sc)
-    for _ in range(int(rng.integers(0, 3))):
+    for _ in range(int(rng.integers(0, 3)) if scratches else 0):
         x = rng.uniform(0, w)
         y = rng.uniform(0, h)
         ang = rng.uniform(-1.3, 1.3) + (np.pi / 2 if rng.random() < 0.6 else 0)
@@ -649,7 +717,15 @@ def build_glyphs():
     chars, advance, left = [], [], []
     for r, row in enumerate(GLYPH_ROWS):
         for c, ch in enumerate(row):
-            gl, ga = distress(glyph_mask(font_path, ch), rng)
+            clean = glyph_mask(font_path, ch)
+            small = downsample(clean, GLYPH_SS) > 0.5
+            clean_ink = float(small.sum())
+            ink_cols = np.where(small.any(axis=0))[0]
+            narrow = len(ink_cols) < 40
+            for _attempt in range(10):
+                gl, ga = distress(clean, rng, scratches=not narrow)
+                if clean_ink == 0 or float((ga > 0.5).sum()) / clean_ink >= (0.9 if narrow else 0.85):
+                    break
             lum[r * CELL_H:(r + 1) * CELL_H, c * CELL_W:(c + 1) * CELL_W] = gl
             alpha[r * CELL_H:(r + 1) * CELL_H, c * CELL_W:(c + 1) * CELL_W] = ga
             ink = np.where(ga.max(axis=0) > 0.02)[0]

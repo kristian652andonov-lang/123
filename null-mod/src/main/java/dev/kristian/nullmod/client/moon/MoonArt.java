@@ -136,7 +136,7 @@ final class MoonArt {
                 offsetY[i] = 0.0F;
             }
         }
-        float gap = shatter * Math.max(1.0F, scale * 0.6F) * 1.5F;
+        float gap = shatter * Math.max(0.75F, pixelsPerDisc * 0.022F);
         float rim = Math.max(1.0F, scale * 0.5F);
 
         drawCracks(progress);
@@ -189,11 +189,14 @@ final class MoonArt {
             int neighbour = edgeNeighbour[local];
             float distance = edgeDist[local];
             if (neighbour >= 0) {
-                if (gap > 0.0F && distance < gap) {
+                if (broken[neighbour]) {
+                    // Freshly broken edge: a dark rim where the piece tore away.
+                    if (distance < rim) {
+                        factor *= 0.4F + 0.35F * (distance / rim);
+                    }
+                } else if (gap > 0.0F && distance < gap) {
+                    // Shattered: the remaining pieces drift apart.
                     return OPAQUE_BLACK;
-                }
-                if (broken[neighbour] && distance < rim + gap) {
-                    factor *= 0.42F + 0.4F * Math.min(1.0F, (distance - gap) / (rim * 2.0F));
                 }
             }
             sampleX -= offsetX[id];
@@ -278,17 +281,17 @@ final class MoonArt {
     private void drawCracks(float progress) {
         java.util.Arrays.fill(crackMask, 0.0F);
         java.util.Arrays.fill(lightMask, 0.0F);
-        float baseWidth = Math.max(1.0F, 0.45F * scale);
+        float baseWidth = Math.max(0.9F, 0.38F * scale);
         for (int i = 0; i < geometry.crackCount(); i++) {
             MoonGeometry.Crack crack = geometry.crack(i);
             float growth = crack.growth(progress);
             if (growth <= 0.0F) {
                 continue;
             }
-            float widen = 1.0F + 0.5F * smooth((progress - crack.fullAt()) / 0.3F);
-            float w = baseWidth * crack.width() * widen * (crack.major() ? 1.0F : 0.8F);
+            float widen = 1.0F + 0.45F * smooth((progress - crack.fullAt()) / 0.35F);
+            float w = baseWidth * crack.width() * widen * (crack.major() ? 1.0F : 0.75F);
             stroke(crack, growth, w, crackMask, 0.0F, 0.0F, false);
-            stroke(crack, growth, Math.max(0.7F, w * 0.6F), lightMask, 0.85F, 0.85F, false);
+            stroke(crack, growth, Math.max(0.6F, w * 0.55F), lightMask, 0.8F, 0.8F, false);
         }
         for (int i = 0; i < lightMask.length; i++) {
             lightMask[i] = Math.max(0.0F, lightMask[i] - crackMask[i]);
@@ -365,11 +368,11 @@ final class MoonArt {
         for (int start = 0; start < cellH; start += band) {
             int bandIndex = start / band;
             float active = hash01(seed, bandIndex, 1);
-            int height = band + (int) (hash01(seed, bandIndex, 2) * band * 2.0F);
-            if (active < distortion * 0.5F) {
-                float magnitude = (0.6F + 2.4F * distortion) * Math.max(1, scale - 1);
+            int height = band + (int) (hash01(seed, bandIndex, 2) * band * 1.5F);
+            if (active < distortion * 0.3F) {
+                float magnitude = (0.6F + 1.6F * distortion) * Math.max(1, scale - 1);
                 int shift = Math.round((hash01(seed, bandIndex, 3) * 2.0F - 1.0F) * magnitude);
-                int chroma = hash01(seed, bandIndex, 4) < distortion * 0.7F ? Math.max(1, Math.round(distortion * scale * 0.8F)) : 0;
+                int chroma = hash01(seed, bandIndex, 4) < distortion * 0.35F ? 1 : 0;
                 for (int ly = start; ly < Math.min(cellH, start + height); ly++) {
                     rowShift[ly] = shift;
                     rowChroma[ly] = chroma;

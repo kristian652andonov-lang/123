@@ -1,0 +1,18 @@
+{
+    "targets": [
+        "swap"
+    ],
+    "passes": [
+        {
+            "name": "null:corruption",
+            "intarget": "minecraft:main",
+            "outtarget": "swap",
+            "use_linear_filter": true
+        },
+        {
+            "name": "null:corruption_blit",
+            "intarget": "swap",
+            "outtarget": "minecraft:main"
+        }
+    ]
+}

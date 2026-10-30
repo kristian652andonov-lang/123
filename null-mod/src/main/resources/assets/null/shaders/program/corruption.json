@@ -1,0 +1,28 @@
+{
+    "blend": {
+        "func": "add",
+        "srcrgb": "one",
+        "dstrgb": "zero"
+    },
+    "vertex": "null:corruption",
+    "fragment": "null:corruption",
+    "attributes": [ "Position" ],
+    "samplers": [
+        { "name": "DiffuseSampler" }
+    ],
+    "uniforms": [
+        { "name": "ProjMat",    "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+        { "name": "InSize",     "type": "float",     "count": 2,  "values": [ 1.0, 1.0 ] },
+        { "name": "OutSize",    "type": "float",     "count": 2,  "values": [ 1.0, 1.0 ] },
+        { "name": "NullTime",   "type": "float",     "count": 1,  "values": [ 0.0 ] },
+        { "name": "NullSeed",   "type": "float",     "count": 1,  "values": [ 0.0 ] },
+        { "name": "RgbSplit",   "type": "float",     "count": 1,  "values": [ 0.0 ] },
+        { "name": "HueShift",   "type": "float",     "count": 1,  "values": [ 0.0 ] },
+        { "name": "Desaturate", "type": "float",     "count": 1,  "values": [ 0.0 ] },
+        { "name": "Darken",     "type": "float",     "count": 1,  "values": [ 0.0 ] },
+        { "name": "Grain",      "type": "float",     "count": 1,  "values": [ 0.0 ] },
+        { "name": "Scanlines",  "type": "float",     "count": 1,  "values": [ 0.0 ] },
+        { "name": "BlockShift", "type": "float",     "count": 1,  "values": [ 0.0 ] },
+        { "name": "Warp",       "type": "float",     "count": 1,  "values": [ 0.0 ] }
+    ]
+}

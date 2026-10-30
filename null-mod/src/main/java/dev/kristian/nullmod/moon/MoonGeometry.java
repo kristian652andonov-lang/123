@@ -306,16 +306,17 @@ public final class MoonGeometry {
         this.impactX = (float) ix;
         this.impactY = (float) iy;
 
-        // ---- Voronoi sites: rings around the impact point, denser close to it.
+        // ---- Voronoi sites: rings around the impact point, so the borders form the radial and
+        // concentric cracks of a real impact.
         List<double[]> sites = new ArrayList<>();
         int[] counts = {3, 6, 9, 12, 15};
-        double[] radii = {0.05, 0.14, 0.26, 0.42, 0.64};
+        double[] radii = {0.10, 0.24, 0.40, 0.60, 0.82};
         for (int ring = 0; ring < counts.length; ring++) {
             double rotation = rng.next() * StrictMath.PI * 2.0;
             double step = StrictMath.PI * 2.0 / counts[ring];
             for (int k = 0; k < counts[ring]; k++) {
                 double angle = rotation + step * k + (rng.next() - 0.5) * step * 0.55;
-                double r = radii[ring] * (0.8 + 0.4 * rng.next());
+                double r = radii[ring] * (0.82 + 0.36 * rng.next());
                 addSite(sites, ix + r * StrictMath.cos(angle), iy + r * StrictMath.sin(angle));
             }
         }
@@ -420,51 +421,76 @@ public final class MoonGeometry {
         }
         this.shards = shardList.toArray(new Shard[0]);
 
-        // ---- Cracks along the borders, ordered by distance from the impact.
-        List<Crack> crackList = new ArrayList<>();
-        List<float[]> borderInfo = new ArrayList<>();
+        // ---- Cracks along the borders. They spread as one connected network from the impact:
+        // every border is keyed by its distance from the impact along the border graph.
+        List<double[][]> borderLines = new ArrayList<>();
+        List<int[]> borderShards = new ArrayList<>();
         for (int[] pair : borderPairs) {
             int a = shardOfSite[pair[0]];
             int b = shardOfSite[pair[1]];
-            if (a < 0 || b < 0) {
-                continue;
+            if (a >= 0 && b >= 0) {
+                borderLines.add(borders.get(pairKey(pair[0], pair[1])));
+                borderShards.add(new int[] {a, b});
             }
-            double[][] border = borders.get(pairKey(pair[0], pair[1]));
-            double[] bxs = border[0];
-            double[] bys = border[1];
+        }
+        double[] network = networkDistances(borderLines, ix, iy);
+        List<Crack> crackList = new ArrayList<>();
+        List<float[]> borderInfo = new ArrayList<>();
+        for (int k = 0; k < borderLines.size(); k++) {
+            double[] bxs = borderLines.get(k)[0];
+            double[] bys = borderLines.get(k)[1];
             if (visibleFraction(bxs, bys) < 0.12) {
                 continue;
             }
             int n = bxs.length;
-            boolean reverse = dist2(bxs[n - 1], bys[n - 1], ix, iy) < dist2(bxs[0], bys[0], ix, iy);
+            double startDistance = network[2 * k];
+            double endDistance = network[2 * k + 1];
+            boolean reverse = endDistance < startDistance;
             float[] cx = new float[n];
             float[] cy = new float[n];
-            for (int k = 0; k < n; k++) {
-                int idx = reverse ? n - 1 - k : k;
-                cx[k] = (float) bxs[idx];
-                cy[k] = (float) bys[idx];
+            for (int p = 0; p < n; p++) {
+                int idx = reverse ? n - 1 - p : p;
+                cx[p] = (float) bxs[idx];
+                cy[p] = (float) bys[idx];
             }
-            float near = (float) StrictMath.sqrt(dist2(cx[0], cy[0], ix, iy));
-            borderInfo.add(new float[] {near + (float) (rng.next() * 0.05), crackList.size()});
-            crackList.add(new Crack(cx, cy, NEVER, NEVER, true, (float) (0.85 + rng.next() * 0.35), a, b));
+            // Radial borders (pointing away from the impact) crack first, so early cracks run
+            // outwards as long lines instead of circling the impact.
+            double ddx = cx[n - 1] - cx[0];
+            double ddy = cy[n - 1] - cy[0];
+            double rdx = (cx[0] + cx[n - 1]) * 0.5 - ix;
+            double rdy = (cy[0] + cy[n - 1]) * 0.5 - iy;
+            double norm = StrictMath.sqrt((ddx * ddx + ddy * ddy) * (rdx * rdx + rdy * rdy));
+            double radial = norm < 1.0E-9 ? 0.0 : Math.abs(ddx * rdx + ddy * rdy) / norm;
+            float key = (float) (Math.min(startDistance, endDistance) + rng.next() * 0.05 - radial * 0.09);
+            borderInfo.add(new float[] {key, crackList.size()});
+            int[] shardsOfBorder = borderShards.get(k);
+            crackList.add(new Crack(cx, cy, NEVER, NEVER, true, (float) (0.85 + rng.next() * 0.3),
+                    shardsOfBorder[0], shardsOfBorder[1]));
         }
         borderInfo.sort(Comparator.comparingDouble(info -> info[0]));
         int borderCount = borderInfo.size();
+        // A few long cracks early on, spreading through Stage 2/3, the rest only as pieces
+        // break away and when the moon finally shatters.
+        int early = Math.max(3, Math.round(borderCount * 0.08F));
+        int spread = Math.max(early + 3, Math.round(borderCount * 0.28F));
+        int later = Math.max(spread + 1, Math.round(borderCount * 0.6F));
         float[] growth = new float[crackList.size()];
         for (int rank = 0; rank < borderCount; rank++) {
-            Crack crack = crackList.get((int) borderInfo.get(rank)[1]);
-            float t = borderCount <= 1 ? 0.0F : (float) rank / (borderCount - 1);
+            int index = (int) borderInfo.get(rank)[1];
+            Crack crack = crackList.get(index);
             float appear;
-            if (t < 0.45F) {
-                appear = FIRST_CRACK + 0.04F + (PIECES - FIRST_CRACK - 0.05F) * (float) StrictMath.pow(t / 0.45F, 1.3);
-            } else if (t < 0.75F) {
-                appear = PIECES + (SHATTER - 0.02F - PIECES) * (t - 0.45F) / 0.30F;
+            if (rank < early) {
+                appear = lerp(FIRST_CRACK + 0.03F, 0.19F, (float) rank / early);
+            } else if (rank < spread) {
+                appear = lerp(0.20F, PIECES - 0.01F, (float) (rank - early) / (spread - early));
+            } else if (rank < later) {
+                appear = lerp(PIECES, SHATTER - 0.02F, (float) (rank - spread) / (later - spread));
             } else {
-                appear = SHATTER + 0.11F * (t - 0.75F) / 0.25F;
+                appear = lerp(SHATTER, 0.97F, (float) (rank - later) / Math.max(1, borderCount - later));
             }
             crack.appearAt = appear;
-            growth[(int) borderInfo.get(rank)[1]] = (float) (0.010 + rng.next() * 0.016);
-            crack.fullAt = appear + growth[(int) borderInfo.get(rank)[1]];
+            growth[index] = (float) (0.010 + rng.next() * 0.016);
+            crack.fullAt = appear + growth[index];
         }
 
         // ---- Which pieces break away, and when.
@@ -477,21 +503,25 @@ public final class MoonGeometry {
             if (limit >= NEVER) {
                 continue;
             }
-            float latest = limit - 0.012F - (float) (rng.next() * 0.02);
-            if (crack.appearAt > latest) {
-                crack.appearAt = Math.max(FIRST_CRACK + 0.01F, latest);
-                crack.fullAt = Math.min(limit - 0.002F, crack.appearAt + growth[k]);
-                crack.fullAt = Math.max(crack.appearAt + 0.001F, crack.fullAt);
+            float latestAppear = limit - 0.012F - (float) (rng.next() * 0.02);
+            float latestFull = limit - 0.002F;
+            if (crack.appearAt > latestAppear) {
+                crack.appearAt = Math.max(FIRST_CRACK + 0.01F, latestAppear);
+                crack.fullAt = crack.appearAt + growth[k];
             }
+            if (crack.fullAt > latestFull) {
+                crack.fullAt = latestFull;
+            }
+            crack.fullAt = Math.max(crack.appearAt + 0.001F, crack.fullAt);
         }
 
         // ---- The first impact: a small star of hairline cracks.
-        int star = 3 + (int) (rng.next() * 3.0);
+        int star = 3 + (int) (rng.next() * 2.0);
         double starRotation = rng.next() * StrictMath.PI * 2.0;
         for (int k = 0; k < star; k++) {
             double angle = starRotation + StrictMath.PI * 2.0 * k / star + (rng.next() - 0.5) * 0.9;
-            double length = 0.035 + rng.next() * 0.06;
-            float appear = k == 0 ? FIRST_CRACK : FIRST_CRACK + (float) (0.01 + rng.next() * 0.10);
+            double length = 0.04 + rng.next() * 0.05;
+            float appear = k == 0 ? FIRST_CRACK : FIRST_CRACK + (float) (0.01 + rng.next() * 0.07);
             float[][] walk = walk(rng, ix, iy, angle, length, 3 + (int) (rng.next() * 2.0), 0.35);
             float width = (float) (0.75 + rng.next() * 0.3);
             if (walk[0].length >= 2) {
@@ -507,7 +537,7 @@ public final class MoonGeometry {
                 continue;
             }
             double roll = rng.next();
-            int branches = roll < 0.3 ? 0 : roll < 0.8 ? 1 : 2;
+            int branches = roll < 0.55 ? 0 : roll < 0.9 ? 1 : 2;
             for (int b = 0; b < branches; b++) {
                 double along = (0.2 + rng.next() * 0.6) * parent.length;
                 int seg = 1;
@@ -518,11 +548,11 @@ public final class MoonGeometry {
                 float sy = parent.y[seg - 1];
                 double tangent = StrictMath.atan2(parent.y[seg] - sy, parent.x[seg] - sx);
                 double angle = tangent + (rng.next() < 0.5 ? -1.0 : 1.0) * (0.6 + rng.next() * 0.7);
-                float[][] walk = walk(rng, sx, sy, angle, 0.03 + rng.next() * 0.06, 2 + (int) (rng.next() * 3.0), 0.45);
+                float[][] walk = walk(rng, sx, sy, angle, 0.025 + rng.next() * 0.035, 2 + (int) (rng.next() * 2.0), 0.4);
                 if (walk[0].length < 2) {
                     continue;
                 }
-                float appear = Math.min(0.99F, parent.fullAt + 0.004F + (float) (rng.next() * 0.05));
+                float appear = Math.min(0.99F, parent.fullAt + 0.02F + (float) (rng.next() * 0.06));
                 crackList.add(new Crack(walk[0], walk[1], appear, appear + 0.01F, false, (float) (0.55 + rng.next() * 0.25), -1, -1));
             }
         }
@@ -565,6 +595,11 @@ public final class MoonGeometry {
             cached = geometry;
         }
         return geometry;
+    }
+
+    /** A fresh, uncached instance (for tests that compare two independent computations). */
+    static MoonGeometry compute(long seed) {
+        return new MoonGeometry(seed);
     }
 
     public long seed() {
@@ -700,10 +735,12 @@ public final class MoonGeometry {
         remaining.sort(byImpact);
         List<Shard> phaseC = take(remaining, 3, candidates);
 
-        // The rest shatters, except a few core pieces that hold on until the very end.
+        // The rest shatters, except a few core pieces (large, far from the impact) that hold on
+        // until the very end.
         List<Shard> rest = new ArrayList<>(candidates);
-        rest.sort(Comparator.comparingDouble(shard -> -shard.visibleArea));
-        int cores = Math.min(3, rest.size());
+        rest.sort(Comparator.comparingDouble(shard -> -shard.visibleArea
+                * (0.4 + StrictMath.sqrt(dist2(shard.centroidX, shard.centroidY, impactX, impactY)))));
+        int cores = Math.min(4, rest.size());
         List<Shard> phaseD = new ArrayList<>(rest.subList(cores, rest.size()));
         phaseD.sort(byImpact);
 
@@ -739,6 +776,77 @@ public final class MoonGeometry {
                 list.get(k).breakAt = Math.min(to, list.get(k - 1).breakAt + 0.002F);
             }
         }
+    }
+
+    /**
+     * Distance of both ends of every border from the impact, measured along the border graph
+     * (so cracks grow as one connected network). Returns {start0, end0, start1, end1, ...}.
+     */
+    private static double[] networkDistances(List<double[][]> lines, double ix, double iy) {
+        List<double[]> nodes = new ArrayList<>();
+        int[] ends = new int[lines.size() * 2];
+        for (int k = 0; k < lines.size(); k++) {
+            double[] xs = lines.get(k)[0];
+            double[] ys = lines.get(k)[1];
+            ends[2 * k] = node(nodes, xs[0], ys[0]);
+            ends[2 * k + 1] = node(nodes, xs[xs.length - 1], ys[ys.length - 1]);
+        }
+        int count = nodes.size();
+        double[] distance = new double[count];
+        for (int n = 0; n < count; n++) {
+            distance[n] = StrictMath.sqrt(dist2(nodes.get(n)[0], nodes.get(n)[1], ix, iy)) * 1.6;
+        }
+        double[] lengths = new double[lines.size()];
+        for (int k = 0; k < lines.size(); k++) {
+            double[] xs = lines.get(k)[0];
+            double[] ys = lines.get(k)[1];
+            double total = 0.0;
+            for (int p = 1; p < xs.length; p++) {
+                total += StrictMath.sqrt(dist2(xs[p - 1], ys[p - 1], xs[p], ys[p]));
+            }
+            lengths[k] = total;
+        }
+        boolean[] done = new boolean[count];
+        for (int round = 0; round < count; round++) {
+            int best = -1;
+            for (int n = 0; n < count; n++) {
+                if (!done[n] && (best < 0 || distance[n] < distance[best])) {
+                    best = n;
+                }
+            }
+            if (best < 0) {
+                break;
+            }
+            done[best] = true;
+            for (int k = 0; k < lines.size(); k++) {
+                int a = ends[2 * k];
+                int b = ends[2 * k + 1];
+                if (a == best && !done[b]) {
+                    distance[b] = Math.min(distance[b], distance[a] + lengths[k]);
+                } else if (b == best && !done[a]) {
+                    distance[a] = Math.min(distance[a], distance[b] + lengths[k]);
+                }
+            }
+        }
+        double[] out = new double[lines.size() * 2];
+        for (int k = 0; k < ends.length; k++) {
+            out[k] = distance[ends[k]];
+        }
+        return out;
+    }
+
+    private static int node(List<double[]> nodes, double x, double y) {
+        for (int n = 0; n < nodes.size(); n++) {
+            if (dist2(nodes.get(n)[0], nodes.get(n)[1], x, y) < 1.0E-12) {
+                return n;
+            }
+        }
+        nodes.add(new double[] {x, y});
+        return nodes.size() - 1;
+    }
+
+    private static float lerp(float from, float to, float t) {
+        return from + (to - from) * Math.max(0.0F, Math.min(1.0F, t));
     }
 
     private static void addSite(List<double[]> sites, double x, double y) {
