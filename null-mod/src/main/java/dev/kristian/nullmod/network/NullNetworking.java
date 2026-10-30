@@ -33,7 +33,15 @@ public final class NullNetworking {
                 (payload, context) -> clientSink.transition(payload));
     }
 
+    /**
+     * Sends a payload to one player. Players whose client does not have NULL's channels
+     * (GameTest mock players, or anything else without the mod) are skipped, because
+     * NeoForge refuses to send them unknown payloads.
+     */
     public static void sendToPlayer(ServerPlayer player, CustomPacketPayload payload) {
+        if (player.connection == null || !player.connection.hasChannel(payload)) {
+            return;
+        }
         PacketDistributor.sendToPlayer(player, payload);
     }
 
