@@ -52,13 +52,18 @@ its persistent state in `CorruptionData.systemTag`.
 | Corrupted chat | `chat` | — |
 | NULL dimension & transition | `dimension` | `client.dimension` |
 | Corrupted main menu | — | `client.menu` |
-| Desktop interference, settings | — | `client.desktop`, `client.settings` |
+| Desktop interference, settings | `desktop` (one rare event) | `client.desktop`, `client.settings` |
 
 ## Testing
 
 - `gametest/*GameTests` run on a real GameTest server in CI (`./gradlew runGameTestServer`).
+  That server never loads datapack dimensions, so `dimension/DimensionSelfCheck` checks the
+  NULL dimension itself (generated chunks against the geometry function, the arrival platform,
+  decay and exact regeneration) on the smoke tests' singleplayer and dedicated servers.
 - `client/autotest/ClientAutoTest` is a scripted client session that CI runs on a virtual
   display: main menu → settings → new world → every stage with every event forced → NULL
   dimension → player list → back to Stage 1 → quit, with screenshots. It only runs when the
-  JVM has `-Dnull.autotest` set.
+  JVM has `-Dnull.autotest` set. CI runs it twice: in singleplayer, and against a real NeoForge
+  dedicated server with the built jar (`autotest/ServerAutoTest` makes the joining player an
+  operator there), checking that the server never loads a client class.
 - `tools/syntax_check.sh` parses the sources without Minecraft on the classpath.
