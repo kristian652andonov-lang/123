@@ -1,6 +1,8 @@
 package dev.kristian.nullmod.gametest;
 
 import dev.kristian.nullmod.NullMod;
+import dev.kristian.nullmod.config.NullConfig;
+import dev.kristian.nullmod.core.CorruptionContext;
 import dev.kristian.nullmod.core.CorruptionData;
 import dev.kristian.nullmod.core.CorruptionManager;
 import dev.kristian.nullmod.core.CorruptionStage;
@@ -8,8 +10,10 @@ import dev.kristian.nullmod.core.CorruptionStageManager;
 import dev.kristian.nullmod.core.RegionCorruption;
 import dev.kristian.nullmod.event.NullEventDefinition;
 import dev.kristian.nullmod.event.NullEventRegistry;
+import dev.kristian.nullmod.event.RandomEventManager;
 import dev.kristian.nullmod.world.BuildProtection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
@@ -17,7 +21,9 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LeavesBlock;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -156,6 +162,39 @@ public final class CoreGameTests {
         helper.assertFalse(BuildProtection.isNatural(Blocks.OAK_PLANKS.defaultBlockState()), "planks must never be natural");
         helper.assertTrue(BuildProtection.canPlaceInto(Blocks.AIR.defaultBlockState()), "air should accept structures");
         helper.assertFalse(BuildProtection.canPlaceInto(Blocks.CHEST.defaultBlockState()), "a chest must never be replaced");
+        helper.assertTrue(BuildProtection.isNatural(Blocks.OAK_LEAVES.defaultBlockState()), "leaves of a tree should be natural");
+        helper.assertFalse(BuildProtection.isNatural(Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true)),
+                "leaves a player placed must never be natural");
+        helper.assertFalse(BuildProtection.isNatural(Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.WATERLOGGED, true)),
+                "waterlogged leaves must never be replaced");
+        helper.assertFalse(BuildProtection.canPlaceInto(Blocks.LIGHT.defaultBlockState()), "a light block must never be replaced");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", batch = "core_disabled")
+    public static void disabledEventsNeverRun(GameTestHelper helper) {
+        if (!NullConfig.loaded()) {
+            helper.fail("NULL's server config is not loaded, so the disabled list cannot be switched for this test");
+        }
+        MinecraftServer server = helper.getLevel().getServer();
+        NullEventDefinition event = NullEventRegistry.get("camera_shake").orElseThrow();
+        CorruptionContext ctx = CorruptionManager.context(server);
+        List<? extends String> disabled = NullConfig.DISABLED_EVENTS.get();
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        try {
+            NullConfig.DISABLED_EVENTS.set(List.of(event.id()));
+            helper.assertFalse(RandomEventManager.INSTANCE.force(player, event, ctx), "an event on the disabled list ran from /null event");
+            NullConfig.DISABLED_EVENTS.set(List.of());
+            helper.assertTrue(RandomEventManager.INSTANCE.force(player, event, ctx), "the same event did not run once it was enabled again");
+        } finally {
+            NullConfig.DISABLED_EVENTS.set(disabled);
+            // A mock player left on the server would have random events rolled for it during later tests.
+            try {
+                server.getPlayerList().remove(player);
+            } catch (RuntimeException e) {
+                NullMod.LOGGER.warn("Could not remove the mock player after a core test", e);
+            }
+        }
         helper.succeed();
     }
 }

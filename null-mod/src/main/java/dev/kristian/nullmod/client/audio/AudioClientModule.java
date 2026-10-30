@@ -51,7 +51,7 @@ public final class AudioClientModule {
             failures++;
             NullMod.LOGGER.error("NULL audio tick failed ({} of {})", failures, MAX_FAILURES, e);
             if (failures >= MAX_FAILURES) {
-                AudioCorruptionManager.reset();
+                AudioCorruptionManager.disable();
             }
         }
     }

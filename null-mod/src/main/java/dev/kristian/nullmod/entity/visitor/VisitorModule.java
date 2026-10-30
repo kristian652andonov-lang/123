@@ -10,6 +10,7 @@ import net.minecraft.world.entity.MobCategory;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.RegisterGameTestsEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
+import net.neoforged.neoforge.event.entity.EntityMobGriefingEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
@@ -37,12 +38,23 @@ public final class VisitorModule {
         ENTITY_TYPES.register(modBus);
         modBus.addListener(VisitorModule::onEntityAttributes);
         modBus.addListener(VisitorModule::onRegisterGameTests);
+        gameBus.addListener(VisitorModule::onMobGriefing);
         CorruptionManager.registerSystem(VisitorManager.INSTANCE);
         VisitorEvents.register();
     }
 
     private static void onEntityAttributes(EntityAttributeCreationEvent event) {
         event.put(VISITOR.get(), PlayerLikeEntity.createAttributes().build());
+    }
+
+    /**
+     * Visitors and simulated player bodies never change the world, whatever the mobGriefing
+     * rule says: no trampled farmland, no broken turtle eggs, nothing another mod asks about.
+     */
+    private static void onMobGriefing(EntityMobGriefingEvent event) {
+        if (event.getEntity() instanceof PlayerLikeEntity) {
+            event.setCanGrief(false);
+        }
     }
 
     private static void onRegisterGameTests(RegisterGameTestsEvent event) {

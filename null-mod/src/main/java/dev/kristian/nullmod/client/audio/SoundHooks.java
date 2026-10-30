@@ -61,6 +61,9 @@ final class SoundHooks {
                 return;
             }
             float pitch = PitchCorruption.factorFor(random);
+            if (pitch == 1.0F) {
+                pitch = PitchCorruption.breakFactorFor(sound.getLocation(), random);
+            }
             float volume = 1.0F;
             float capture = AudioCorruptionManager.captureDistortion();
             if (capture > 0.01F && AudioCorruptionManager.channelEnabled(AudioCorruptionManager.Channel.CREATURE)) {

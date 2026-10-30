@@ -10,6 +10,7 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -58,17 +59,19 @@ public final class BuildProtection {
         }
     }
 
-    /** Number of player-placed blocks recorded for the chunk containing {@code pos}. */
+    /** Number of player-placed blocks recorded for the chunk containing {@code pos} (0 if it is not loaded). */
     public static int playerBlocks(ServerLevel level, BlockPos pos) {
-        if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
-            return 0;
-        }
-        return level.getChunkAt(pos).getData(NullAttachments.PLAYER_BLOCKS);
+        LevelChunk chunk = level.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4);
+        return chunk == null ? 0 : chunk.getData(NullAttachments.PLAYER_BLOCKS);
     }
 
-    /** True if natural terrain at this state may be replaced by corruption. */
+    /**
+     * True if natural terrain at this state may be replaced by corruption. Leaves a player placed
+     * (persistent) and anything holding water are never natural, even when the block is tagged.
+     */
     public static boolean isNatural(BlockState state) {
-        return state.is(CORRUPTIBLE) && !state.hasBlockEntity();
+        return state.is(CORRUPTIBLE) && !state.hasBlockEntity() && state.getFluidState().isEmpty()
+                && !(state.hasProperty(BlockStateProperties.PERSISTENT) && state.getValue(BlockStateProperties.PERSISTENT));
     }
 
     /** True if a structure block may be placed into this state (air, grass, flowers, snow...). */
@@ -98,10 +101,10 @@ public final class BuildProtection {
         int maxZ = Math.max(min.getZ(), max.getZ()) + radius;
         for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
             for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) {
-                if (!level.hasChunk(cx, cz)) {
-                    return true;
-                }
-                if (level.getChunk(cx, cz).getData(NullAttachments.PLAYER_BLOCKS) > 0) {
+                // Only chunks that are fully loaded right now count; one still loading or
+                // generating is never waited for (that would stall the server thread).
+                LevelChunk chunk = level.getChunkSource().getChunkNow(cx, cz);
+                if (chunk == null || chunk.getData(NullAttachments.PLAYER_BLOCKS) > 0) {
                     return true;
                 }
             }

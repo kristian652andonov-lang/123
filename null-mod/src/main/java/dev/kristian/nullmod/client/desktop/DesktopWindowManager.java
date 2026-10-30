@@ -212,7 +212,7 @@ final class DesktopWindowManager {
     }
 
     private static void tick() {
-        long now = System.currentTimeMillis();
+        long now = NullDesktopWindow.nowMs();
         for (int i = WINDOWS.size() - 1; i >= 0; i--) {
             NullDesktopWindow window = WINDOWS.get(i);
             boolean alive;

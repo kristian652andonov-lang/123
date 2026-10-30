@@ -59,6 +59,8 @@ public final class ChatReactions {
     private static final float[] SLEEP_CHANCE = {0.0F, 0.15F, 0.35F, 0.5F, 0.5F};
     private static final float[] WAKE_CHANCE = {0.0F, 0.2F, 0.35F, 0.45F, 0.5F};
     private static final long MEMORY_SCAN_WINDOW = 20L * 20L;
+    /** Most typed messages waiting for the tick (it stops draining if the chat system is ever disabled). */
+    private static final int MAX_INCOMING = 256;
 
     private static final ConcurrentLinkedQueue<Said> INCOMING = new ConcurrentLinkedQueue<>();
     private static final Map<UUID, Watch> WATCHES = new HashMap<>();
@@ -110,7 +112,7 @@ public final class ChatReactions {
 
     private static void onServerChat(ServerChatEvent event) {
         ServerPlayer player = event.getPlayer();
-        if (player == null || player instanceof FakePlayer) {
+        if (player == null || player instanceof FakePlayer || INCOMING.size() >= MAX_INCOMING) {
             return;
         }
         INCOMING.add(new Said(player.getUUID(), event.getRawText()));

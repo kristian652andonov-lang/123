@@ -57,6 +57,8 @@ public final class AudioCorruptionManager {
     /** Ticks between attempts to (re)start the capture drone when the sound engine refused it. */
     private static final int LOOP_RETRY_TICKS = 40;
 
+    /** Set for the rest of the session once the audio tick kept failing: nothing may silence the game then. */
+    private static boolean disabled;
     private static int silenceTicks;
     private static boolean pausedBySilence;
     private static boolean transitionSilent;
@@ -128,7 +130,7 @@ public final class AudioCorruptionManager {
      */
     public static void silence(int ticks) {
         Minecraft mc = Minecraft.getInstance();
-        if (ticks <= 0 || transitionSilent || mc.level == null || ClientLimits.audio() <= 0.0F
+        if (disabled || ticks <= 0 || transitionSilent || mc.level == null || ClientLimits.audio() <= 0.0F
                 || !NullClientSettings.get(NullClientSettings.SUDDEN_SILENCE)) {
             return;
         }
@@ -155,7 +157,8 @@ public final class AudioCorruptionManager {
      * ({@code null:transition.*}, through any of the play methods) and {@link #playUi} sounds may play.
      */
     public static void setTransitionSilence(boolean silent) {
-        if (silent == transitionSilent) {
+        if (silent == transitionSilent || (silent && disabled)) {
+            // Disabled: tick() no longer runs, so nothing would ever lift it.
             return;
         }
         transitionSilent = silent;
@@ -554,6 +557,12 @@ public final class AudioCorruptionManager {
             endSilence(mc);
         }
         silenceTicks = 0;
+    }
+
+    /** The audio tick gave up: back to normal audio, and no silences from now on (it would never end them). */
+    static void disable() {
+        disabled = true;
+        reset();
     }
 
     /** Logout: back to a clean state, with the game's audio running normally. */

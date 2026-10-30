@@ -3,6 +3,7 @@ package dev.kristian.nullmod.client.desktop;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.kristian.nullmod.client.ClientCorruptionState;
 import dev.kristian.nullmod.client.effect.ClientEffects;
+import dev.kristian.nullmod.config.NullClientSettings;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -29,6 +30,8 @@ public final class DesktopClientModule {
     }
 
     public static void init(IEventBus modBus, IEventBus gameBus) {
+        // the consent only counts for the account that accepted it
+        NullClientSettings.setAccountCode(DesktopInterferenceManager::accountCode);
         gameBus.addListener(DesktopClientModule::onClientTick);
         gameBus.addListener(DesktopClientModule::onLoggingOut);
         gameBus.addListener(DesktopClientModule::onGameShuttingDown);

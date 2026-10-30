@@ -56,6 +56,8 @@ public final class FakePlayerManager implements CorruptionSystem {
     private static final int FLAG_CORRUPTED = 1;
     private static final int FLAG_HIDDEN = 2;
     private static final int MIN_SEND_INTERVAL = 10;
+    /** Most bodies in the whole world at once, however many players are online. */
+    private static final int MAX_TOTAL_BODIES = 160;
 
     /** One simulated player. */
     private static final class Sim {
@@ -332,6 +334,8 @@ public final class FakePlayerManager implements CorruptionSystem {
 
     private void bodyTick(MinecraftServer server, CorruptionContext ctx, long now) {
         bodies.removeIf(PlayerLikeEntity::hasVanished);
+        // Left behind in a chunk that stopped ticking: frozen in place, never running out its lifetime.
+        removeBodies(body -> !body.inTickingChunk());
         int cap = NullConfig.get(NullConfig.FAKE_PLAYER_BODIES);
         if (cap <= 0) {
             return;
@@ -458,6 +462,12 @@ public final class FakePlayerManager implements CorruptionSystem {
     @Nullable
     private FakePlayerEntity spawnBody(ServerPlayer player, FakePlayerEntity.Behaviour behaviour, PlayerLikeSpawns.Spot spot, long group,
                                        RandomSource rnd, boolean forced) {
+        if (!forced) {
+            bodies.removeIf(PlayerLikeEntity::hasVanished);
+            if (bodies.size() >= MAX_TOTAL_BODIES) {
+                return null;
+            }
+        }
         ServerLevel level = player.serverLevel();
         FakePlayerEntity body = FakePlayerModule.FAKE_PLAYER.get().create(level);
         if (body == null) {
@@ -502,12 +512,16 @@ public final class FakePlayerManager implements CorruptionSystem {
             yaw += 180.0F;
         }
         body.moveTo(pos.x, pos.y, pos.z, yaw, 0.0F);
+        if (!body.inTickingChunk()) {
+            // Beyond the simulation distance it would only stand frozen until the next cleanup.
+            return null;
+        }
         body.setYHeadRot(yaw);
         body.yBodyRot = yaw;
         if (spot.floating()) {
             body.setNoGravity(true);
         }
-        applyIdentity(body, rnd);
+        applyIdentity(body, rnd, player.server);
         body.setForced(forced && CorruptionManager.stage(player.server) != CorruptionStage.NULL);
         if (!level.addFreshEntity(body)) {
             return null;
@@ -516,11 +530,15 @@ public final class FakePlayerManager implements CorruptionSystem {
         return body;
     }
 
-    /** Wears the name and skin of somebody in the list (or a fresh one if the list is empty). */
-    private void applyIdentity(FakePlayerEntity body, RandomSource rnd) {
+    /**
+     * Wears the name and skin of somebody in the list (or a fresh one if the list is empty),
+     * never the name of a real player who is online.
+     */
+    private void applyIdentity(FakePlayerEntity body, RandomSource rnd, MinecraftServer server) {
+        Set<String> online = onlineNames(server);
         List<Sim> visible = new ArrayList<>();
         for (Sim sim : sims) {
-            if (!sim.hidden()) {
+            if (!sim.hidden() && !online.contains(sim.name.toLowerCase(Locale.ROOT))) {
                 visible.add(sim);
             }
         }
@@ -528,7 +546,7 @@ public final class FakePlayerManager implements CorruptionSystem {
         String name;
         int skin;
         if (visible.isEmpty()) {
-            name = UsernameGenerator.random(rnd);
+            name = UsernameGenerator.unique(rnd, online);
             skin = SkinSet.weighted(rnd, 14, 14, 22, 50);
         } else {
             Sim sim = visible.get(rnd.nextInt(visible.size()));
@@ -666,8 +684,24 @@ public final class FakePlayerManager implements CorruptionSystem {
         }
     }
 
-    private static void broadcast(MinecraftServer server, Component line) {
-        server.getPlayerList().broadcastSystemMessage(line, false);
+    /**
+     * A yellow join or leave line for everyone online. Sent to the players only: unlike
+     * {@code PlayerList#broadcastSystemMessage} it is never written to the server log, where it
+     * would read exactly like somebody really connecting.
+     */
+    static void broadcast(MinecraftServer server, Component line) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            player.sendSystemMessage(line);
+        }
+    }
+
+    /** Lower-case names of the real players online, which nothing simulated may wear. */
+    public static Set<String> onlineNames(MinecraftServer server) {
+        Set<String> out = new HashSet<>();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            out.add(player.getGameProfile().getName().toLowerCase(Locale.ROOT));
+        }
+        return out;
     }
 
     // ------------------------------------------------------------------ lifecycle
@@ -675,6 +709,14 @@ public final class FakePlayerManager implements CorruptionSystem {
     @Override
     public void onPlayerJoin(ServerPlayer player, CorruptionContext context) {
         ensureLoaded(player.server);
+        // A real player now has this name: the simulated one quietly goes, so the list never shows
+        // the name twice and no body wears a real player's name.
+        String joined = player.getGameProfile().getName();
+        if (sims.removeIf(sim -> sim.name.equalsIgnoreCase(joined))) {
+            save(player.server);
+            dirty = true;
+            removeBodies(body -> body.username().equalsIgnoreCase(joined));
+        }
         sendTo(player, payload(player.server));
     }
 

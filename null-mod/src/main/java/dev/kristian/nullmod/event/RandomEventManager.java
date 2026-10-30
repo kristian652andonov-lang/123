@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Predicate;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
@@ -36,10 +37,13 @@ public final class RandomEventManager implements CorruptionSystem {
     private static final float[] BASE_INTERVAL_SECONDS = {150.0F, 80.0F, 50.0F, 32.0F, 15.0F};
     private static final int RECENT_MEMORY = 6;
     private static final int ATTEMPTS = 4;
+    /** After a quiet spell ends, the next event waits at least this long. */
+    private static final long QUIET_GRACE_TICKS = 20L * 20L;
 
     private final RandomSource random = RandomSource.create();
     private final Map<UUID, PlayerSchedule> schedules = new HashMap<>();
     private final Map<String, Long> globalCooldowns = new HashMap<>();
+    private final List<Predicate<ServerPlayer>> quietConditions = new ArrayList<>();
 
     private RandomEventManager() {
     }
@@ -66,7 +70,16 @@ public final class RandomEventManager implements CorruptionSystem {
         }
         long now = server.overworld().getGameTime();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (player.isSpectator()) {
+            // Nothing happens to spectators or to someone lying on the death screen.
+            if (player.isSpectator() || !player.isAlive()) {
+                continue;
+            }
+            if (isQuiet(player)) {
+                // Nothing happens to someone in the middle of a transition, nor right after it.
+                PlayerSchedule quiet = schedules.get(player.getUUID());
+                if (quiet != null && quiet.nextRoll >= 0L) {
+                    quiet.nextRoll = Math.max(quiet.nextRoll, now + QUIET_GRACE_TICKS);
+                }
                 continue;
             }
             PlayerSchedule schedule = schedules.computeIfAbsent(player.getUUID(), id -> new PlayerSchedule());
@@ -81,6 +94,23 @@ public final class RandomEventManager implements CorruptionSystem {
             schedule.nextRoll = now + nextDelay(ctx.stage(), frequency);
             rollFor(server, player, ctx, schedule, now);
         }
+    }
+
+    /**
+     * Adds a condition under which a player gets no random events for now (the NULL dimension
+     * uses it for players being moved in or out). Checked on every roll; call during setup.
+     */
+    public void addQuietCondition(Predicate<ServerPlayer> condition) {
+        quietConditions.add(condition);
+    }
+
+    private boolean isQuiet(ServerPlayer player) {
+        for (Predicate<ServerPlayer> condition : quietConditions) {
+            if (condition.test(player)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private long nextDelay(CorruptionStage stage, double frequency) {
@@ -180,9 +210,13 @@ public final class RandomEventManager implements CorruptionSystem {
 
     /**
      * Runs one event for one player right now. When {@code forced} (from /null event) the
-     * stage range and cooldowns are ignored, but config switches still apply.
+     * stage range and cooldowns are ignored, but config switches still apply: an event on the
+     * disabled list never runs.
      */
     public boolean execute(MinecraftServer server, ServerPlayer player, CorruptionContext ctx, NullEventDefinition event, boolean forced) {
+        if (NullConfig.eventDisabled(event.id())) {
+            return false;
+        }
         if (event.has(EventTag.WORLD) && !NullConfig.mayReplaceNatural()) {
             return false;
         }

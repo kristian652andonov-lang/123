@@ -42,7 +42,7 @@ final class NullDesktopWindow {
     NullDesktopWindow(DesktopWindowSpec spec, int maxWidth, int maxHeight, boolean translucent, Consumer<NullDesktopWindow> onClose) {
         this.spec = spec;
         this.translucent = translucent;
-        this.openedAtMs = System.currentTimeMillis();
+        this.openedAtMs = nowMs();
         this.wholeWindowFlicker = spec.layout() == DesktopWindowSpec.Layout.BIG_TEXT;
         this.window = new JWindow();
         // never steal focus or keyboard input, never show up in the task bar
@@ -81,6 +81,18 @@ final class NullDesktopWindow {
         if (translucent) {
             setOpacity(0.0F);
         }
+    }
+
+    /** Origin of {@link #nowMs()}: System.nanoTime() itself may be negative, but -1 means "not closing". */
+    private static final long CLOCK_ORIGIN_NS = System.nanoTime();
+
+    /**
+     * Monotonic milliseconds for lifetimes and fades: a wall clock that jumps back (time sync,
+     * waking from sleep) must never leave a window invisible or open longer than it should be.
+     * Never negative.
+     */
+    static long nowMs() {
+        return (System.nanoTime() - CLOCK_ORIGIN_NS) / 1_000_000L;
     }
 
     DesktopWindowSpec spec() {
@@ -149,7 +161,7 @@ final class NullDesktopWindow {
             return;
         }
         if (closingSinceMs < 0L) {
-            closingSinceMs = System.currentTimeMillis();
+            closingSinceMs = nowMs();
             fadeOutMs = spec.slowFades() ? 700 : 180;
         }
     }

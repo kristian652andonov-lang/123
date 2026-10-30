@@ -20,6 +20,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -102,6 +103,20 @@ public final class VisitorGameTests {
         boolean hurt = visitor.hurt(helper.getLevel().damageSources().generic(), 4.0F);
         helper.assertFalse(hurt, "a Visitor took damage");
         helper.assertTrue(visitor.isRemoved(), "a Visitor that was hit did not vanish");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", batch = "visitors")
+    public static void visitorsNeverTrampleOrGrief(GameTestHelper helper) {
+        helper.setBlock(new BlockPos(4, 0, 4), Blocks.STONE);
+        VisitorEntity visitor = helper.spawn(VisitorModule.VISITOR.get(), new BlockPos(4, 1, 4));
+        visitor.setIdentity("TestVisitor", SkinSet.firstOf(SkinSet.Category.OLD), 0);
+        visitor.configure(VisitorPersonality.FOLLOWER, null, 20 * 60, 3.0F, false);
+        // A fall of three blocks onto farmland always tramples it for a mob that may grief.
+        helper.assertFalse(visitor.canTrample(Blocks.FARMLAND.defaultBlockState(), helper.absolutePos(new BlockPos(4, 0, 4)), 3.0F),
+                "a Visitor can trample farmland");
+        helper.assertFalse(EventHooks.canEntityGrief(helper.getLevel(), visitor), "a Visitor may grief (turtle eggs, other mods)");
+        visitor.discard();
         helper.succeed();
     }
 

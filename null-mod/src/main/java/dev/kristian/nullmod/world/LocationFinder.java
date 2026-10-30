@@ -50,15 +50,24 @@ public final class LocationFinder {
         return !NullDimensions.isNull(level) && !level.dimensionType().hasCeiling();
     }
 
+    /**
+     * True if the chunk is fully loaded right now. Unlike {@code Level#hasChunk}, which is also true
+     * for a chunk that is still loading or generating (reading it would make the server thread
+     * wait for it), this never leads to a wait.
+     */
+    public static boolean chunkReady(ServerLevel level, int chunkX, int chunkZ) {
+        return level.getChunkSource().getChunkNow(chunkX, chunkZ) != null;
+    }
+
     public static boolean isLoaded(ServerLevel level, int x, int z) {
-        return level.hasChunk(x >> 4, z >> 4);
+        return chunkReady(level, x >> 4, z >> 4);
     }
 
     /** True if every chunk overlapping the block rectangle is loaded. */
     public static boolean areaLoaded(ServerLevel level, int minX, int minZ, int maxX, int maxZ) {
         for (int cx = Math.min(minX, maxX) >> 4; cx <= Math.max(minX, maxX) >> 4; cx++) {
             for (int cz = Math.min(minZ, maxZ) >> 4; cz <= Math.max(minZ, maxZ) >> 4; cz++) {
-                if (!level.hasChunk(cx, cz)) {
+                if (!chunkReady(level, cx, cz)) {
                     return false;
                 }
             }

@@ -12,8 +12,10 @@ import dev.kristian.nullmod.entity.fakeplayer.FakePlayerManager;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 import net.minecraft.server.MinecraftServer;
@@ -51,6 +53,9 @@ public final class VisitorManager implements CorruptionSystem {
         UNUSUAL
     }
 
+    /** Most Visitors in the whole world at once, however many players are online (commands excepted). */
+    private static final int MAX_TOTAL = 48;
+
     private final RandomSource random = RandomSource.create();
     private final List<VisitorEntity> visitors = new ArrayList<>();
     private final Map<UUID, Long> nextSpawn = new HashMap<>();
@@ -69,6 +74,9 @@ public final class VisitorManager implements CorruptionSystem {
             return;
         }
         visitors.removeIf(PlayerLikeEntity::hasVanished);
+        // One left in a chunk that stopped ticking stands frozen, never runs out its lifetime and
+        // keeps counting against its player's limit.
+        removeIf(visitor -> !visitor.inTickingChunk());
         if (!ctx.atLeast(CorruptionStage.ABOVE_MIDDLE)) {
             // Only Visitors forced by an administrator may exist before Stage 4.
             removeIf(visitor -> !visitor.isForced());
@@ -155,6 +163,9 @@ public final class VisitorManager implements CorruptionSystem {
             return Optional.empty();
         }
         visitors.removeIf(PlayerLikeEntity::hasVanished);
+        if (!forced && visitors.size() >= MAX_TOTAL) {
+            return Optional.empty();
+        }
         if (count(player) >= max) {
             if (!forced) {
                 return Optional.empty();
@@ -177,6 +188,10 @@ public final class VisitorManager implements CorruptionSystem {
         Vec3 pos = spot.get().pos();
         float yaw = (float) (Mth.atan2(player.getZ() - pos.z, player.getX() - pos.x) * (180.0 / Math.PI)) - 90.0F;
         visitor.moveTo(pos.x, pos.y, pos.z, yaw, 0.0F);
+        if (!visitor.inTickingChunk()) {
+            // Beyond the simulation distance it would only stand frozen until the next cleanup.
+            return Optional.empty();
+        }
         visitor.setYHeadRot(yaw);
         visitor.yBodyRot = yaw;
         if (spot.get().floating()) {
@@ -184,7 +199,7 @@ public final class VisitorManager implements CorruptionSystem {
         }
         boolean finalStage = ctx.stage() == CorruptionStage.NULL;
         int skin = personality.rollSkin(rnd, finalStage);
-        visitor.setIdentity(pickName(rnd, finalStage), skin, pickFlags(rnd, skin, finalStage));
+        visitor.setIdentity(pickName(player.server, rnd, finalStage), skin, pickFlags(rnd, skin, finalStage));
         boolean glimpse = personality != VisitorPersonality.STALKER && personality != VisitorPersonality.FOLLOWER
                 && rnd.nextFloat() < 0.18F;
         visitor.configure(personality, player, personality.rollLifetime(rnd), personality.rollVanishDistance(rnd), glimpse);
@@ -208,15 +223,22 @@ public final class VisitorManager implements CorruptionSystem {
         };
     }
 
-    /** In the final stage half of them wear the name of somebody in the player list. */
-    private static String pickName(RandomSource rnd, boolean finalStage) {
+    /**
+     * In the final stage half of them wear the name of somebody in the player list. Never the
+     * name of a real player who is online: that would read as that player standing there.
+     */
+    private static String pickName(MinecraftServer server, RandomSource rnd, boolean finalStage) {
+        Set<String> online = FakePlayerManager.onlineNames(server);
         if (finalStage && rnd.nextBoolean()) {
             List<String> names = FakePlayerManager.INSTANCE.names();
             if (!names.isEmpty()) {
-                return names.get(rnd.nextInt(names.size()));
+                String name = names.get(rnd.nextInt(names.size()));
+                if (!online.contains(name.toLowerCase(Locale.ROOT))) {
+                    return name;
+                }
             }
         }
-        return UsernameGenerator.random(rnd);
+        return UsernameGenerator.unique(rnd, online);
     }
 
     private static int pickFlags(RandomSource rnd, int skin, boolean finalStage) {

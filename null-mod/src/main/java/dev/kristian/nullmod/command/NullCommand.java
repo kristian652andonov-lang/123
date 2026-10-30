@@ -42,6 +42,9 @@ public final class NullCommand {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        // Commands are registered for every server start: a confirmation pending in a world that
+        // was closed must never confirm a reset in the next one (game times are per world).
+        resetRequestedAt = Long.MIN_VALUE;
         dispatcher.register(Commands.literal("null")
                 .requires(source -> source.hasPermission(2))
                 .executes(ctx -> status(ctx.getSource()))
@@ -83,7 +86,8 @@ public final class NullCommand {
         lines.add(Component.translatable("null.command.status.time",
                 Ticks.format(data.activeTicks()), Ticks.format(ticks)).withStyle(ChatFormatting.GRAY));
         if (untilNext >= 0.0) {
-            String eta = effectiveSpeed > 0.0 && !data.paused() ? Ticks.format(untilNext / effectiveSpeed) : "-";
+            boolean moving = effectiveSpeed > 0.0 && !data.paused() && NullConfig.get(NullConfig.PROGRESSION_ENABLED);
+            String eta = moving ? Ticks.format(untilNext / effectiveSpeed) : "-";
             lines.add(Component.translatable("null.command.status.next", Ticks.format(untilNext), eta).withStyle(ChatFormatting.GRAY));
         } else {
             lines.add(Component.translatable("null.command.status.final").withStyle(ChatFormatting.GRAY));

@@ -32,7 +32,10 @@ final class FakeDisconnectScreen extends DisconnectedScreen {
 
     /** Requests the screen; it appears as soon as no other screen is open (within 10 s). */
     static void request(int durationTicks) {
-        if (Minecraft.getInstance().screen instanceof FakeDisconnectScreen) {
+        Minecraft mc = Minecraft.getInstance();
+        // Without multiplayer (child accounts, --disableMultiplayer) vanilla's button opens a new
+        // title screen instead of closing this one, with the world still running behind it.
+        if (mc.screen instanceof FakeDisconnectScreen || !mc.allowsMultiplayer()) {
             return;
         }
         pendingTicks = Math.max(50, Math.min(80, durationTicks));

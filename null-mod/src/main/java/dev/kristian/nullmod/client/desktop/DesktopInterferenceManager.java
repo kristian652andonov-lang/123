@@ -7,8 +7,10 @@ import dev.kristian.nullmod.config.NullClientSettings;
 import dev.kristian.nullmod.core.CorruptionStage;
 import dev.kristian.nullmod.network.ClientEffectPayload;
 import dev.kristian.nullmod.registry.NullSounds;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Random;
+import java.util.UUID;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 
@@ -78,12 +80,37 @@ public final class DesktopInterferenceManager {
     private static int testCount;
     private static boolean pendingTest;
     private static boolean loggedBroken;
+    private static String accountCode;
+    /** The game is closing: nothing opens any more, even if the availability check finishes now. */
+    private static volatile boolean shuttingDown;
 
     private DesktopInterferenceManager() {
     }
 
     static String effectId() {
         return EFFECT_ID;
+    }
+
+    /**
+     * An anonymous code for the signed-in Minecraft account (a name-based UUID made from its profile
+     * id): the consent is stored with it, so only the account that accepted the explanation gets
+     * desktop windows. It stays in the local config file and is never sent anywhere.
+     */
+    static String accountCode() {
+        String code = accountCode;
+        if (code == null) {
+            try {
+                UUID profile = Minecraft.getInstance().getUser().getProfileId();
+                if (profile == null) {
+                    return "";
+                }
+                code = UUID.nameUUIDFromBytes(("NULL desktop consent " + profile).getBytes(StandardCharsets.UTF_8)).toString();
+            } catch (RuntimeException e) {
+                return "";
+            }
+            accountCode = code;
+        }
+        return code;
     }
 
     // ------------------------------------------------------------------------------------------
@@ -200,9 +227,9 @@ public final class DesktopInterferenceManager {
         }
         CorruptionStage stage = ClientCorruptionState.stage();
 
-        // a window shortly after the stage advanced
+        // a window shortly after the stage advanced (not when the player chose "Never")
         if (stageWindowAtMs >= 0L && now >= stageWindowAtMs) {
-            if (now > stageWindowDeadlineMs) {
+            if (now > stageWindowDeadlineMs || pace(stage) <= 0.0) {
                 stageWindowAtMs = -1L;
             } else if (canShowNow(now)) {
                 stageWindowAtMs = -1L;
@@ -215,11 +242,11 @@ public final class DesktopInterferenceManager {
             return;
         }
         nextRollMs = now + ROLL_INTERVAL_MS;
-        double frequency = NullClientSettings.get(NullClientSettings.DESKTOP_FREQUENCY);
-        if (frequency <= 0.0 || !canShowNow(now)) {
+        double pace = pace(stage);
+        if (pace <= 0.0 || !canShowNow(now)) {
             return;
         }
-        double mean = meanIntervalSeconds(stage, ClientCorruptionState.stageProgress()) / frequency;
+        double mean = meanIntervalSeconds(stage, ClientCorruptionState.stageProgress()) / pace;
         if (RANDOM.nextDouble() * mean >= 1.0) {
             return;
         }
@@ -242,6 +269,16 @@ public final class DesktopInterferenceManager {
         return base * (1.15 - 0.3 * progress);
     }
 
+    /**
+     * The player's pace for the stage: {@code DESKTOP_FREQUENCY} times the chance settings of the
+     * kinds the stage uses. 1 is the normal pace; 0 means no window at all (frequency "Never", or
+     * every fitting kind switched off).
+     */
+    private static double pace(CorruptionStage stage) {
+        return Math.max(0.0, NullClientSettings.get(NullClientSettings.DESKTOP_FREQUENCY))
+                * DesktopNotificationManager.paceFactor(stage);
+    }
+
     private static boolean canShowNow(long now) {
         long gapMs = NullClientSettings.get(NullClientSettings.DESKTOP_COOLDOWN) * 1000L;
         return now - lastShownMs >= gapMs && DesktopWindowManager.openCount() < DesktopWindowManager.MAX_WINDOWS;
@@ -256,6 +293,9 @@ public final class DesktopInterferenceManager {
     }
 
     private static void show(DesktopWindowSpec spec, long now) {
+        if (shuttingDown) {
+            return;
+        }
         DesktopWindowManager.show(spec, false);
         lastShownMs = now;
         // a faint crackle in the game as the window appears (follows every audio setting)
@@ -303,6 +343,7 @@ public final class DesktopInterferenceManager {
     }
 
     static void onShuttingDown() {
+        shuttingDown = true;
         pendingTest = false;
         if (awtReady) {
             DesktopWindowManager.shutdown();
@@ -332,6 +373,11 @@ public final class DesktopInterferenceManager {
             return;
         }
         CorruptionStage stage = ClientCorruptionState.stage();
+        double pace = pace(stage);
+        if (pace <= 0.0 || RANDOM.nextDouble() >= pace) {
+            // frequency "Never", every fitting kind off, or chances set below normal
+            return;
+        }
         DesktopWindowType type = DesktopWindowType.byIndex(effect.data());
         if (type == null || !DesktopNotificationManager.allowed(type)) {
             type = DesktopNotificationManager.chooseType(stage, RANDOM, false);
@@ -393,7 +439,7 @@ public final class DesktopInterferenceManager {
     }
 
     private static void showTest() {
-        if (!NullClientSettings.desktopAllowed() || !awtReady || availability != Availability.AVAILABLE) {
+        if (shuttingDown || !NullClientSettings.desktopAllowed() || !awtReady || availability != Availability.AVAILABLE) {
             return;
         }
         DesktopWindowType type = DesktopNotificationManager.testType(testCount++);

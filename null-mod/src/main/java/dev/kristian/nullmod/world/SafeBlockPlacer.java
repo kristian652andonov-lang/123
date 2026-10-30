@@ -316,7 +316,7 @@ public final class SafeBlockPlacer implements CorruptionSystem {
         for (long key : job.guardChunks) {
             int cx = ChunkPos.getX(key);
             int cz = ChunkPos.getZ(key);
-            if (!level.hasChunk(cx, cz)) {
+            if (!LocationFinder.chunkReady(level, cx, cz)) {
                 continue;
             }
             cursor.set(cx << 4, 0, cz << 4);
@@ -380,7 +380,7 @@ public final class SafeBlockPlacer implements CorruptionSystem {
         }
         int cx = pos.getX() >> 4;
         int cz = pos.getZ() >> 4;
-        if (!level.hasChunk(cx, cz)) {
+        if (!LocationFinder.chunkReady(level, cx, cz)) {
             return false;
         }
         if (!job.isAtomic()) {
@@ -417,8 +417,8 @@ public final class SafeBlockPlacer implements CorruptionSystem {
     private static boolean neighboursLoaded(ServerLevel level, BlockPos pos) {
         int x = pos.getX();
         int z = pos.getZ();
-        return level.hasChunk((x - 1) >> 4, z >> 4) && level.hasChunk((x + 1) >> 4, z >> 4)
-                && level.hasChunk(x >> 4, (z - 1) >> 4) && level.hasChunk(x >> 4, (z + 1) >> 4);
+        return LocationFinder.isLoaded(level, x - 1, z) && LocationFinder.isLoaded(level, x + 1, z)
+                && LocationFinder.isLoaded(level, x, z - 1) && LocationFinder.isLoaded(level, x, z + 1);
     }
 
     /**

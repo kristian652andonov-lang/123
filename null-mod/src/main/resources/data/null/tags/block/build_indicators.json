@@ -420,6 +420,10 @@
     {
       "id": "minecraft:glass",
       "required": false
+    },
+    {
+      "id": "minecraft:light",
+      "required": false
     }
   ]
 }

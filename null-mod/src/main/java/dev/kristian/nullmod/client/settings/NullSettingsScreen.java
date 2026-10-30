@@ -34,13 +34,14 @@ public final class NullSettingsScreen extends Screen {
     private static final String PREFIX = "null.settings.";
     private static final long STATUS_MESSAGE_MS = 4_000L;
     /**
-     * NeoForge's generic screen must not offer the desktop master switch or the consent flag as
-     * plain toggles: desktop interference is only ever switched on through
+     * NeoForge's generic screen must not offer the desktop master switch or the consent values as
+     * plain fields: desktop interference is only ever switched on through
      * {@link DesktopConsentScreen}. Everything else stays editable there.
      */
     private static final ConfigurationScreen.ConfigurationSectionScreen.Filter HIDE_DESKTOP_SWITCHES =
             (context, key, original) -> context.keylist().equals(List.of("desktop"))
-                    && ("desktopInterference".equals(key) || "desktopConsent".equals(key)) ? null : original;
+                    && ("desktopInterference".equals(key) || "desktopConsent".equals(key) || "desktopConsentAccount".equals(key))
+                    ? null : original;
 
     private final Screen parent;
     private final List<NullSliderButton> sliders = new ArrayList<>();
@@ -150,10 +151,12 @@ public final class NullSettingsScreen extends Screen {
                     }
                     NullClientSettings.set(NullClientSettings.DESKTOP_INTERFERENCE, false);
                     NullClientSettings.set(NullClientSettings.DESKTOP_CONSENT, false);
+                    NullClientSettings.set(NullClientSettings.DESKTOP_CONSENT_ACCOUNT, "");
                     DesktopInterferenceManager.disableNow();
                     return true;
                 });
-        option("desktop_interference", master, DesktopInterferenceManager::osSupported);
+        // it can only be switched on where it works, but it can always be switched off
+        option("desktop_interference", master, () -> DesktopInterferenceManager.osSupported() || NullClientSettings.desktopAllowed());
         toggle(NullClientSettings.DESKTOP_NOTIFICATIONS, "desktop_notifications", allowed);
         toggle(NullClientSettings.DESKTOP_ERROR_WINDOWS, "desktop_error_windows", allowed);
         NullSliderButton frequency = new NullSliderButton(0, 0, SettingsList.CONTROL_WIDTH, SettingsList.CONTROL_HEIGHT,

@@ -56,7 +56,8 @@ public final class ClientStageMemory {
         try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             properties.load(reader);
             return CorruptionStage.byNumber(Integer.parseInt(properties.getProperty("highestStage", "1").trim()));
-        } catch (IOException | NumberFormatException e) {
+        } catch (IOException | RuntimeException e) {
+            // Properties.load also throws IllegalArgumentException for a damaged file
             NullMod.LOGGER.warn("Could not read {}", path, e);
             return CorruptionStage.START;
         }

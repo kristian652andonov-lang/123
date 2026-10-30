@@ -33,6 +33,7 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
@@ -224,6 +225,19 @@ public abstract class PlayerLikeEntity extends PathfinderMob {
 
     public boolean hasVanished() {
         return vanished || this.isRemoved();
+    }
+
+    /**
+     * True while it stands where entities really tick: the same two tests ServerLevel#tick makes,
+     * a chunk at entity-ticking level (view distance) that is also within the simulation distance.
+     * Elsewhere it neither behaves nor runs out its lifetime, so the systems that spawned it send it away.
+     */
+    public boolean inTickingChunk() {
+        if (!(this.level() instanceof ServerLevel level)) {
+            return false;
+        }
+        BlockPos pos = this.blockPosition();
+        return level.isPositionEntityTicking(pos) && level.isNaturalSpawningAllowed(pos);
     }
 
     // ------------------------------------------------------------------ tick
@@ -549,6 +563,12 @@ public abstract class PlayerLikeEntity extends PathfinderMob {
     @Override
     public boolean isIgnoringBlockTriggers() {
         return true;
+    }
+
+    /** Never turns farmland back into dirt (VisitorModule also denies it every other kind of mob griefing). */
+    @Override
+    public boolean canTrample(BlockState state, BlockPos pos, float fallDistance) {
+        return false;
     }
 
     @Override

@@ -92,5 +92,6 @@
   "null.settings.desktop_chance_report": "Chance: NULL reports",
   "null.settings.desktop_chance_report.tooltip": "Type D: larger windows with several lines of text, from Stage 4. 100% is normal; Never turns them off.",
   "null.settings.desktop_chance_final": "Chance: final interference",
-  "null.settings.desktop_chance_final.tooltip": "Type E: Stage 5 only. 100% is normal; Never turns them off."
+  "null.settings.desktop_chance_final.tooltip": "Type E: Stage 5 only. 100% is normal; Never turns them off.",
+  "null.settings.desktop_consent_account": "Desktop interference accepted by"
 }

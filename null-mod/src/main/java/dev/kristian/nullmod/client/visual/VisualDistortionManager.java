@@ -19,7 +19,7 @@ import net.minecraft.util.RandomSource;
  * <p>
  * Accessibility is applied on the way in: shake-type effects scale with
  * {@link ClientLimits#shake()}, flashes, blackouts and flicker with {@link ClientLimits#flashing()}
- * (at 0 they turn into slow fades, never strobes), freezes and strobing need
+ * (at 0 they turn into slow fades, never strobes), freezes, strobing and complete blackouts need
  * {@link ClientLimits#intenseAllowed()}, and no more than {@link ClientLimits#maxVisualEffects()}
  * effects run at once (the weakest one is dropped). The transition fade and the capture overlay
  * are separate channels that ignore that cap. Everything here runs on the render thread.
@@ -300,6 +300,10 @@ public final class VisualDistortionManager {
                     style = STYLE_SMOOTH;
                     strength *= 0.6F + 0.4F * flashing;
                 }
+                if (channel == BLACKOUT && !intense) {
+                    // Blackouts are intense effects: softened, the world stays dimly visible.
+                    strength = Math.min(strength, 0.7F);
+                }
             }
             case CH_TEAR -> strength *= 0.3F + 0.7F * flashing;
             default -> {
@@ -462,7 +466,7 @@ public final class VisualDistortionManager {
             captureTarget = 0.0F;
         }
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || mc.isPaused() || !ClientCorruptionState.synced()) {
+        if (mc.level == null || mc.isPaused() || !ClientCorruptionState.synced() || ClientCorruptionState.paused()) {
             return;
         }
         CorruptionStage stage = ClientCorruptionState.stage();
@@ -751,7 +755,8 @@ public final class VisualDistortionManager {
         if (mc.level == null || !ClientCorruptionState.synced() || ClientLimits.maxVisualEffects() <= 0) {
             return;
         }
-        if (ClientCorruptionState.stage() == CorruptionStage.NULL) {
+        if (ClientCorruptionState.stage() == CorruptionStage.NULL && !ClientCorruptionState.paused()) {
+            // Like the audio ambience, the tremor stops while an administrator has NULL paused.
             float progress = SmoothNoise.clamp01(ClientCorruptionState.stageProgress());
             // A constant low tremor that now and then stops completely for a few seconds,
             // which is worse than the tremor itself.

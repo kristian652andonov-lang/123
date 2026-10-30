@@ -24,6 +24,13 @@ final class DesktopNotificationManager {
 
     private static final Deque<String> RECENT = DesktopMessages.newRecentList();
     private static final DesktopWindowType[] TYPES = DesktopWindowType.values();
+    /** Normal weights per stage (index = stage - 1): notification, error, distorted, report, final. */
+    private static final int[][] NORMAL_WEIGHTS = {
+            {100, 0, 0, 0, 0},
+            {100, 0, 0, 0, 0},
+            {60, 25, 15, 0, 0},
+            {20, 25, 25, 30, 0},
+            {10, 10, 15, 10, 55}};
     private static boolean classicReportShown;
 
     private DesktopNotificationManager() {
@@ -49,17 +56,31 @@ final class DesktopNotificationManager {
     }
 
     /**
+     * How the player's switches and chance settings change how often windows come in this stage:
+     * the stage's weights scaled by each kind's chance, relative to all of them at 100%. 1 = the
+     * normal pace, 0 = every kind the stage uses is off. So each chance scales how often its own
+     * kind appears, and lowering one never makes the others more frequent.
+     */
+    static double paceFactor(CorruptionStage stage) {
+        int[] weights = NORMAL_WEIGHTS[stage.number() - 1];
+        double total = 0.0;
+        double allowedTotal = 0.0;
+        for (int i = 0; i < weights.length; i++) {
+            total += weights[i];
+            if (weights[i] > 0 && allowed(TYPES[i])) {
+                allowedTotal += weights[i] * chance(TYPES[i]);
+            }
+        }
+        return total <= 0.0 ? 0.0 : allowedTotal / total;
+    }
+
+    /**
      * Picks the kind of window for the stage, or {@code null} when every fitting kind is switched
      * off. Order of the weights: notification, error, distorted, report, final; each is scaled by
      * the player's chance setting for that kind.
      */
     static DesktopWindowType chooseType(CorruptionStage stage, Random random, boolean stageChange) {
-        int[] normal = switch (stage) {
-            case START, UNDER_MIDDLE -> new int[] {100, 0, 0, 0, 0};
-            case MIDDLE -> new int[] {60, 25, 15, 0, 0};
-            case ABOVE_MIDDLE -> new int[] {20, 25, 25, 30, 0};
-            case NULL -> new int[] {10, 10, 15, 10, 55};
-        };
+        int[] normal = NORMAL_WEIGHTS[stage.number() - 1];
         if (stageChange) {
             int[] special = switch (stage) {
                 case START, UNDER_MIDDLE -> normal;
@@ -77,23 +98,28 @@ final class DesktopNotificationManager {
     }
 
     private static DesktopWindowType weighted(int[] weights, Random random) {
-        int total = 0;
-        int[] allowedWeights = new int[weights.length];
+        double total = 0.0;
+        double[] allowedWeights = new double[weights.length];
+        int last = -1;
         for (int i = 0; i < weights.length; i++) {
-            allowedWeights[i] = allowed(TYPES[i]) ? (int) Math.round(weights[i] * chance(TYPES[i])) : 0;
+            allowedWeights[i] = weights[i] > 0 && allowed(TYPES[i]) ? weights[i] * chance(TYPES[i]) : 0.0;
             total += allowedWeights[i];
+            if (allowedWeights[i] > 0.0) {
+                last = i;
+            }
         }
-        if (total <= 0) {
+        if (total <= 0.0 || last < 0) {
             return null;
         }
-        int roll = random.nextInt(total);
+        double roll = random.nextDouble() * total;
         for (int i = 0; i < allowedWeights.length; i++) {
             roll -= allowedWeights[i];
-            if (roll < 0) {
+            if (roll < 0.0 && allowedWeights[i] > 0.0) {
                 return TYPES[i];
             }
         }
-        return null;
+        // rounding left a sliver over: the last kind with any weight
+        return TYPES[last];
     }
 
     /** The kind the test button shows on its {@code index}-th press: every allowed kind in turn. */

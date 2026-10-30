@@ -99,6 +99,10 @@ final class PhantomWalkers {
             WALKERS.clear();
             return;
         }
+        if (mc.isPaused()) {
+            // New sounds would play over the pause menu: the walk resumes with the game.
+            return;
+        }
         RandomSource random = AudioCorruptionManager.random();
         for (Iterator<Walker> it = WALKERS.iterator(); it.hasNext(); ) {
             Walker walker = it.next();

@@ -7,6 +7,7 @@ import dev.kristian.nullmod.client.ClientLimits;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
@@ -17,7 +18,7 @@ import org.joml.Matrix4f;
  * NULL's screen overlay, registered above every other HUD layer: the frozen frame, tearing bars
  * and glitch rectangles, blackouts and flashes, the NULLROOT capture tendrils, glitch text and
  * the shader-less fallbacks. The transition fade is drawn after the whole HUD (and again over
- * any open screen) so nothing can ever show through it.
+ * any open screen that is not a menu) so nothing can ever show through it.
  */
 final class VisualOverlayLayer {
     static final ResourceLocation ID = NullMod.id("visual_overlay");
@@ -95,16 +96,23 @@ final class VisualOverlayLayer {
 
     // ------------------------------------------------------------------ transition fade
 
-    /** After every HUD layer: the transition fade covers everything when no screen is open. */
+    /**
+     * After every HUD layer: the transition fade covers everything when no screen is open. Menus
+     * (the pause menu, options, NULL's settings) are drawn on top of it, so the player can always
+     * leave the world or switch effects off in the middle of a transition.
+     */
     static void onRenderGuiPost(RenderGuiEvent.Post event) {
-        if (Minecraft.getInstance().screen == null) {
+        Screen screen = Minecraft.getInstance().screen;
+        if (screen == null || screen.isPauseScreen()) {
             drawTransitionFade(event.getGuiGraphics());
         }
     }
 
-    /** Over any open screen, so menus and loading screens are covered by the fade too. */
+    /** Over any other open screen, so the loading screen of the teleport is covered too. */
     static void onRenderScreenPost(ScreenEvent.Render.Post event) {
-        drawTransitionFade(event.getGuiGraphics());
+        if (!event.getScreen().isPauseScreen()) {
+            drawTransitionFade(event.getGuiGraphics());
+        }
     }
 
     private static void drawTransitionFade(GuiGraphics graphics) {

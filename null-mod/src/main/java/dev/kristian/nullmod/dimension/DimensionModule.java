@@ -1,6 +1,7 @@
 package dev.kristian.nullmod.dimension;
 
 import dev.kristian.nullmod.core.CorruptionManager;
+import dev.kristian.nullmod.event.RandomEventManager;
 import dev.kristian.nullmod.gametest.DimensionGameTests;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.RegisterGameTestsEvent;
@@ -17,9 +18,12 @@ public final class DimensionModule {
     public static void init(IEventBus modBus, IEventBus gameBus) {
         NullWorldgen.CHUNK_GENERATORS.register(modBus);
         CorruptionManager.registerSystem(NullDimensionManager.INSTANCE);
+        // The collapse and the arrival belong to the transition alone.
+        RandomEventManager.INSTANCE.addQuietCondition(NullDimensionManager.INSTANCE::inTransition);
         DimensionEvents.register();
         gameBus.addListener(NullDimensionManager::onRespawnPosition);
         gameBus.addListener(NullDimensionManager::onRespawn);
+        gameBus.addListener(NullDimensionManager::onUseBlock);
         DimensionSelfCheck.init(gameBus);
         modBus.addListener((RegisterGameTestsEvent event) -> event.register(DimensionGameTests.class));
     }

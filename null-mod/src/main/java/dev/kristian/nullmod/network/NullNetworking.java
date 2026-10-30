@@ -22,7 +22,8 @@ public final class NullNetworking {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(PROTOCOL);
+        // Optional, so a player with NULL installed can still join servers that do not have it.
+        PayloadRegistrar registrar = event.registrar(PROTOCOL).optional();
         registrar.playToClient(StageSyncPayload.TYPE, StageSyncPayload.STREAM_CODEC,
                 (payload, context) -> clientSink.stageSync(payload));
         registrar.playToClient(ClientEffectPayload.TYPE, ClientEffectPayload.STREAM_CODEC,

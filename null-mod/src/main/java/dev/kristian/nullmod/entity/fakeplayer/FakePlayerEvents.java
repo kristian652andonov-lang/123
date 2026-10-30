@@ -66,8 +66,8 @@ public final class FakePlayerEvents {
         }
         if (ctx.forced()) {
             // Before NULL there is no list to join; an administrator still gets the line.
-            ctx.server().getPlayerList().broadcastSystemMessage(Component.translatable("multiplayer.player.joined",
-                    UsernameGenerator.random(ctx.random())).withStyle(ChatFormatting.YELLOW), false);
+            FakePlayerManager.broadcast(ctx.server(), Component.translatable("multiplayer.player.joined",
+                    UsernameGenerator.unique(ctx.random(), FakePlayerManager.onlineNames(ctx.server()))).withStyle(ChatFormatting.YELLOW));
             return true;
         }
         return false;
@@ -80,8 +80,8 @@ public final class FakePlayerEvents {
             }
         }
         if (ctx.forced()) {
-            ctx.server().getPlayerList().broadcastSystemMessage(Component.translatable("multiplayer.player.left",
-                    UsernameGenerator.random(ctx.random())).withStyle(ChatFormatting.YELLOW), false);
+            FakePlayerManager.broadcast(ctx.server(), Component.translatable("multiplayer.player.left",
+                    UsernameGenerator.unique(ctx.random(), FakePlayerManager.onlineNames(ctx.server()))).withStyle(ChatFormatting.YELLOW));
             return true;
         }
         return false;

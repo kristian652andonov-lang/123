@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.FogRenderer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.material.FogType;
 import net.neoforged.neoforge.client.event.ViewportEvent;
 
 /**
@@ -76,7 +77,8 @@ final class CameraEffects {
     }
 
     static void onRenderFog(ViewportEvent.RenderFog event) {
-        if (event.getMode() != FogRenderer.FogMode.FOG_TERRAIN) {
+        // Lava, water and powder snow keep their own fog.
+        if (event.getMode() != FogRenderer.FogMode.FOG_TERRAIN || event.getType() != FogType.NONE) {
             return;
         }
         float pull = Math.max(VisualDistortionManager.level(VisualDistortionManager.DARKEN) * 0.45F,
@@ -89,7 +91,8 @@ final class CameraEffects {
         }
         float far = event.getFarPlaneDistance();
         float near = event.getNearPlaneDistance();
-        float newFar = Math.max(8.0F, far * (1.0F - 0.6F * pull));
+        // Only ever pulls the fog in: blindness and darkness (5-15 blocks) must stay as close as they are.
+        float newFar = Math.min(far, Math.max(8.0F, far * (1.0F - 0.6F * pull)));
         float newNear = Math.min(newFar - 1.0F, near * (1.0F - 0.85F * pull));
         event.setFarPlaneDistance(newFar);
         event.setNearPlaneDistance(newNear);

@@ -151,6 +151,7 @@
   "null.settings.desktop_chance_report": "Chance: NULL reports",
   "null.settings.desktop_chance_report.tooltip": "Type D: larger windows with several lines of text, from Stage 4. 100% is normal; Never turns them off.",
   "null.settings.desktop_consent": "Desktop interference explained",
+  "null.settings.desktop_consent_account": "Desktop interference accepted by",
   "null.settings.desktop_cooldown": "Time between desktop windows",
   "null.settings.desktop_cooldown.tooltip": "The shortest pause between two desktop windows.",
   "null.settings.desktop_error_windows": "Desktop error windows",

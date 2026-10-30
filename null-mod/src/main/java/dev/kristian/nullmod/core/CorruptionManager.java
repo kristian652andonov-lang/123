@@ -12,6 +12,7 @@ import java.util.Map;
 import javax.annotation.Nullable;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.biome.BiomeManager;
 
 /**
  * Owns the corruption clock. Every server tick it advances the clock, moves the stage
@@ -48,7 +49,14 @@ public final class CorruptionManager {
     }
 
     public static CorruptionData data(MinecraftServer server) {
-        return server.overworld().getDataStorage().computeIfAbsent(CorruptionData.factory(), CorruptionData.NAME);
+        CorruptionData data = server.overworld().getDataStorage().computeIfAbsent(CorruptionData.factory(), CorruptionData.NAME);
+        if (!data.seeded()) {
+            // Seeded on first use (a player can be synced before the first tick). The seed is sent
+            // to every client, so it must not give the world seed away (structures, bases): it is
+            // derived from the same one-way hash vanilla itself sends to clients.
+            data.setSeed(BiomeManager.obfuscateSeed(server.overworld().getSeed()) ^ 0x4E554C4C2D4E554CL);
+        }
+        return data;
     }
 
     /** The snapshot for the current tick (built on demand outside of the tick loop). */
@@ -69,9 +77,6 @@ public final class CorruptionManager {
 
     public static void tick(MinecraftServer server) {
         CorruptionData data = data(server);
-        if (!data.seeded()) {
-            data.setSeed(server.overworld().getSeed() ^ 0x4E554C4C2D4E554CL);
-        }
 
         boolean playersOnline = !server.getPlayerList().getPlayers().isEmpty();
         boolean counting = NullConfig.get(NullConfig.PROGRESSION_ENABLED)

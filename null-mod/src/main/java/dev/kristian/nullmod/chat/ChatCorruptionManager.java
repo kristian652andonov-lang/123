@@ -74,6 +74,8 @@ public final class ChatCorruptionManager implements CorruptionSystem {
     public static final int HISTORY_SIZE = 60;
 
     private static final int DELIVERED_LOG = 40;
+    /** Most players whose line history is kept in the world's saved data. */
+    private static final int MAX_STORED_HISTORIES = 256;
     private static final int SAID_MEMORY = 8;
     private static final int MAX_PENDING = 600;
     private static final int DELIVERIES_PER_TICK = 48;
@@ -738,12 +740,25 @@ public final class ChatCorruptionManager implements CorruptionSystem {
             return false;
         }
         Dialogue d = options.get(r.nextInt(options.size()));
+        // In the final stage nobody who joins, leaves or loses connection here may be a name from
+        // the player list: it would stay listed and contradict the line.
+        Set<String> listed = new HashSet<>();
+        if (stage == CorruptionStage.NULL && announcesConnection(d)) {
+            for (String name : FakePlayerManager.INSTANCE.names()) {
+                listed.add(name.toLowerCase(Locale.ROOT));
+            }
+        }
         Map<Character, String> names = new HashMap<>();
         Set<String> used = new HashSet<>();
         for (char role : new char[] {'A', 'B', 'C'}) {
             String name = pickName(focus.server, stage, focus, r);
-            for (int tries = 0; tries < 4 && used.contains(name); tries++) {
+            for (int tries = 0; tries < 4 && (used.contains(name) || listed.contains(name.toLowerCase(Locale.ROOT))); tries++) {
                 name = pickName(focus.server, stage, focus, r);
+            }
+            if (listed.contains(name.toLowerCase(Locale.ROOT))) {
+                Set<String> taken = takenNames(focus.server);
+                taken.addAll(listed);
+                name = UsernameGenerator.unique(r, taken);
             }
             used.add(name);
             names.put(role, name);
@@ -756,6 +771,16 @@ public final class ChatCorruptionManager implements CorruptionSystem {
         }
         dialogueCooldowns.put(d.index(), now + DIALOGUE_COOLDOWN);
         return true;
+    }
+
+    /** True if a dialogue shows somebody joining, leaving or losing connection. */
+    private static boolean announcesConnection(Dialogue d) {
+        for (Step step : d.steps()) {
+            if (step.isJoinOrLeave() || step.role() == 'L') {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Payload stepPayload(Step step, Map<Character, String> names, float strength, long seed) {
@@ -1155,7 +1180,13 @@ public final class ChatCorruptionManager implements CorruptionSystem {
         for (Integer id : state.history) {
             ids[i++] = id;
         }
-        all.putIntArray(state.id.toString(), ids);
+        String key = state.id.toString();
+        if (!all.contains(key) && all.size() >= MAX_STORED_HISTORIES) {
+            // The saved data must not grow with every player who ever joined: someone else's goes.
+            String other = all.getAllKeys().iterator().next();
+            all.remove(other);
+        }
+        all.putIntArray(key, ids);
         root.put("history", all);
         data.setDirty();
     }

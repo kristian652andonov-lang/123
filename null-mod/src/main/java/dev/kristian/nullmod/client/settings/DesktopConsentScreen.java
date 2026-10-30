@@ -84,6 +84,8 @@ public final class DesktopConsentScreen extends Screen {
     }
 
     private void accept() {
+        // the consent belongs to the account that accepted it (see NullClientSettings.desktopAllowed)
+        NullClientSettings.set(NullClientSettings.DESKTOP_CONSENT_ACCOUNT, NullClientSettings.accountCode());
         NullClientSettings.set(NullClientSettings.DESKTOP_CONSENT, true);
         NullClientSettings.set(NullClientSettings.DESKTOP_INTERFERENCE, true);
         DesktopInterferenceManager.requestAvailabilityCheck();

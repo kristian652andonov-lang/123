@@ -27,15 +27,19 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.TicketType;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.portal.DimensionTransition;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.util.TriState;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerRespawnPositionEvent;
 
 /**
@@ -297,7 +301,8 @@ public final class NullDimensionManager implements CorruptionSystem {
         }
         if (pos == null) {
             level = server.overworld();
-            pos = surface(level, level.getSharedSpawnPos());
+            // Where vanilla itself respawns a player without a home: dry ground near the world spawn.
+            pos = player.adjustSpawnLocation(level, level.getSharedSpawnPos());
         }
         wake(player);
         player.teleportTo(level, pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, destination.yaw(), 0.0F);
@@ -375,20 +380,18 @@ public final class NullDimensionManager implements CorruptionSystem {
         return best;
     }
 
-    /** Ground level at a column (the chunk is loaded if needed). */
-    private static BlockPos surface(ServerLevel level, BlockPos pos) {
-        level.getChunk(pos.getX() >> 4, pos.getZ() >> 4);
-        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ());
-        return new BlockPos(pos.getX(), Math.max(level.getMinBuildHeight() + 1, y), pos.getZ());
-    }
-
+    /** Room for a player on a solid floor, with nothing that burns or hurts at their feet, head or under them. */
     private static boolean standable(ServerLevel level, BlockPos pos) {
-        return free(level, pos) && free(level, pos.above()) && !free(level, pos.below());
+        BlockPos below = pos.below();
+        BlockState floor = level.getBlockState(below);
+        return free(level, pos) && free(level, pos.above()) && !floor.getCollisionShape(level, below).isEmpty()
+                && !EntityType.PLAYER.isBlockDangerous(floor);
     }
 
     private static boolean free(ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
-        return state.getCollisionShape(level, pos).isEmpty() && state.getFluidState().isEmpty();
+        return state.getCollisionShape(level, pos).isEmpty() && state.getFluidState().isEmpty()
+                && !EntityType.PLAYER.isBlockDangerous(state);
     }
 
     /** Like /tp, a sleeping player wakes up before being moved. */
@@ -406,6 +409,24 @@ public final class NullDimensionManager implements CorruptionSystem {
         if (!warnedMissing) {
             warnedMissing = true;
             NullMod.LOGGER.error("The NULL dimension ({}) does not exist; is NULL's data pack disabled?", NullDimensions.NULL_ID);
+        }
+    }
+
+    /**
+     * Beds and respawn anchors simply do nothing in NULL. Its dimension type does not let them
+     * work, and vanilla would blow them up; here using one is quietly refused (on both sides, so
+     * the hand does not even swing). An item in hand is still used as usual. Respawning is not
+     * affected.
+     */
+    static void onUseBlock(PlayerInteractEvent.RightClickBlock event) {
+        Level level = event.getLevel();
+        if (!NullDimensions.isNull(level)) {
+            return;
+        }
+        BlockState state = level.getBlockState(event.getPos());
+        if (state.is(BlockTags.BEDS) && !level.dimensionType().bedWorks()
+                || state.is(Blocks.RESPAWN_ANCHOR) && !level.dimensionType().respawnAnchorWorks()) {
+            event.setUseBlock(TriState.FALSE);
         }
     }
 
@@ -653,13 +674,23 @@ public final class NullDimensionManager implements CorruptionSystem {
 
     @Override
     public void onReset(MinecraftServer server) {
-        for (Map.Entry<UUID, Transition> entry : transitions.entrySet()) {
+        // A reset always ends at Stage 1: a return that is under way goes on, everything else stops.
+        transitions.entrySet().removeIf(entry -> {
             ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
+            if (entry.getValue().kind == Kind.RETURN && player != null && NullDimensions.isNull(player.level())) {
+                return false;
+            }
             if (player != null && entry.getValue().announced) {
                 sendPhase(player, TransitionPayload.PHASE_CLEAR, 0);
             }
+            return true;
+        });
+        // Nobody stays in NULL, also when the stage had already been moved below 5 a moment ago.
+        for (ServerPlayer player : List.copyOf(server.getPlayerList().getPlayers())) {
+            if (NullDimensions.isNull(player.level())) {
+                schedule(player, Kind.RETURN, 0);
+            }
         }
-        transitions.clear();
         arriveAfterRespawn.clear();
         ServerLevel level = server.getLevel(NullDimensions.NULL_LEVEL);
         if (level != null) {
