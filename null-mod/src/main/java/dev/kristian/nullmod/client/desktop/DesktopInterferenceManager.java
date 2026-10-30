@@ -161,6 +161,10 @@ public final class DesktopInterferenceManager {
             return;
         }
         if (!awtReady) {
+            if (current != Availability.CHECKING) {
+                // the check failed: a test request waiting for it can never be shown
+                pendingTest = false;
+            }
             return;
         }
         if (DesktopWindowManager.broken()) {
