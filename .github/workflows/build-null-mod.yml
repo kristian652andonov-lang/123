@@ -74,6 +74,7 @@ jobs:
           timeout 2400 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClient -PnullAutotest=smoke --stacktrace > client.log 2>&1 || echo "client exited with $?"
           bash ci/check-client.sh client.log
           grep -aq "NULL-AUTOTEST: dimension self-check passed" client.log || { echo "FAIL: the NULL dimension self-check did not pass"; exit 1; }
+          grep -aq "NULL-AUTOTEST: field self-check passed" client.log || { echo "FAIL: the field self-check did not pass"; exit 1; }
 
       # Installs a real NeoForge dedicated server with the built jar, joins it with the
       # scripted client and drives every stage, every event and the NULL transition over the

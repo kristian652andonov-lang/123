@@ -5,6 +5,8 @@ import dev.kristian.nullmod.client.autotest.ClientAutoTest;
 import dev.kristian.nullmod.client.desktop.DesktopClientModule;
 import dev.kristian.nullmod.client.dimension.DimensionClientModule;
 import dev.kristian.nullmod.client.fakeplayer.FakePlayerClientModule;
+import dev.kristian.nullmod.client.field.FieldClientModule;
+import dev.kristian.nullmod.client.it.ItClientModule;
 import dev.kristian.nullmod.client.menu.MenuClientModule;
 import dev.kristian.nullmod.client.moon.MoonClientModule;
 import dev.kristian.nullmod.client.nullroot.NullrootClientModule;
@@ -29,6 +31,8 @@ final class NullClientSystems {
         FakePlayerClientModule.init(modBus, gameBus);
         NullrootClientModule.init(modBus, gameBus);
         DimensionClientModule.init(modBus, gameBus);
+        FieldClientModule.init(modBus, gameBus);
+        ItClientModule.init(modBus, gameBus);
         // Last, so its overlay layer sits above every other HUD layer.
         VisualClientModule.init(modBus, gameBus);
         ClientAutoTest.init(gameBus);

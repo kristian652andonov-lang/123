@@ -6,9 +6,11 @@ import dev.kristian.nullmod.core.CorruptionManager;
 import dev.kristian.nullmod.desktop.DesktopModule;
 import dev.kristian.nullmod.dimension.DimensionModule;
 import dev.kristian.nullmod.entity.fakeplayer.FakePlayerModule;
+import dev.kristian.nullmod.entity.it.ItModule;
 import dev.kristian.nullmod.entity.nullroot.NullrootModule;
 import dev.kristian.nullmod.entity.visitor.VisitorModule;
 import dev.kristian.nullmod.event.RandomEventManager;
+import dev.kristian.nullmod.field.FieldModule;
 import dev.kristian.nullmod.gametest.CoreGameTests;
 import dev.kristian.nullmod.moon.MoonModule;
 import dev.kristian.nullmod.visual.VisualModule;
@@ -38,6 +40,8 @@ final class NullSystems {
         FakePlayerModule.init(modBus, gameBus);
         ChatModule.init(modBus, gameBus);
         DimensionModule.init(modBus, gameBus);
+        FieldModule.init(modBus, gameBus);
+        ItModule.init(modBus, gameBus);
 
         // Event-only modules (their effects run on the client).
         VisualModule.init(modBus, gameBus);
