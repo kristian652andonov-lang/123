@@ -193,7 +193,7 @@ final class ItEyes {
             double pz = dz - dz / distance * push;
             // Farther away the pair spreads and the points grow, so they stay a few pixels wide and still two.
             double half = Math.min(0.6, 0.125 + 0.004 * Math.max(0.0, distance - 20.0));
-            float radius = (float) (0.15 + 0.0034 * distance);
+            float radius = (float) (0.15 + 0.0042 * distance);
             for (int e = -1; e <= 1; e += 2) {
                 glow(buffer, (float) (px + eye[3] * half * e), (float) (py + eye[4] * half * e), (float) (pz + eye[5] * half * e),
                         leftX, 0.0F, leftZ, upX, upY, upZ, radius, strength);

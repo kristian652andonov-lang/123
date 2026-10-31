@@ -21,8 +21,9 @@ import net.minecraft.world.phys.Vec3;
  * The client side of every IT, once per client tick: measures how fast it really moves and turns
  * that into gait (upright lope or gallop) and phase, bends it down to windows, lets its head move
  * in jerks and its joints snap, and plays what it sounds like: enormous footfalls exactly when a
- * foot or hand hits the ground (felt as a tremor close by), wet breathing and clicking bones near
- * it, and the loud moments the server announces. Every sound goes through
+ * foot or hand hits the ground (slow and enormous when it prowls, a rapid gallop when it runs,
+ * felt as a tremor close by), wet breathing near it, now and then the faint click of a joint, and
+ * the loud moments the server announces. Every sound goes through
  * {@link AudioCorruptionManager} on the creature channel, so the player's audio settings apply;
  * every shake through {@link VisualDistortionManager}, so theirs do too.
  */
@@ -37,6 +38,8 @@ final class ItClientHooks implements ItClientHook {
         if (!a.started) {
             start(it, a);
         }
+        // Normally already there since it joined the level; this covers every other way it can arrive.
+        ItEyes.add(it);
         a.age++;
         a.speedO = a.speed;
         a.runO = a.run;
@@ -117,9 +120,6 @@ final class ItClientHooks implements ItClientHook {
             a.twitchX = (RANDOM.nextFloat() - 0.5F) * (killing ? 0.5F : 1.0F);
             a.twitchZ = (RANDOM.nextFloat() - 0.5F) * (killing ? 0.5F : 1.0F);
             a.nextTwitch = a.age + 25 + RANDOM.nextInt(90);
-            if (mc.player != null && !it.isSilent() && mc.player.distanceToSqr(it) < 24.0 * 24.0) {
-                play(ItSounds.CLICK.get(), body(it), 0.55F, 0.9F + RANDOM.nextFloat() * 0.25F, 28.0F);
-            }
         }
 
         if (mc.player != null && !it.isSilent()) {
@@ -134,7 +134,7 @@ final class ItClientHooks implements ItClientHook {
         a.lastZ = it.getZ();
         a.nextTwitch = 30 + RANDOM.nextInt(60);
         a.nextBreath = 20 + RANDOM.nextInt(60);
-        a.nextClick = 15 + RANDOM.nextInt(40);
+        a.nextClick = 120 + RANDOM.nextInt(240);
         a.headYaw = Mth.clamp(Mth.wrapDegrees(it.getYHeadRot() - it.yBodyRot), -80.0F, 80.0F) * Mth.DEG_TO_RAD;
         a.headYawO = a.headYaw;
     }
@@ -163,9 +163,12 @@ final class ItClientHooks implements ItClientHook {
             boolean hand = bit >= 2;
             float side = (bit % 2 == 0) ? -1.0F : 1.0F;
             Vec3 at = it.toWorld(new Vec3(side * (hand ? 1.0 : 0.45), 0.1, hand ? 2.2 : 0.1));
-            float weight = 0.45F + 0.55F * a.run;
-            play(ItSounds.STEP.get(), at, (hand ? 0.8F : 1.0F) * weight, (hand ? 1.1F : 0.85F) + RANDOM.nextFloat() * 0.15F,
-                    56.0F + 64.0F * a.run);
+            // Slow and enormous when it prowls (deep and long, felt in the chest); tight and brutal at a
+            // gallop. The sound itself is short, so eight a second do not smear into one rumble.
+            float weight = 0.8F + 0.2F * a.run;
+            float pitch = Mth.lerp(a.run, 0.74F, 1.0F) * (hand ? 1.14F : 1.0F) * (0.94F + RANDOM.nextFloat() * 0.12F);
+            float volume = (hand ? 0.85F : 1.0F) * weight * (0.9F + RANDOM.nextFloat() * 0.2F);
+            play(ItSounds.STEP.get(), at, volume, pitch, 56.0F + 64.0F * a.run);
             double distance = Math.sqrt(mc.player.distanceToSqr(at));
             if (distance < 32.0 && mc.player.getVehicle() != it) {
                 // The ground shakes under it.
@@ -175,7 +178,7 @@ final class ItClientHooks implements ItClientHook {
         }
     }
 
-    /** Wet breathing and clicking bones, only close by. */
+    /** Wet breathing, and now and then, faintly, a joint: only close by. */
     private static void breathing(ItEntity it, ItAnimation a, Minecraft mc, int phase, boolean killing) {
         double distance = mc.player.distanceToSqr(it);
         boolean slow = phase == ItEntity.PHASE_PROWLING || phase == ItEntity.PHASE_ARRIVING || killing || a.speed < 0.2F;
@@ -186,9 +189,10 @@ final class ItClientHooks implements ItClientHook {
             }
         }
         if (a.age >= a.nextClick) {
-            a.nextClick = a.age + 30 + RANDOM.nextInt(90);
-            if (distance < 30.0 * 30.0) {
-                play(ItSounds.CLICK.get(), body(it), 0.5F, 0.85F + RANDOM.nextFloat() * 0.3F, 30.0F);
+            // Rare and faint, and never while it runs: its movement is footfalls, not creaking bones.
+            a.nextClick = a.age + 240 + RANDOM.nextInt(480);
+            if (distance < 16.0 * 16.0 && a.run < 0.35F) {
+                play(ItSounds.CLICK.get(), body(it), 0.3F, 0.7F + RANDOM.nextFloat() * 0.2F, 18.0F);
             }
         }
     }
@@ -280,6 +284,7 @@ final class ItClientHooks implements ItClientHook {
     @Override
     public void removed(ItEntity it) {
         ItKillView.onRemoved(it);
+        ItEyes.remove(it);
     }
 
     /** The howl as it arrives: everyone in the level hears it, from where it stands. */

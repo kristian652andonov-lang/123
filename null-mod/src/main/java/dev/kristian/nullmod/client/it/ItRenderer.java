@@ -3,6 +3,7 @@ package dev.kristian.nullmod.client.it;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.kristian.nullmod.NullMod;
+import dev.kristian.nullmod.client.variant.ClientMobVariants;
 import dev.kristian.nullmod.entity.it.ItAnimation;
 import dev.kristian.nullmod.entity.it.ItEntity;
 import net.minecraft.client.renderer.LightTexture;
@@ -21,18 +22,25 @@ import net.minecraft.util.Mth;
  * Draws IT at its full six blocks with a broad shadow: the cutout body (torn holes, jagged teeth,
  * both sides of every face drawn), never quite black even in total darkness, and an emissive layer
  * on top (the eyes and the dim red inside of the chest) that needs no light at all. After drawing
- * it remembers where the face was, for the kill camera and the sounds that come out of the mouth.
+ * it remembers where the face was, for the kill camera and the sounds that come out of the mouth,
+ * and where the eyes were, for the glow that is seen from far away ({@link ItEyes}).
+ * <p>
+ * On the client every IT is a corrupted mob (see {@link ItClientModule#corrupt}): the variant layer
+ * that NULL adds to every living renderer draws the glitches over the body, and the emissive layer
+ * is deliberately the last one so that none of them can cover the eyes.
  */
 public final class ItRenderer extends MobRenderer<ItEntity, ItModel> {
     static final ResourceLocation TEXTURE = NullMod.id("textures/entity/it/it.png");
     static final ResourceLocation GLOW = NullMod.id("textures/entity/it/it_glow.png");
 
     private final float[] face = new float[3];
+    private boolean glowAdded;
 
     public ItRenderer(EntityRendererProvider.Context context) {
         super(context, new ItModel(context.bakeLayer(ItClientModule.LAYER)), 1.7F);
         this.shadowStrength = 0.9F;
-        this.addLayer(new GlowLayer(this));
+        // The emissive layer is added on the first draw (see render), not here: NULL adds the variant
+        // layer to every living renderer once all of them exist, and the glow has to come after it.
     }
 
     @Override
@@ -54,8 +62,17 @@ public final class ItRenderer extends MobRenderer<ItEntity, ItModel> {
 
     @Override
     public void render(ItEntity entity, float entityYaw, float partialTick, PoseStack poseStack, MultiBufferSource buffers, int packedLight) {
+        if (!glowAdded) {
+            glowAdded = true;
+            this.addLayer(new GlowLayer(this));
+        }
+        if (ClientMobVariants.get(entity) == null) {
+            // Never drawn plain, whatever happened to its entry.
+            ItClientModule.corrupt(entity);
+        }
         super.render(entity, entityYaw, partialTick, poseStack, buffers, packedLight);
         rememberFace(entity, partialTick);
+        ItEyes.remember(entity, this.model, partialTick);
     }
 
     /** Model space back to the world: the same turn, flip and lift LivingEntityRenderer applies. */

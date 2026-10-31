@@ -147,12 +147,13 @@ final class VariantTextures {
     static Entry overlay(MobVisual visual, ResourceLocation texture) {
         boolean parasite = visual.variant == MobVariant.PARASITE;
         int stage = parasite ? visual.infestStage() : 0;
-        long anchors = parasite ? visual.anchorsHash : 0L;
+        // The anchors of a parasite's tentacles; for a corrupted mob only whether it is broken as hard as IT.
+        long anchors = parasite ? visual.anchorsHash : visual.heavy ? 1L : 0L;
         Entry wanted = visual.overlay;
         if (wanted == null || wanted.state == RELEASED || wanted.generation != generation || visual.overlayStage != stage
                 || visual.overlayAnchors != anchors || !texture.equals(visual.overlaySource)) {
             Key key = parasite ? new Key(texture, KIND_INFESTED, visual.layout, stage, anchors)
-                    : new Key(texture, KIND_CORRUPTED, visual.primary, visual.secondary, 0L);
+                    : new Key(texture, KIND_CORRUPTED, visual.primary, visual.secondary, anchors);
             Entry fresh = request(key, parasite ? visual.anchorUv : null, parasite ? visual.anchorCount : 0);
             visual.overlaySource = texture;
             visual.overlayStage = stage;
@@ -278,7 +279,7 @@ final class VariantTextures {
             Key key = entry.key;
             long seed = seedFor(key);
             if (key.kind() == KIND_CORRUPTED) {
-                VariantPixels.Corrupted corrupted = VariantPixels.corrupt(src, w, h, key.a(), key.b(), seed);
+                VariantPixels.Corrupted corrupted = VariantPixels.corrupt(src, w, h, key.a(), key.b(), seed, key.anchors() != 0L);
                 entry.glow = corrupted.glow();
                 entry.pixels = corrupted.overlay();
             } else {

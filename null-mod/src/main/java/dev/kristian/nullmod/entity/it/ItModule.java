@@ -22,8 +22,9 @@ public final class ItModule {
     public static final DeferredRegister<EntityType<?>> ENTITY_TYPES = DeferredRegister.create(Registries.ENTITY_TYPE, NullMod.MODID);
 
     /**
-     * Six blocks tall, far too wide for a door. Tracked from far away and updated every tick (it
-     * moves fast); never saved with the world; fire cannot touch it.
+     * Six blocks tall, far too wide for a door. Tracked from far away (16 chunks: 256 blocks, well
+     * past the 120 its eyes are seen from at night; only the server's view distance can cut it
+     * short) and updated every tick (it moves fast); never saved with the world; fire cannot touch it.
      */
     public static final DeferredHolder<EntityType<?>, EntityType<ItEntity>> IT = ENTITY_TYPES.register("it",
             () -> EntityType.Builder.<ItEntity>of(ItEntity::new, MobCategory.MONSTER)

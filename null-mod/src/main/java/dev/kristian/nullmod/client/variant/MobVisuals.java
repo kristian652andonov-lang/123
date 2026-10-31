@@ -1,5 +1,6 @@
 package dev.kristian.nullmod.client.variant;
 
+import dev.kristian.nullmod.entity.it.ItEntity;
 import javax.annotation.Nullable;
 import net.minecraft.world.entity.Entity;
 
@@ -19,6 +20,8 @@ final class MobVisuals {
         MobVisual visual = VISUALS.get(id);
         if (visual == null) {
             visual = new MobVisual(id);
+            // IT is corrupted on the client at all times and as hard as it gets.
+            visual.heavy = entity instanceof ItEntity;
             VISUALS.put(id, visual);
         }
         if (visual.variant != state.variant() || visual.seed != state.seed()) {

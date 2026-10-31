@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.kristian.nullmod.NullMod;
 import dev.kristian.nullmod.client.ClientCorruptionState;
 import dev.kristian.nullmod.client.ClientLimits;
+import dev.kristian.nullmod.entity.it.ItEntity;
 import dev.kristian.nullmod.entity.variant.MobVariant;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -43,6 +44,17 @@ final class VariantRendering {
     private static final double TENTACLE_RANGE = 64.0;
     /** Most parasites that get tentacles in one frame. */
     private static final int MAX_TENTACLE_HOSTS = 24;
+    /**
+     * IT is corrupted all the time and as hard as it gets: how many times as often as an ordinary
+     * corrupted mob it glitches frames, turns into a black shape, jumps aside and blinks out (at
+     * full flashing allowance; they scale back to ordinary as that goes to zero).
+     */
+    private static final float HEAVY_GLITCH = 5.0F;
+    private static final float HEAVY_SILHOUETTE = 3.0F;
+    private static final float HEAVY_STUTTER = 4.0F;
+    private static final float HEAVY_BLINK = 2.0F;
+    /** The least block light the damaged patches of IT are drawn with: broken textures do not obey the dark. */
+    private static final int HEAVY_MIN_LIGHT = 7;
 
     private static final float[] SHIFT = new float[3];
     private static final float[] CENTER = new float[3];
@@ -73,18 +85,19 @@ final class VariantRendering {
             Matrix4f pose = poseStack.last().pose();
             float unit = (float) Math.sqrt(pose.m00() * pose.m00() + pose.m01() * pose.m01() + pose.m02() * pose.m02());
             visual.unit = unit > 1.0E-4F ? unit : 1.0F;
-            if (!entity.isInvisible() && ClientLimits.maxVisualEffects() > 0) {
+            if (!entity.isInvisible() && ClientLimits.maxVisualEffects() > 0 && !choreographed(entity, visual)) {
                 float flashing = ClientLimits.flashing();
                 boolean intense = ClientLimits.intenseAllowed();
                 float pace = stagePace();
                 if (state.variant() == MobVariant.CORRUPTED) {
-                    float blink = intense && flashing >= 0.3F ? 0.008F * flashing * pace : 0.0F;
+                    float blink = intense && flashing >= 0.3F ? 0.008F * flashing * pace * boost(visual, HEAVY_BLINK, flashing) : 0.0F;
                     if (visual.blinkedOut(time, blink)) {
                         // Not drawn at all this tick: only its shadow is left.
                         event.setCanceled(true);
                         return;
                     }
-                    if (visual.stutter(time, 0.025F * pace * (intense ? 1.0F : 0.5F), entity.getBbWidth(), SHIFT)) {
+                    float stutterChance = 0.025F * pace * (intense ? 1.0F : 0.5F) * boost(visual, HEAVY_STUTTER, flashing);
+                    if (visual.stutter(time, stutterChance, entity.getBbWidth(), SHIFT)) {
                         float scale = 0.5F + 0.5F * flashing;
                         poseStack.translate(SHIFT[0] * scale, SHIFT[1] * scale, SHIFT[2] * scale);
                     }
@@ -136,15 +149,17 @@ final class VariantRendering {
     private static void corrupted(Model model, ResourceLocation texture, PoseStack poseStack, MultiBufferSource buffers, int light,
                                   int overlay, LivingEntity entity, MobVisual visual, float time, float partialTick) {
         VariantTextures.Entry entry = VariantTextures.overlay(visual, texture);
-        boolean effects = ClientLimits.maxVisualEffects() > 0;
+        boolean effects = ClientLimits.maxVisualEffects() > 0 && !choreographed(entity, visual);
         float flashing = ClientLimits.flashing();
         boolean intense = ClientLimits.intenseAllowed();
         float pace = stagePace();
-        float black = effects ? visual.silhouette(time, 0.05F * pace * (intense ? 1.0F : 0.6F), 1.0F + 9.0F * (1.0F - flashing)) : 0.0F;
+        float silhouetteChance = 0.05F * pace * (intense ? 1.0F : 0.6F) * boost(visual, HEAVY_SILHOUETTE, flashing);
+        float black = effects ? visual.silhouette(time, silhouetteChance, 1.0F + 9.0F * (1.0F - flashing)) : 0.0F;
+        int lit = visual.heavy ? LightTexture.pack(Math.max(LightTexture.block(light), HEAVY_MIN_LIGHT), LightTexture.sky(light)) : light;
         if (black < 0.99F) {
             ResourceLocation damaged = entry == null ? null : entry.overlay();
             if (damaged != null) {
-                model.renderToBuffer(poseStack, buffers.getBuffer(RenderType.entityCutoutNoCull(damaged)), light, overlay, -1);
+                model.renderToBuffer(poseStack, buffers.getBuffer(RenderType.entityCutoutNoCull(damaged)), lit, overlay, -1);
             }
             ResourceLocation glow = entry == null ? null : entry.glow();
             if (glow != null) {
@@ -154,12 +169,14 @@ final class VariantRendering {
                         OverlayTexture.NO_OVERLAY, FastColor.ARGB32.color(255, g, g, g));
             }
             if (effects && flashing > 0.15F && black <= 0.0F) {
-                long glitch = visual.glitchFrame(time, 0.03F * flashing * pace);
+                long glitch = visual.glitchFrame(time, Math.min(0.5F, 0.03F * flashing * pace * boost(visual, HEAVY_GLITCH, flashing)));
                 if (glitch != 0L) {
+                    float slip = visual.heavy ? 0.55F : 0.4F;
+                    float tear = intense ? (visual.heavy ? 0.3F : 0.18F) : (visual.heavy ? 0.12F : 0.08F);
                     GlitchConsumer consumer = GlitchConsumer.INSTANCE.begin(buffers.getBuffer(RenderType.entityCutoutNoCull(texture)),
-                            glitch, 0.4F, intense ? 0.18F : 0.08F, entity.getBbWidth() * 0.35F * visual.unit);
+                            glitch, slip, tear, entity.getBbWidth() * 0.35F * visual.unit);
                     try {
-                        model.renderToBuffer(poseStack, consumer, light, overlay, -1);
+                        model.renderToBuffer(poseStack, consumer, lit, overlay, -1);
                     } finally {
                         consumer.end();
                     }
@@ -179,6 +196,10 @@ final class VariantRendering {
         } else {
             int alpha = Mth.clamp((int) (amount * 255.0F), 0, 255);
             model.renderToBuffer(poseStack, buffers.getBuffer(RenderType.entityTranslucent(texture)), light, OverlayTexture.NO_OVERLAY, alpha << 24);
+        }
+        if (visual.heavy) {
+            // IT has two eyes of its own, drawn over this by its renderer: no white pinpricks on its face.
+            return;
         }
         ModelRecorder recorder = ModelRecorder.INSTANCE;
         recorder.reset();
@@ -432,6 +453,16 @@ final class VariantRendering {
             budgetUsed = 0;
         }
         return budgetUsed++ < MAX_TENTACLE_HOSTS;
+    }
+
+    /** While IT kills someone (its kill is choreographed to the tick: camera, jaw) only its broken textures show, nothing jumps or blinks. */
+    private static boolean choreographed(LivingEntity entity, MobVisual visual) {
+        return visual.heavy && entity instanceof ItEntity it && it.killStage() != ItEntity.KILL_NONE;
+    }
+
+    /** {@code factor} for IT (at full flashing allowance, back to 1 as it goes to zero), 1 for every other mob. */
+    private static float boost(MobVisual visual, float factor, float flashing) {
+        return visual.heavy ? 1.0F + (factor - 1.0F) * flashing : 1.0F;
     }
 
     /** Glitches come more often at later stages. */

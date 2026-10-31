@@ -14,13 +14,13 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 public final class ItSounds {
     public static final DeferredRegister<SoundEvent> SOUND_EVENTS = DeferredRegister.create(Registries.SOUND_EVENT, NullMod.MODID);
 
-    /** One enormous footfall: the ground takes the weight. */
+    /** One enormous footfall, foot or hand: a thud under 120 Hz, a wet impact, earth and wheat crushed. Short, so a gallop is eight a second. */
     public static final DeferredHolder<SoundEvent, SoundEvent> STEP = sound("it.step");
     /** Far away, as it arrives. */
     public static final DeferredHolder<SoundEvent, SoundEvent> HOWL = sound("it.howl");
     /** Wet breathing, close. */
     public static final DeferredHolder<SoundEvent, SoundEvent> BREATH = sound("it.breath");
-    /** Bones clicking and joints cracking as it moves. */
+    /** A joint clicking: rare and faint, and a head snapping round. Its movement is footfalls, not creaking bones. */
     public static final DeferredHolder<SoundEvent, SoundEvent> CLICK = sound("it.click");
     /** At the window. */
     public static final DeferredHolder<SoundEvent, SoundEvent> SCREAM = sound("it.scream");

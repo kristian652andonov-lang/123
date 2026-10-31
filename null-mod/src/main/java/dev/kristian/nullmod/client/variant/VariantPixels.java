@@ -58,6 +58,15 @@ final class VariantPixels {
      * at less than half, and scattered dead pixels.
      */
     static Corrupted corrupt(int[] src, int width, int height, int primary, int secondary, long seed) {
+        return corrupt(src, width, height, primary, secondary, seed, false);
+    }
+
+    /**
+     * As above; {@code heavy} (IT) breaks it as hard as it gets: the secondary style at full
+     * strength too, and twice the dead pixels. {@code tools/gen_variants.py} mirrors only the
+     * ordinary look.
+     */
+    static Corrupted corrupt(int[] src, int width, int height, int primary, int secondary, long seed, boolean heavy) {
         Canvas c = new Canvas(src, width, height);
         if (c.visibleCount == 0) {
             return new Corrupted(c.out, null);
@@ -65,7 +74,7 @@ final class VariantPixels {
         Rand r = new Rand(seed ^ 0x4E554C4C56415249L);
         int[] glow = apply(c, r, primary, 100);
         if (secondary >= 0 && secondary != primary) {
-            int[] more = apply(c, r, secondary, 40);
+            int[] more = apply(c, r, secondary, heavy ? 100 : 40);
             if (glow == null) {
                 glow = more;
             } else if (more != null) {
@@ -77,6 +86,9 @@ final class VariantPixels {
             }
         }
         deadPixels(c, r);
+        if (heavy) {
+            deadPixels(c, r);
+        }
         return new Corrupted(c.out, glow);
     }
 

@@ -306,7 +306,8 @@ def step(rng):
     x = saturate(x / (4.5 * _rms(x)), 1.8)
     x = reverb(rng, x, 0.42, 0.2, size=1.0, damping=800.0)
     x = lowpass(x, 6500.0, 1)
-    return finish(x, tail=0.1)
+    # Cut where the tail is 50 dB down: eight of these a second must not pile up in the sound engine.
+    return finish(trim_silence(x, -50.0), tail=0.12)
 
 
 def howl(rng):

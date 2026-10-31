@@ -16,6 +16,8 @@ final class MobVisual {
     static final int MAX_TENTACLES = 8;
     /** Different tentacle layouts per kind of mob, so infested textures can be shared. */
     static final int LAYOUTS = 8;
+    /** The styles a {@link #heavy} mob is broken with: the ones that show on a dark body (no white pinpricks: IT has eyes of its own). */
+    private static final int[] HEAVY_STYLES = {VariantPixels.STYLE_GLITCH, VariantPixels.STYLE_MISSING, VariantPixels.STYLE_NEGATIVE};
 
     final int id;
     MobVariant variant = MobVariant.NONE;
@@ -23,6 +25,12 @@ final class MobVisual {
     float targetGrowth;
     float growth;
     private float lastTime = Float.NaN;
+
+    /**
+     * IT, the creature of the last stage: a corrupted mob that is as broken as it gets and glitches
+     * all the time (see {@link VariantRendering}). Decided when the visual is created, from the entity.
+     */
+    boolean heavy;
 
     // Corrupted: the styles of its damaged texture.
     int primary;
@@ -79,6 +87,11 @@ final class MobVisual {
         long h = Tentacles.mix(newSeed ^ 0x434F525255505445L);
         primary = (int) Long.remainderUnsigned(h, VariantPixels.STYLES);
         secondary = (primary + 1 + (int) ((h >>> 20) % (VariantPixels.STYLES - 1))) % VariantPixels.STYLES;
+        if (heavy) {
+            int first = (int) Long.remainderUnsigned(h, HEAVY_STYLES.length);
+            primary = HEAVY_STYLES[first];
+            secondary = HEAVY_STYLES[(first + 1 + (int) ((h >>> 20) & 1L)) % HEAVY_STYLES.length];
+        }
         layout = (int) ((h >>> 40) % LAYOUTS);
         tentacles = 0;
         anchorsChosen = false;
