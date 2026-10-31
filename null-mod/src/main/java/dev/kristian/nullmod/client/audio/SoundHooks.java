@@ -10,13 +10,13 @@ import net.neoforged.neoforge.client.event.sound.PlaySoundEvent;
 
 /**
  * Sees every sound the game is about to play (NeoForge's {@link PlaySoundEvent}): holds sounds
- * back during silences, hands music to {@link MusicCorruption}, echoes the player's footsteps
+ * back during silences, hands the game's music to {@link NullMusic}, echoes the player's footsteps
  * and plays some game sounds at the wrong pitch (or bent by a NULLROOT capture).
  * <p>
  * Only one-shot sounds that nobody keeps a reference to are ever wrapped: never ticking or looping
  * sounds (minecarts, bees, elytra, other mods' loops), records, UI sounds, voice or music, because
- * whoever started those may later try to stop or query that exact instance. Nothing happens
- * outside a world.
+ * whoever started those may later try to stop or query that exact instance. NULL's music
+ * ({@link MusicInstance}) is never changed here. Nothing happens outside a world.
  */
 final class SoundHooks {
     private static boolean failed;
@@ -38,13 +38,13 @@ final class SoundHooks {
                 event.setSound(null);
                 return;
             }
-            if (sound instanceof NullSoundInstance || sound instanceof CorruptedSoundInstance) {
+            if (sound instanceof NullSoundInstance || sound instanceof CorruptedSoundInstance || sound instanceof MusicInstance) {
                 return;
             }
             RandomSource random = AudioCorruptionManager.random();
             SoundSource source = sound.getSource();
             if (source == SoundSource.MUSIC) {
-                MusicCorruption.onVanillaMusic(event, sound, mc, random);
+                NullMusic.onGameMusic(event, sound, mc, random);
                 return;
             }
             if (source == SoundSource.MASTER || source == SoundSource.RECORDS || source == SoundSource.VOICE

@@ -104,7 +104,6 @@ public final class NullSettingsScreen extends Screen {
         toggle(NullClientSettings.STATIC_NOISE, "static_noise", sounds);
         toggle(NullClientSettings.WHISPERS, "whispers", sounds);
         toggle(NullClientSettings.PHANTOM_FOOTSTEPS, "phantom_footsteps", sounds);
-        toggle(NullClientSettings.MUSIC_DISTORTION, "music_distortion", sounds);
         toggle(NullClientSettings.PITCH_DISTORTION, "pitch_distortion", sounds);
         toggle(NullClientSettings.SUDDEN_SILENCE, "sudden_silence", sounds);
     }

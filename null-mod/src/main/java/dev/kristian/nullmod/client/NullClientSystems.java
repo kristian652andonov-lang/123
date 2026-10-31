@@ -11,6 +11,7 @@ import dev.kristian.nullmod.client.menu.MenuClientModule;
 import dev.kristian.nullmod.client.moon.MoonClientModule;
 import dev.kristian.nullmod.client.nullroot.NullrootClientModule;
 import dev.kristian.nullmod.client.settings.SettingsClientModule;
+import dev.kristian.nullmod.client.stalker.StalkerClientModule;
 import dev.kristian.nullmod.client.variant.MobVariantClientModule;
 import dev.kristian.nullmod.client.visitor.VisitorClientModule;
 import dev.kristian.nullmod.client.visual.VisualClientModule;
@@ -35,6 +36,7 @@ final class NullClientSystems {
         FieldClientModule.init(modBus, gameBus);
         ItClientModule.init(modBus, gameBus);
         MobVariantClientModule.init(modBus, gameBus);
+        StalkerClientModule.init(modBus, gameBus);
         // Last, so its overlay layer sits above every other HUD layer.
         VisualClientModule.init(modBus, gameBus);
         ClientAutoTest.init(gameBus);

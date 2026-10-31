@@ -116,7 +116,6 @@
   "null.settings.static_noise": "Static and interference",
   "null.settings.whispers": "Whispers and voices",
   "null.settings.phantom_footsteps": "Phantom footsteps",
-  "null.settings.music_distortion": "Music distortion",
   "null.settings.pitch_distortion": "Wrong pitches",
   "null.settings.sudden_silence": "Sudden silence",
   "null.settings.custom_main_menu": "Corrupted main menu",
@@ -166,5 +165,8 @@
   "block.null.glow_cyan": "Signal",
   "block.null.glow_magenta": "Signal",
   "block.null.glow_yellow": "Signal",
-  "block.null.glow_white": "Signal"
+  "block.null.glow_white": "Signal",
+  "null.configuration.field": "The field (Stage 6)",
+  "null.configuration.it": "IT",
+  "null.configuration.chances": "Chances"
 }

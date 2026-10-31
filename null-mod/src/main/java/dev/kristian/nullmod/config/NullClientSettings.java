@@ -24,7 +24,6 @@ public final class NullClientSettings {
     public static final ModConfigSpec.BooleanValue STATIC_NOISE;
     public static final ModConfigSpec.BooleanValue WHISPERS;
     public static final ModConfigSpec.BooleanValue PHANTOM_FOOTSTEPS;
-    public static final ModConfigSpec.BooleanValue MUSIC_DISTORTION;
     public static final ModConfigSpec.BooleanValue PITCH_DISTORTION;
     public static final ModConfigSpec.BooleanValue SUDDEN_SILENCE;
 
@@ -73,7 +72,7 @@ public final class NullClientSettings {
         b.pop();
 
         b.comment("Audio corruption.").push("audio");
-        HORROR_SOUNDS = b.comment("Master switch for NULL's horror sound effects.")
+        HORROR_SOUNDS = b.comment("Master switch for NULL's horror sound effects (not its music, which always plays).")
                 .translation("null.settings.horror_sounds")
                 .define("horrorSounds", true);
         AUDIO_INTENSITY = b.comment("Strength of audio corruption.")
@@ -88,9 +87,6 @@ public final class NullClientSettings {
         PHANTOM_FOOTSTEPS = b.comment("Footsteps that are not yours.")
                 .translation("null.settings.phantom_footsteps")
                 .define("phantomFootsteps", true);
-        MUSIC_DISTORTION = b.comment("Distorted and replaced music.")
-                .translation("null.settings.music_distortion")
-                .define("musicDistortion", true);
         PITCH_DISTORTION = b.comment("Game sounds played at the wrong pitch.")
                 .translation("null.settings.pitch_distortion")
                 .define("pitchDistortion", true);
@@ -112,7 +108,7 @@ public final class NullClientSettings {
         MENU_GLITCH_INTENSITY = b.comment("How often and how strongly the menu glitches.")
                 .translation("null.settings.menu_glitch_intensity")
                 .defineInRange("menuGlitchIntensity", 0.7, 0.0, 1.0);
-        MENU_SOUNDS = b.comment("Menu ambience and interface sounds.")
+        MENU_SOUNDS = b.comment("Interface sounds in the corrupted menu (its music always plays).")
                 .translation("null.settings.menu_sounds")
                 .define("menuSounds", true);
         b.pop();

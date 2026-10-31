@@ -26,6 +26,7 @@ final class WindowWatch extends Encounter {
     private int waited;
     private int staredTicks;
     private boolean handRaised;
+    private boolean twitched;
     private int tapsLeft;
     private int dartTicks = -1;
 
@@ -100,6 +101,11 @@ final class WindowWatch extends Encounter {
         }
         if (age % 2 == 0 && StalkerSight.starer(body) != null) {
             staredTicks += 2;
+            if (!twitched && staredTicks >= 24) {
+                // Stared back at for a moment: its head twitches once.
+                twitched = true;
+                twitch();
+            }
         }
         if (!handRaised && boldness >= 0.55F && staredTicks >= 50) {
             handRaised = true;

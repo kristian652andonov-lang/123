@@ -169,7 +169,8 @@ public final class NullMusic {
             return;
         }
         if (isActive(track)) {
-            if (mc.getSituationalMusic().replaceCurrentMusic()) {
+            Music situational = mc.getSituationalMusic();
+            if (situational != null && situational.replaceCurrentMusic()) {
                 // A boss fight, the End, the credits: their music begins (and is bent in its turn).
                 stop(40);
             } else {
@@ -269,7 +270,8 @@ public final class NullMusic {
             return;
         }
         Music situational = mc.getSituationalMusic();
-        if (situational.replaceCurrentMusic() && !situational.getEvent().value().getLocation().equals(track.getLocation())) {
+        if (situational != null && situational.replaceCurrentMusic()
+                && !situational.getEvent().value().getLocation().equals(track.getLocation())) {
             stop(60);
         }
     }
@@ -395,7 +397,8 @@ public final class NullMusic {
     // ------------------------------------------------------------------ starting and stopping
 
     private static void startPiece(float level, RandomSource random) {
-        boolean broken = level >= 0.6F ? random.nextFloat() < 0.75F : random.nextFloat() < 0.35F;
+        // The plain pieces are already wrong; the broken versions belong to Stage 4 and later.
+        boolean broken = level >= 0.6F ? random.nextFloat() < 0.75F : level >= 0.3F && random.nextFloat() < 0.35F;
         SoundEvent piece;
         if (level >= 0.6F && random.nextFloat() < 0.3F) {
             piece = theme(level, random);

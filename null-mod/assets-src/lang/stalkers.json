@@ -1,0 +1,15 @@
+{
+  "entity.null.stalker": "Stalker",
+  "subtitles.null.stalker.door_creak": "A door creaks open",
+  "subtitles.null.stalker.footsteps": "Heavy footsteps",
+  "subtitles.null.stalker.dig": "A pickaxe strikes stone",
+  "subtitles.null.stalker.breath_glass": "Breathing against glass",
+  "subtitles.null.stalker.glass_tap": "Tapping on glass",
+  "subtitles.null.stalker.runner_footsteps": "Something sprints",
+  "null.configuration.stalkers": "Stalkers (Stages 1-4)",
+  "null.config.stalkers_enabled": "Stalkers enabled",
+  "null.config.stalker_frequency": "Stalker frequency",
+  "null.config.stalker_door_opening": "Stalkers open doors",
+  "null.config.stalker_window_breaking": "Stalkers shatter windows (always put back)",
+  "null.config.stalker_miner_digging": "Stalkers dig in the rock"
+}

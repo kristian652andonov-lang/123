@@ -4,6 +4,7 @@ import dev.kristian.nullmod.client.ClientCorruptionState;
 import dev.kristian.nullmod.client.ClientLimits;
 import dev.kristian.nullmod.config.NullClientSettings;
 import dev.kristian.nullmod.core.CorruptionStage;
+import dev.kristian.nullmod.field.FieldDimension;
 import dev.kristian.nullmod.registry.NullDimensions;
 import dev.kristian.nullmod.registry.NullSounds;
 import javax.annotation.Nullable;
@@ -21,8 +22,9 @@ import net.minecraft.world.phys.Vec3;
  * <li>Stage 2: more static, reversed sounds, short interruptions.</li>
  * <li>Stage 3: organic, parasitic noises from random directions, a heartbeat, the ground.</li>
  * <li>Stage 4: distant voices, footsteps, sounds of someone else playing, breathing behind.</li>
- * <li>Stage 5: audio that never settles: a drifting drone (the dimension's own hum inside NULL),
- * corrupted music, bursts of wrong pitches, frequent interruptions.</li>
+ * <li>Stage 5: audio that never settles: a drifting drone (the dimension's own hum inside NULL, none in
+ * the field), now and then one of NULL's pieces of music ({@link NullMusic}), bursts of wrong pitches,
+ * frequent interruptions.</li>
  * </ul>
  * From Stage 3 on, every sound in the game occasionally stops at the same moment.
  */
@@ -95,8 +97,8 @@ final class AmbientScheduler {
                 nextChaos = scaled(1800 + random.nextInt(3000), rarity);
             }
             if (--nextMusic <= 0) {
-                if (!MusicCorruption.playing() && random.nextFloat() < 0.5F) {
-                    MusicCorruption.playCorrupted(random);
+                if (!NullMusic.playing() && random.nextFloat() < 0.5F) {
+                    NullMusic.playCorrupted(random);
                 }
                 nextMusic = 6000 + random.nextInt(9000);
             }
@@ -277,7 +279,8 @@ final class AmbientScheduler {
     }
 
     private static void tickDrone(int stage, Minecraft mc, RandomSource random) {
-        if (stage < 5 || mc.level == null) {
+        if (stage < 5 || mc.level == null || FieldDimension.isField(mc.level)) {
+            // (The field has a drone of its own.)
             if (drone != null) {
                 stopLoops(80);
             }

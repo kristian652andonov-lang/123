@@ -31,6 +31,7 @@ final class DoorOpening extends Encounter {
     private boolean glimpseTried;
     private int glimpseTicks;
     private int staredTicks;
+    private boolean twitched;
     private int lingering;
     private final List<BlockPos> steps = new ArrayList<>();
 
@@ -169,6 +170,10 @@ final class DoorOpening extends Encounter {
         }
         if (age % 2 == 0 && StalkerSight.starer(body) != null) {
             staredTicks += 2;
+            if (!twitched && staredTicks >= 6) {
+                twitched = true;
+                twitch();
+            }
         }
         boolean seen = StalkerSight.seer(body) != null;
         if (staredTicks >= Math.round(bold(8.0F, 24.0F)) && !seen) {

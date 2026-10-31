@@ -39,7 +39,6 @@ public final class FieldClientModule {
         // both count. Its colour before the visual system, which darkens and tints it on top.
         gameBus.addListener(EventPriority.LOW, true, FieldFog::onRenderFog);
         gameBus.addListener(EventPriority.HIGH, FieldFog::onFogColor);
-        gameBus.addListener(FieldAmbience::onSelectMusic);
     }
 
     /** A {@link FieldPayload} arrived (render thread). */

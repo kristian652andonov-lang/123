@@ -8,6 +8,7 @@ import dev.kristian.nullmod.dimension.DimensionModule;
 import dev.kristian.nullmod.entity.fakeplayer.FakePlayerModule;
 import dev.kristian.nullmod.entity.it.ItModule;
 import dev.kristian.nullmod.entity.nullroot.NullrootModule;
+import dev.kristian.nullmod.entity.stalker.StalkerModule;
 import dev.kristian.nullmod.entity.variant.MobVariantModule;
 import dev.kristian.nullmod.entity.visitor.VisitorModule;
 import dev.kristian.nullmod.event.RandomEventManager;
@@ -45,6 +46,7 @@ final class NullSystems {
         FieldModule.init(modBus, gameBus);
         ItModule.init(modBus, gameBus);
         MobVariantModule.init(modBus, gameBus);
+        StalkerModule.init(modBus, gameBus);
         ShowcaseModule.init(modBus, gameBus);
 
         // Event-only modules (their effects run on the client).

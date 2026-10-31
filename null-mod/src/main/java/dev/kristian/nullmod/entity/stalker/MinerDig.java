@@ -64,6 +64,7 @@ final class MinerDig extends Encounter {
     private int watchedTicks;
     private int staredTicks;
     private boolean noticed;
+    private boolean twitched;
     private int noticedTicks;
 
     MinerDig(ServerPlayer owner, float boldness, boolean forced, RandomSource random) {
@@ -280,6 +281,10 @@ final class MinerDig extends Encounter {
         }
         if (age % 2 == 0 && StalkerSight.starer(body) != null) {
             staredTicks += 2;
+            if (!twitched && staredTicks >= 8) {
+                twitched = true;
+                twitch();
+            }
         }
         boolean seen = StalkerSight.seer(body) != null;
         if (staredTicks >= Math.round(bold(14.0F, 36.0F)) && !seen) {
@@ -323,8 +328,9 @@ final class MinerDig extends Encounter {
             staredTicks += 2;
         }
         if (!noticed && staredTicks >= Math.round(bold(12.0F, 30.0F))) {
-            // It stops, and turns round.
+            // It stops, its head twitches, and it turns round.
             noticed = true;
+            twitch();
             body.faceYaw(StalkerSight.yawTowards(body.position(), player.position()));
             body.setAct(StalkerEntity.ACT_STAND);
         }

@@ -125,7 +125,8 @@ final class TreeWatch extends Encounter {
             case PEEKING -> {
                 staredTicks = stared ? staredTicks + 1 : Math.max(0, staredTicks - 1);
                 if (staredTicks >= reactTicks) {
-                    // Looked at: it slides back behind the trunk.
+                    // Looked at: its head snaps round, and it slides back behind the trunk.
+                    twitch();
                     body.setAct(StalkerEntity.ACT_HIDE);
                     peeksLeft--;
                     phase = HIDING;

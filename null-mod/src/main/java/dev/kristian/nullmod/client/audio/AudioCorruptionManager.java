@@ -25,7 +25,8 @@ import net.minecraft.world.phys.Vec3;
 /**
  * NULL's audio corruption: the one place horror sounds are played from, so the player's audio
  * settings (horror sounds on/off, intensity, the per-channel toggles) and the server's limits
- * always apply. It also owns the moments when the game's own audio fails: sudden silences,
+ * always apply. (NULL's music is not a horror sound: {@link NullMusic} plays it and no setting
+ * switches it off.) It also owns the moments when the game's own audio fails: sudden silences,
  * the silence of the transition into NULL, and the distortion while a NULLROOT holds the player.
  * <p>
  * Silence pauses everything that is playing (it resumes exactly where it was, like a dropout)
@@ -36,11 +37,11 @@ import net.minecraft.world.phys.Vec3;
 public final class AudioCorruptionManager {
     /**
      * What a sound is, which decides the player's toggle that controls it: STATIC = static noise,
-     * WHISPER = whispers, FOOTSTEPS = phantom footsteps, MUSIC = music distortion; AMBIENT,
+     * WHISPER = whispers, FOOTSTEPS = phantom footsteps; AMBIENT,
      * CREATURE and EVENT only follow the horror-sound switch and intensity (as all channels do).
      * UI sounds are not horror sounds: their caller decides whether they may play.
      */
-    public enum Channel { STATIC, WHISPER, FOOTSTEPS, MUSIC, AMBIENT, CREATURE, EVENT, UI }
+    public enum Channel { STATIC, WHISPER, FOOTSTEPS, AMBIENT, CREATURE, EVENT, UI }
 
     private static final int MAX_ACTIVE = 18;
     private static final RandomSource RANDOM = RandomSource.create();
@@ -174,7 +175,8 @@ public final class AudioCorruptionManager {
                     mc.getSoundManager().resume();
                 }
             }
-            MusicCorruption.stop(0);
+            // The cinematic is silent; NullMusic starts the right music again once it is over.
+            NullMusic.stop(0);
             AmbientScheduler.stopLoops(0);
             PhantomFootsteps.reset();
         }
@@ -298,7 +300,6 @@ public final class AudioCorruptionManager {
             case STATIC -> NullClientSettings.get(NullClientSettings.STATIC_NOISE);
             case WHISPER -> NullClientSettings.get(NullClientSettings.WHISPERS);
             case FOOTSTEPS -> NullClientSettings.get(NullClientSettings.PHANTOM_FOOTSTEPS);
-            case MUSIC -> NullClientSettings.get(NullClientSettings.MUSIC_DISTORTION);
             default -> true;
         };
         return on ? audio : 0.0F;
@@ -307,7 +308,6 @@ public final class AudioCorruptionManager {
     static SoundSource sourceOf(Channel channel) {
         return switch (channel) {
             case FOOTSTEPS -> SoundSource.PLAYERS;
-            case MUSIC -> SoundSource.MUSIC;
             case CREATURE -> SoundSource.HOSTILE;
             case UI -> SoundSource.MASTER;
             default -> SoundSource.AMBIENT;
@@ -548,7 +548,7 @@ public final class AudioCorruptionManager {
         captureTarget = 0.0F;
         capture = 0.0F;
         captureRetry = 0;
-        MusicCorruption.stop(0);
+        NullMusic.reset();
         AmbientScheduler.reset();
         PhantomFootsteps.reset();
         PhantomWalkers.reset();
@@ -583,7 +583,7 @@ public final class AudioCorruptionManager {
         captureRetry = 0;
         lastLevel = null;
         DEFERRED.clear();
-        MusicCorruption.stop(0);
+        NullMusic.reset();
         AmbientScheduler.reset();
         PhantomFootsteps.reset();
         PhantomWalkers.reset();

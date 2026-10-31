@@ -1,19 +1,16 @@
 package dev.kristian.nullmod.client.field;
 
-import dev.kristian.nullmod.NullMod;
 import dev.kristian.nullmod.client.ClientLimits;
 import dev.kristian.nullmod.client.audio.AudioCorruptionManager;
+import dev.kristian.nullmod.client.audio.NullMusic;
 import dev.kristian.nullmod.field.FieldCycle;
-import dev.kristian.nullmod.field.FieldDimension;
 import dev.kristian.nullmod.field.FieldSounds;
 import javax.annotation.Nullable;
 import net.minecraft.client.Minecraft;
-import net.minecraft.sounds.Music;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.client.event.SelectMusicEvent;
 
 /**
  * The sound of the field. Everything goes through NULL's audio system (or follows the same settings,
@@ -28,7 +25,8 @@ import net.neoforged.neoforge.client.event.SelectMusicEvent;
  * timer runs low a heartbeat grows, faster and louder.</li>
  * <li><b>Dawn</b>: the light returning, and the wind.</li>
  * </ul>
- * The game's own music never plays in the field (NULL's own music is left alone). Render thread only.
+ * The field's music is {@link NullMusic}'s: the game's own never plays here, and this class only tells
+ * NullMusic every tick whether it is day (the only time the field's piece plays). Render thread only.
  */
 final class FieldAmbience {
     private static final RandomSource RANDOM = RandomSource.create();
@@ -80,18 +78,6 @@ final class FieldAmbience {
         }
     }
 
-    /** The game's own music stays out of the field (NULL's own pieces are left to NULL's audio). */
-    static void onSelectMusic(SelectMusicEvent event) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || !FieldDimension.isField(mc.level)) {
-            return;
-        }
-        Music music = event.getMusic();
-        if (music != null && !NullMod.MODID.equals(music.getEvent().value().getLocation().getNamespace())) {
-            event.setMusic(null);
-        }
-    }
-
     // ------------------------------------------------------------------ ticking
 
     static void tick(Minecraft mc) {
@@ -101,6 +87,7 @@ final class FieldAmbience {
         float audio = AudioCorruptionManager.channelEnabled(AudioCorruptionManager.Channel.AMBIENT) ? ClientLimits.audio() : 0.0F;
         FieldCycle.Phase phase = FieldClientState.phase();
         float progress = FieldClientState.progress(0.0F);
+        NullMusic.fieldDay(inField && phase == FieldCycle.Phase.DAY);
 
         float windLevel = switch (phase) {
             case DAY -> 0.55F;

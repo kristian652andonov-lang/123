@@ -39,7 +39,8 @@ final class AudioEffects {
 
     /**
      * Generic: text = sound id, pos or an ambiguous spot, volume = intensity, pitch = data / 100.
-     * The channel follows from the sound's name so the player's toggles still apply.
+     * The channel follows from the sound's name so the player's toggles still apply; a {@code music.*}
+     * sound is NULL's music and goes to {@link NullMusic}, which no toggle switches off.
      */
     private static void sound(ClientEffectPayload effect) {
         ResourceLocation id = ResourceLocation.tryParse(effect.text());
@@ -52,20 +53,18 @@ final class AudioEffects {
         }
         float volume = Mth.clamp(effect.intensity(), 0.0F, 2.0F);
         float pitch = effect.data() > 0 ? Mth.clamp(effect.data() / 100.0F, 0.5F, 2.0F) : 1.0F;
-        AudioCorruptionManager.Channel channel = channelFor(id);
-        if (channel == AudioCorruptionManager.Channel.MUSIC) {
-            AudioCorruptionManager.playGlobal(sound, channel, volume, pitch);
+        if (id.getPath().startsWith("music.")) {
+            // Music is NullMusic's: no setting switches it off.
+            NullMusic.playNamed(sound, volume, pitch, AudioCorruptionManager.random());
             return;
         }
+        AudioCorruptionManager.Channel channel = channelFor(id);
         Vec3 pos = effect.pos().map(Vec3::atCenterOf).orElse(null);
         AudioCorruptionManager.play(sound, channel, pos, volume, pitch);
     }
 
     static AudioCorruptionManager.Channel channelFor(ResourceLocation id) {
         String path = id.getPath();
-        if (path.startsWith("music.")) {
-            return AudioCorruptionManager.Channel.MUSIC;
-        }
         if (path.contains("whisper") || path.contains("voices")) {
             return AudioCorruptionManager.Channel.WHISPER;
         }
@@ -185,7 +184,7 @@ final class AudioEffects {
     }
 
     private static void corruptedMusic(ClientEffectPayload effect) {
-        MusicCorruption.playCorrupted(RandomSource.create(effect.seed()));
+        NullMusic.playCorrupted(RandomSource.create(effect.seed()));
     }
 
     private static void whisperBehind(ClientEffectPayload effect) {

@@ -22,7 +22,7 @@ import net.neoforged.neoforge.client.event.SelectMusicEvent;
  *   <li>NULL's backdrop behind the other screens, darkening and grain on menus inside a world and
  *       the blood graffiti in container screens ({@link NullScreenLook}).</li>
  *   <li>Keeps the cheerful vanilla menu music away while the corrupted menu (and the screens
- *       opened from it, before a world is joined) has its own sounds.</li>
+ *       opened from it, before a world is joined) plays its own music.</li>
  *   <li>Frees the menu's textures once no screen has shown them for a while (at once when a
  *       world is joined) and re-reads its art after a resource reload.</li>
  * </ul>
@@ -98,7 +98,8 @@ public final class MenuClientModule {
         if (minecraft.level != null || minecraft.player != null) {
             return;
         }
-        if (CorruptedMainMenu.enabled() && MenuAudio.enabled()) {
+        if (CorruptedMainMenu.enabled()) {
+            // The corrupted menu has its own music, which always plays (MenuAudio).
             event.setMusic(null);
         }
     }

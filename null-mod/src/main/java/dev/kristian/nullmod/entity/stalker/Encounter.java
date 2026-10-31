@@ -99,6 +99,13 @@ abstract class Encounter {
         }
     }
 
+    /** A sudden twitch of the figure's head, with its eyes flaring for a moment (client animation). */
+    final void twitch() {
+        if (figure != null && !figure.hasVanished()) {
+            figure.signal(StalkerEntity.EVENT_TWITCH);
+        }
+    }
+
     final void removeFigure() {
         if (figure != null && !figure.hasVanished()) {
             figure.vanish(null);
