@@ -25,6 +25,7 @@ public final class FieldModule {
         gameBus.addListener(FieldManager::onRespawn);
         gameBus.addListener(FieldManager::onUseBlock);
         gameBus.addListener(FieldManager::onFarmlandTrample);
+        FieldProtection.init(gameBus);
         FieldSelfCheck.init(gameBus);
         modBus.addListener((RegisterGameTestsEvent event) -> event.register(FieldGameTests.class));
     }
