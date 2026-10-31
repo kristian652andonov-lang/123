@@ -65,8 +65,12 @@ final class FieldHud {
         float timeY = titleY + font.lineHeight * titleScale + 3.0F;
         float centre = width / 2.0F;
         int smearW = (int) Math.min(width * 0.9F, (font.width(title) + 30) * titleScale);
-        int smearH = (int) (smearW / 4.0F);
-        float smearY = titleY - smearH * 0.22F;
+        // The solid band of the smear texture fills rows 24-66 of 128 (its middle at 0.352 of the
+        // height): centre it on the capitals (7 of the font's 9 pixel rows) and keep it thick enough
+        // to hold them with room above and below.
+        int smearH = (int) Math.max(smearW / 4.0F, 42.0F * titleScale);
+        float capsCentre = titleY + 3.5F * titleScale;
+        float smearY = capsCentre - smearH * 0.352F;
         // Lowest point it reaches (the smear, or the time at the height of its throb).
         float bottom = Math.max(smearY + smearH, timeY + font.lineHeight * timeScale * 1.07F);
         if (mc.screen != null && covers(mc.screen, bottom)) {
