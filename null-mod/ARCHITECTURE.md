@@ -47,6 +47,11 @@ its persistent state in `CorruptionData.systemTag`.
 | Visual distortion | `visual` (events) | `client.visual` |
 | Audio corruption | `audio` (events) | `client.audio` |
 | Shattering moon | `moon` | `client.moon` |
+| Stage 6: the wheat field | `field` | `client.field` |
+| IT | `entity.it` | `client.it` |
+| Corrupted and parasite mobs | `entity.variant` | `client.variant` |
+| Stalkers (watchers, doors, windows, the miner) | `entity.stalker` | `client.stalker` |
+| Operator showcase | `showcase`, `command.ShowcaseCommand` | |
 | NULLROOT | `entity.nullroot` | `client.nullroot` |
 | Visitors, simulated players | `entity`, `entity.visitor`, `entity.fakeplayer` | `client.visitor`, `client.fakeplayer` |
 | Corrupted chat | `chat` | — |

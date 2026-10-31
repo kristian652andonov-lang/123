@@ -44,6 +44,10 @@ begins when a player survives five minutes in the NULL dimension.
 | 5 · NULL | after 15 nights | The world stops. Everything goes quiet and dark, and you wake up in NULL — an endless glowing geometric structure. The player list fills with players who are not there, and chat no longer makes sense. Survive there for five minutes. |
 | 6 · HARVEST | after surviving 5 minutes in NULL | Everything goes black and you wake in an endless wheat field under a huge, still sun. Through the day the sun cracks; then it shatters, night falls and a countdown appears: TIME UNTIL "IT" COMES. IT is six blocks tall and far faster than you, and only a house hides you. Survive and dawn comes and the sun re-forms; die and you wake in the field again. |
 
+Window panes that shatter are always put back exactly as they were, and the digging figure only
+ever cuts through natural stone. In NULL, the tall black figure sometimes sprints at you the moment
+you look at it and is gone an instant before it arrives.
+
 Different regions of a world corrupt at different speeds. Operators can change the pace with
 `/null pace` or in the world's config. Random events come about once a minute per player in
 Stage 1 and every ten seconds in NULL; raising `/null speed` makes them come more often too (up
