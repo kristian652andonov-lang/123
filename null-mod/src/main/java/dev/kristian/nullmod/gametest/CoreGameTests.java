@@ -39,13 +39,14 @@ public final class CoreGameTests {
         int count = NullEventRegistry.size();
         helper.assertTrue(count >= 50, "expected at least 50 random events, found " + count);
         Set<String> ids = new HashSet<>();
-        int[] perStage = new int[5];
+        // Stage 6 (HARVEST, the field) has its own cycle and may have no random events.
+        int[] perStage = new int[CorruptionStage.NULL.number()];
         for (NullEventDefinition event : NullEventRegistry.all()) {
             helper.assertTrue(ids.add(event.id()), "duplicate event id " + event.id());
             helper.assertTrue(event.weight() > 0, event.id() + " has no weight");
             helper.assertTrue(event.minStage().number() <= event.maxStage().number(), event.id() + " has an empty stage range");
             for (CorruptionStage stage : CorruptionStage.values()) {
-                if (event.weightAt(stage) > 0) {
+                if (stage.atMost(CorruptionStage.NULL) && event.weightAt(stage) > 0) {
                     perStage[stage.number() - 1]++;
                 }
             }
@@ -60,6 +61,12 @@ public final class CoreGameTests {
     public static void thresholdsAreOrdered(GameTestHelper helper) {
         double previous = -1.0;
         for (CorruptionStage stage : CorruptionStage.values()) {
+            if (stage == CorruptionStage.HARVEST) {
+                // Not reached by the clock: even a huge clock value stays at NULL.
+                helper.assertTrue(CorruptionStageManager.stageFor(Double.MAX_VALUE) == CorruptionStage.NULL,
+                        "the clock must never reach HARVEST on its own");
+                continue;
+            }
             double threshold = CorruptionStageManager.threshold(stage);
             helper.assertTrue(threshold > previous, "threshold of " + stage + " is not after the previous one");
             helper.assertTrue(CorruptionStageManager.stageFor(threshold) == stage, "stageFor(threshold) != " + stage);

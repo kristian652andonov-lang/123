@@ -124,7 +124,7 @@ public final class ChatReactions {
             return;
         }
         CorruptionStage stage = stage(player);
-        float chance = DEATH_CHANCE[stage.number() - 1];
+        float chance = DEATH_CHANCE[stage.tableIndex()];
         // The death count is read when the line is sent, a few seconds later, after the game has counted this one.
         ChatCorruptionManager.INSTANCE.react(player, Category.DEATH, null, chance, 20 * 3, 20 * 8, "death", 20 * 90,
                 Map.of(), null, false);
@@ -139,7 +139,7 @@ public final class ChatReactions {
             return;
         }
         CorruptionStage stage = stage(player);
-        ChatCorruptionManager.INSTANCE.react(player, Category.BREAK_CORRUPTION, null, 0.12F * STAGE_CHANCE[stage.number() - 1],
+        ChatCorruptionManager.INSTANCE.react(player, Category.BREAK_CORRUPTION, null, 0.12F * STAGE_CHANCE[stage.tableIndex()],
                 20 * 2, 20 * 7, "break", 20 * 60 * 3, Map.of("block", ChatCorruptionManager.blockName(block)), null, false);
     }
 
@@ -149,7 +149,7 @@ public final class ChatReactions {
             return;
         }
         CorruptionStage stage = stage(player);
-        float chance = SLEEP_CHANCE[stage.number() - 1];
+        float chance = SLEEP_CHANCE[stage.tableIndex()];
         // Only if they are still lying there when the line is due.
         ChatCorruptionManager.INSTANCE.react(player, Category.SLEEP, null, chance, 30, 70, "sleep", 20 * 60 * 10,
                 Map.of(), LivingEntity::isSleeping, false);
@@ -164,7 +164,7 @@ public final class ChatReactions {
             return;
         }
         CorruptionStage stage = stage(player);
-        float chance = WAKE_CHANCE[stage.number() - 1];
+        float chance = WAKE_CHANCE[stage.tableIndex()];
         ChatCorruptionManager.INSTANCE.react(player, Category.WAKE, null, chance, 40, 100, "wake", 20 * 60 * 15,
                 Map.of(), null, false);
     }
@@ -230,7 +230,7 @@ public final class ChatReactions {
 
     private static void reply(ServerPlayer player, CorruptionContext ctx, String clean) {
         CorruptionStage stage = ctx.stage();
-        float chance = REPLY_CHANCE[stage.number() - 1];
+        float chance = REPLY_CHANCE[stage.tableIndex()];
         if (chance <= 0.0F) {
             return;
         }
@@ -268,12 +268,12 @@ public final class ChatReactions {
             watch.stillLines = 0;
             return;
         }
-        long threshold = 20L * STILL_SECONDS[stage.number() - 1];
+        long threshold = 20L * STILL_SECONDS[stage.tableIndex()];
         if (threshold <= 0L || watch.stillLines >= 2 || now - watch.stillSince < threshold * (watch.stillLines + 1L)) {
             return;
         }
         watch.stillLines++;
-        ChatCorruptionManager.INSTANCE.react(player, Category.STILL, null, 0.55F * STAGE_CHANCE[stage.number() - 1],
+        ChatCorruptionManager.INSTANCE.react(player, Category.STILL, null, 0.55F * STAGE_CHANCE[stage.tableIndex()],
                 0, 20 * 4, null, 0, Map.of(), null, false);
     }
 
@@ -290,7 +290,7 @@ public final class ChatReactions {
         int surface = covered ? level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, feet.getX(), feet.getZ()) : feet.getY();
         boolean deep = covered && (feet.getY() < surface - 30 || feet.getY() < 0);
         boolean bedrock = covered && feet.getY() < level.getMinBuildHeight() + 6;
-        float chance = STAGE_CHANCE[stage.number() - 1];
+        float chance = STAGE_CHANCE[stage.tableIndex()];
         if (deep && !watch.deep) {
             ChatCorruptionManager.INSTANCE.react(player, Category.DEEP, null, 0.4F * chance, 20 * 3, 20 * 12, "deep",
                     20 * 60 * 10, Map.of(), null, false);
@@ -328,7 +328,7 @@ public final class ChatReactions {
 
     private static void react(MinecraftServer server, CorruptionContext ctx, WorldMemory.Entry entry, MemoryRef ref) {
         Map<String, String> overrides = ref.detailIsName() && !entry.detail().isEmpty() ? Map.of("visitor", entry.detail()) : Map.of();
-        float chance = ref.chance() * STAGE_CHANCE[ctx.stage().number() - 1];
+        float chance = ref.chance() * STAGE_CHANCE[ctx.stage().tableIndex()];
         if (entry.player() != null) {
             ServerPlayer player = server.getPlayerList().getPlayer(entry.player());
             if (player != null) {

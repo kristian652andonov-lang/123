@@ -1,0 +1,10 @@
+{
+  "type": "null:field",
+  "generator": {
+    "type": "null:field",
+    "biome_source": {
+      "type": "minecraft:fixed",
+      "biome": "null:the_field"
+    }
+  }
+}

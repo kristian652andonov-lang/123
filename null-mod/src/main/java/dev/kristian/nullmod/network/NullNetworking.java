@@ -36,6 +36,8 @@ public final class NullNetworking {
                 (payload, context) -> clientSink.transition(payload));
         registrar.playToClient(MobVariantPayload.TYPE, MobVariantPayload.STREAM_CODEC,
                 (payload, context) -> clientSink.mobVariant(payload));
+        registrar.playToClient(FieldPayload.TYPE, FieldPayload.STREAM_CODEC,
+                (payload, context) -> clientSink.field(payload));
     }
 
     /**

@@ -54,16 +54,14 @@ Open **Mods → NULL → Config**, or the small **NULL** link on the corrupted m
   static, whispers, phantom footsteps, music distortion, wrong pitches and sudden silence.
 - **Main menu:** the corrupted menu can be switched off to get the vanilla menu back;
   animation and glitch strength; menu sounds.
-- **Desktop interference** (off by default, see below).
+- **Desktop interference** (on by default, see below).
 
 All settings are saved in `config/null-client.toml`.
 
 ### Desktop interference
 
-NULL can show small black "error" windows on your desktop, outside the game window. This is
-**off until you turn it on and accept an explanation screen**. The acceptance belongs to the
-Minecraft account that gave it, so a copied or pre-made config file cannot switch it on for
-anyone else (only a one-way code is stored, in your own config file). Every window is labelled as
+NULL shows small black "error" windows on your desktop, outside the game window. It is **on by
+default** and can be switched off at any time in NULL's settings (every open window closes at once). Every window is labelled as
 coming from the NULL Minecraft mod, can be closed by clicking it or pressing Esc, closes on its
 own, never takes keyboard or mouse focus, never imitates real system or security dialogs, and
 never appears after Minecraft has closed. NULL does not change anything on your computer and

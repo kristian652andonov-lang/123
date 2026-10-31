@@ -4,6 +4,7 @@
   "null.stage.middle": "INFESTATION",
   "null.stage.above_middle": "VISITATION",
   "null.stage.null": "NULL",
+  "null.stage.harvest": "HARVEST",
   "null.command.status.stage": "Stage %s: %s (%s%% through this stage)",
   "null.command.status.time": "Time in this world: %s, corruption time: %s",
   "null.command.status.next": "Next stage after %s more corruption time (about %s at the current speed)",

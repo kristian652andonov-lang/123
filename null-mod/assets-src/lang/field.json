@@ -1,0 +1,20 @@
+{
+  "biome.null.the_field": "The Field",
+  "dimension.null.field": "The Field",
+  "field.hud.countdown": "TIME UNTIL \"IT\" COMES",
+  "subtitles.null.field.wind": "Wind hisses through the wheat",
+  "subtitles.null.field.drone": "A low unease",
+  "subtitles.null.field.night_air": "Silence presses in",
+  "subtitles.null.field.crow": "Crows caw far away",
+  "subtitles.null.field.creak": "Wood creaks",
+  "subtitles.null.field.barn_door": "A door bangs in the distance",
+  "subtitles.null.field.chimes": "Wind chimes",
+  "subtitles.null.field.sun_crack": "The sun cracks",
+  "subtitles.null.field.sun_shatter": "The sun shatters",
+  "subtitles.null.field.dawn": "The light returns",
+  "subtitles.null.field.toll": "A distant bell tolls",
+  "subtitles.null.field.footsteps": "Enormous footsteps",
+  "subtitles.null.field.drag": "Something is dragged through the wheat",
+  "subtitles.null.field.breath": "Heavy breathing",
+  "subtitles.null.field.heartbeat": "Heartbeat"
+}

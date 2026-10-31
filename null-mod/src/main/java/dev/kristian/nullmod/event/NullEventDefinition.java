@@ -145,7 +145,7 @@ public final class NullEventDefinition {
         private CorruptionStage minStage = CorruptionStage.START;
         private CorruptionStage maxStage = CorruptionStage.NULL;
         private int weight = COMMON;
-        private final int[] stageWeights = {100, 100, 100, 100, 100};
+        private final int[] stageWeights = {100, 100, 100, 100, 100, 100};
         private int cooldown = 20 * 60;
         private int globalCooldown;
         private int duration = 40;
@@ -183,14 +183,21 @@ public final class NullEventDefinition {
 
         /**
          * Per-stage weight percentages for stages 1..5 (100 = unchanged), for events that
-         * should become more or less common as the world decays.
+         * should become more or less common as the world decays. Stage 6 (HARVEST) gets the
+         * stage 5 value; it only matters for events whose range reaches HARVEST.
          */
         public Builder stageWeights(int s1, int s2, int s3, int s4, int s5) {
+            return stageWeights(s1, s2, s3, s4, s5, s5);
+        }
+
+        /** Per-stage weight percentages for stages 1..6 (100 = unchanged). */
+        public Builder stageWeights(int s1, int s2, int s3, int s4, int s5, int s6) {
             stageWeights[0] = s1;
             stageWeights[1] = s2;
             stageWeights[2] = s3;
             stageWeights[3] = s4;
             stageWeights[4] = s5;
+            stageWeights[5] = s6;
             return this;
         }
 

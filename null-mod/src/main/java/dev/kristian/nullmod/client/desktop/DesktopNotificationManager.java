@@ -62,7 +62,7 @@ final class DesktopNotificationManager {
      * kind appears, and lowering one never makes the others more frequent.
      */
     static double paceFactor(CorruptionStage stage) {
-        int[] weights = NORMAL_WEIGHTS[stage.number() - 1];
+        int[] weights = NORMAL_WEIGHTS[stage.tableIndex()];
         double total = 0.0;
         double allowedTotal = 0.0;
         for (int i = 0; i < weights.length; i++) {
@@ -80,13 +80,13 @@ final class DesktopNotificationManager {
      * the player's chance setting for that kind.
      */
     static DesktopWindowType chooseType(CorruptionStage stage, Random random, boolean stageChange) {
-        int[] normal = NORMAL_WEIGHTS[stage.number() - 1];
+        int[] normal = NORMAL_WEIGHTS[stage.tableIndex()];
         if (stageChange) {
             int[] special = switch (stage) {
                 case START, UNDER_MIDDLE -> normal;
                 case MIDDLE -> new int[] {40, 60, 0, 0, 0};
                 case ABOVE_MIDDLE -> new int[] {0, 20, 20, 60, 0};
-                case NULL -> new int[] {0, 0, 10, 0, 90};
+                case NULL, HARVEST -> new int[] {0, 0, 10, 0, 90};
             };
             DesktopWindowType type = weighted(special, random);
             if (type != null) {

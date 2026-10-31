@@ -24,8 +24,9 @@ public record GenerationRequest(ServerLevel level, ServerPlayer player, RandomSo
         return level.getServer();
     }
 
+    /** Stage number 1..5 for the generators' per-stage tables (HARVEST counts as NULL). */
     public int stageNumber() {
-        return stage.number();
+        return stage.tableIndex() + 1;
     }
 
     /** More attempts when forced, so an administrator's command almost always finds a spot. */

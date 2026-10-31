@@ -6,6 +6,7 @@ import dev.kristian.nullmod.core.CorruptionContext;
 import dev.kristian.nullmod.core.CorruptionStage;
 import dev.kristian.nullmod.core.CorruptionSystem;
 import dev.kristian.nullmod.core.WorldMemory;
+import dev.kristian.nullmod.field.FieldDimension;
 import dev.kristian.nullmod.registry.NullDimensions;
 import dev.kristian.nullmod.world.LocationFinder;
 import dev.kristian.nullmod.world.PlacementJob;
@@ -121,7 +122,9 @@ public final class NullrootManager implements CorruptionSystem {
         }
         long now = server.overworld().getGameTime();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (player.isSpectator() || !player.isAlive() || NullDimensions.isNull(player.level())) {
+            // Nothing grows in NULL's dimension or in the field (Stage 6), which nothing may change.
+            if (player.isSpectator() || !player.isAlive() || NullDimensions.isNull(player.level())
+                    || FieldDimension.isField(player.level())) {
                 continue;
             }
             Long next = nextGrowth.get(player.getUUID());
@@ -151,7 +154,7 @@ public final class NullrootManager implements CorruptionSystem {
     }
 
     private void growBackground(ServerPlayer player, CorruptionContext ctx, int max) {
-        float colonyChance = COLONY_CHANCE[ctx.stage().number() - 1];
+        float colonyChance = COLONY_CHANCE[ctx.stage().tableIndex()];
         if (random.nextFloat() < colonyChance && countNear(player) + 1 + MIN_SATELLITES <= max
                 && colony(player, ctx, random, false).isPresent()) {
             return;

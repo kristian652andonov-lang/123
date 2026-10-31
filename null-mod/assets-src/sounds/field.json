@@ -1,0 +1,188 @@
+{
+  "field.wind": {
+    "subtitle": "subtitles.null.field.wind",
+    "sounds": [
+      {
+        "name": "null:field/wind",
+        "attenuation_distance": 64,
+        "stream": true
+      }
+    ]
+  },
+  "field.drone": {
+    "subtitle": "subtitles.null.field.drone",
+    "sounds": [
+      {
+        "name": "null:field/drone",
+        "attenuation_distance": 32,
+        "stream": true
+      }
+    ]
+  },
+  "field.night_air": {
+    "subtitle": "subtitles.null.field.night_air",
+    "sounds": [
+      {
+        "name": "null:field/night_air",
+        "attenuation_distance": 32,
+        "stream": true
+      }
+    ]
+  },
+  "field.crow": {
+    "subtitle": "subtitles.null.field.crow",
+    "sounds": [
+      {
+        "name": "null:field/crow_1",
+        "attenuation_distance": 96
+      },
+      {
+        "name": "null:field/crow_2",
+        "attenuation_distance": 96
+      },
+      {
+        "name": "null:field/crow_3",
+        "attenuation_distance": 96
+      }
+    ]
+  },
+  "field.creak": {
+    "subtitle": "subtitles.null.field.creak",
+    "sounds": [
+      {
+        "name": "null:field/creak_1",
+        "attenuation_distance": 32
+      },
+      {
+        "name": "null:field/creak_2",
+        "attenuation_distance": 32
+      },
+      {
+        "name": "null:field/creak_3",
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "field.barn_door": {
+    "subtitle": "subtitles.null.field.barn_door",
+    "sounds": [
+      {
+        "name": "null:field/barn_door_1",
+        "attenuation_distance": 128
+      },
+      {
+        "name": "null:field/barn_door_2",
+        "attenuation_distance": 128
+      }
+    ]
+  },
+  "field.chimes": {
+    "subtitle": "subtitles.null.field.chimes",
+    "sounds": [
+      {
+        "name": "null:field/chimes_1",
+        "attenuation_distance": 48
+      },
+      {
+        "name": "null:field/chimes_2",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "field.sun_crack": {
+    "subtitle": "subtitles.null.field.sun_crack",
+    "sounds": [
+      {
+        "name": "null:field/sun_crack_1",
+        "attenuation_distance": 256
+      },
+      {
+        "name": "null:field/sun_crack_2",
+        "attenuation_distance": 256
+      },
+      {
+        "name": "null:field/sun_crack_3",
+        "attenuation_distance": 256
+      }
+    ]
+  },
+  "field.sun_shatter": {
+    "subtitle": "subtitles.null.field.sun_shatter",
+    "sounds": [
+      {
+        "name": "null:field/sun_shatter",
+        "attenuation_distance": 256
+      }
+    ]
+  },
+  "field.dawn": {
+    "subtitle": "subtitles.null.field.dawn",
+    "sounds": [
+      {
+        "name": "null:field/dawn",
+        "attenuation_distance": 64
+      }
+    ]
+  },
+  "field.toll": {
+    "subtitle": "subtitles.null.field.toll",
+    "sounds": [
+      {
+        "name": "null:field/toll",
+        "attenuation_distance": 256
+      }
+    ]
+  },
+  "field.footsteps": {
+    "subtitle": "subtitles.null.field.footsteps",
+    "sounds": [
+      {
+        "name": "null:field/footsteps_1",
+        "attenuation_distance": 160
+      },
+      {
+        "name": "null:field/footsteps_2",
+        "attenuation_distance": 160
+      },
+      {
+        "name": "null:field/footsteps_3",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "field.drag": {
+    "subtitle": "subtitles.null.field.drag",
+    "sounds": [
+      {
+        "name": "null:field/drag_1",
+        "attenuation_distance": 64
+      },
+      {
+        "name": "null:field/drag_2",
+        "attenuation_distance": 64
+      }
+    ]
+  },
+  "field.breath": {
+    "subtitle": "subtitles.null.field.breath",
+    "sounds": [
+      {
+        "name": "null:field/breath_1",
+        "attenuation_distance": 32
+      },
+      {
+        "name": "null:field/breath_2",
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "field.heartbeat": {
+    "subtitle": "subtitles.null.field.heartbeat",
+    "sounds": [
+      {
+        "name": "null:field/heartbeat",
+        "attenuation_distance": 16
+      }
+    ]
+  }
+}

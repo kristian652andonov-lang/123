@@ -89,7 +89,7 @@ def chain(name, parent, pivot, rot, lengths, thickness, curl, material, axis="z"
 
 def build_model():
     # Model space (pixels): +X is IT's left, +Y is down, -Z is its front; the ground is y = 24.
-    part("hips", None, (0, -38, 0), (0, 0, 0), [
+    part("hips", None, (0, -36, 0), (0, 0, 0), [
         (-7, -4, -4.5, 14, 7, 9, "flesh"),
         (-9.5, -2.5, -2, 3, 4, 4, "bone"),
         (6.5, -2, -2, 3, 4, 4, "bone"),
@@ -102,14 +102,14 @@ def build_model():
             (-1.5, 19, -4, 3, 4, 2, "bone"),
             (-3 if sx > 0 else 1, 4, -1.5, 2, 12, 3, "sinew"),
         ])
-        part(f"shin_{side}", f"thigh_{side}", (0, 24, 0), (1.05, 0, 0), [
+        part(f"shin_{side}", f"thigh_{side}", (0, LEG_THIGH, 0), (1.05, 0, 0), [
             (-2, -1, -2, 4, 27, 4, "sinew"),
             (-1, -2, 1.5, 2, 6, 3, "bone"),
         ] + ([(-2.5, 11, -2.5, 5, 3, 5, "bone")] if sx < 0 else []))
-        part(f"cannon_{side}", f"shin_{side}", (0, 26, 0), (-0.75, 0, 0), [
+        part(f"cannon_{side}", f"shin_{side}", (0, LEG_SHIN, 0), (LEG_CANNON_BEND, 0, 0), [
             (-1.5, -1, -1.5, 3, 19, 3, "bone"),
         ])
-        part(f"foot_{side}", f"cannon_{side}", (0, 18, 0), (0.15, 0, 0), [
+        part(f"foot_{side}", f"cannon_{side}", (0, LEG_CANNON, 0), (0.15, 0, 0), [
             (-2.5, -1, -7, 5, 3, 9, "black"),
             (-2.5, 0, -11, 1, 2, 4, "blade"),
             (1.5, 0, -11, 1, 2, 4, "blade"),
@@ -126,71 +126,94 @@ def build_model():
         (3, -15, -1, 2, 7, 2, "sinew"),
         (-1, -9, -4, 2, 6, 1, "sinew"),
     ])
-    # The chest: caved in and open at the front, a back plate, broken side walls, the collar bar
-    # the arms hang from, and the dark wet inside.
+    # The chest: a hunched, heavy back with the shoulder blades and spine pushing through, caved in
+    # and open at the front: broken side walls, the collar bar the arms hang from, the dark wet inside.
     part("chest", "spine", (0, -16, 0), (0.25, 0, 0), [
-        (-11, -21, 2, 22, 21, 5, "back"),
-        (8, -20, -4, 3, 15, 6, "flesh"),
-        (-11, -17, -3, 3, 10, 5, "flesh"),
-        (-15, -24, -2, 30, 3, 6, "bone"),
-        (-6, -17, -1, 12, 13, 3, "cavity"),
-        (-2, -4, -3, 4, 4, 5, "flesh"),
+        (-11, -22, 1, 22, 20, 8, "back"),
+        (-8, -27, 2, 16, 6, 8, "back"),
+        (5, -24, 8.5, 7, 10, 2, "bone"),
+        (-12, -23, 8.5, 6, 9, 2, "bone"),
+        (-1, -25, 9.5, 2, 2, 2, "bone"),
+        (-1, -20, 9.5, 2, 2, 2, "bone"),
+        (-1, -15, 9.5, 2, 2, 2, "bone"),
+        (-1, -10, 9.5, 2, 2, 2, "bone"),
+        (7.5, -21, -5, 3, 16, 7, "flesh"),
+        (-10.5, -18, -4, 3, 11, 6, "flesh"),
+        (-15, -25, -3, 30, 3, 7, "bone"),
+        (-7, -19, -2, 14, 16, 4, "cavity"),
+        (-4, -4, -4, 8, 5, 8, "flesh"),
     ])
-    part("sternum", "chest", (0, -21, -4), (0.6, 0, 0.35), [(-1, 0, -1, 2, 8, 2, "bone")])
+    part("sternum", "chest", (0, -22, -4), (0.6, 0, 0.35), [(-1, 0, -1, 2, 8, 2, "bone")])
     # Ribs splayed open like a burst cage; two segments each so they curve. Three on the right,
     # one of them snapped short.
     rib_rows = [(-19, 0.0), (-15, 0.12), (-11, 0.24), (-7, 0.36)]
     for k, (y, drop) in enumerate(rib_rows):
-        part(f"rib_l{k}", "chest", (7.5, y, -3), (drop - 0.1, -0.55 - 0.1 * k, 0.15), [(-1, -1, -10, 2, 2, 10, "bone")])
+        part(f"rib_l{k}", "chest", (8, y, -4.5), (drop - 0.1, -0.55 - 0.1 * k, 0.15), [(-1, -1, -10, 2, 2, 10, "bone")])
         part(f"rib_l{k}/tip", f"rib_l{k}", (0, 0, -9.5), (0.2, -0.65, 0), [(-0.5, -0.5, -6, 1, 1, 6, "bone")], "tip")
     for k, (y, drop) in enumerate(rib_rows[:3]):
-        part(f"rib_r{k}", "chest", (-7.5, y, -3), (drop - 0.05, 0.6 + 0.12 * k, -0.15), [(-1, -1, -10, 2, 2, 10, "bone")])
+        part(f"rib_r{k}", "chest", (-8, y, -3.5), (drop - 0.05, 0.6 + 0.12 * k, -0.15), [(-1, -1, -10, 2, 2, 10, "bone")])
         if k != 1:
             part(f"rib_r{k}/tip", f"rib_r{k}", (0, 0, -9.5), (0.25, 0.6, 0), [(-0.5, -0.5, -6, 1, 1, 6, "bone")], "tip")
     # Tentacles out of the open chest (forward, drooping) and out of the back (rising, arching).
-    chest_t = [((-3, -12, -1), (0.35, -0.35, 0)), ((3, -9, -1), (0.45, 0.4, 0)), ((0, -15, -1), (0.1, 0.05, 0))]
-    for i, (pivot, rot) in enumerate(chest_t):
-        chain(f"ct{i}", "chest", pivot, (-rot[0], math.pi + rot[1], rot[2]), [6, 6, 6, 6, 5, 5], [3, 3, 2, 2, 2, 1],
+    for i, (pivot, rot) in enumerate(CHEST_TENTACLES):
+        chain(f"ct{i}", "chest", pivot, rot, [6, 6, 6, 6, 5, 5], [3, 3, 2, 2, 2, 1],
               (-0.15, 0.06 * (1 if i % 2 else -1), 0), "tentacle")
-    back_t = [((-6, -19, 6), (0.85, -0.3, 0.1)), ((6, -17, 6), (0.95, 0.35, -0.1)),
-              ((-4, -9, 6), (0.55, -0.55, 0.0)), ((7, -8, 6), (0.6, 0.6, 0.0))]
-    for i, (pivot, rot) in enumerate(back_t):
-        chain(f"bt{i}", "chest", pivot, rot, [8, 8, 8, 8, 7, 7, 6], [4, 4, 3, 3, 3, 2, 1],
+    for i, (pivot, rot) in enumerate(BACK_TENTACLES):
+        chain(f"bt{i}", "chest", pivot, rot, [8, 8, 8, 7, 7, 6, 6], [4, 4, 3, 3, 3, 2, 1],
               (-0.16, 0.04 * (1 if i % 2 else -1), 0), "tentacle")
     # Neck and the small head with its hanging jaw.
-    part("neck", "chest", (0, -22, -4), (0.55, 0, 0), [
-        (-2, -11, -2, 4, 11, 4, "sinew"),
-        (-1, -10, 2, 2, 2, 2, "bone"),
-        (-1, -5, 2, 2, 2, 2, "bone"),
+    part("neck", "chest", (0, -25, -2), (0.55, 0, 0), [
+        (-2, -13, -2, 4, 13, 4, "sinew"),
+        (-1, -12, 2, 2, 2, 2, "bone"),
+        (-1, -7, 2, 2, 2, 2, "bone"),
     ])
-    part("head", "neck", (0, -10, -1), (-0.85, 0, 0), [
-        (-4, -8, -6, 8, 8, 8, "head"),
-        (-4.5, -9, -7, 9, 2, 3, "brow"),
-        (-3, 0, -6, 6, 2, 1, "teeth"),
+    part("head", "neck", (0, -12, -1), (-0.85, 0, 0), [
+        (-4, -8, -7, 8, 8, 9, "head"),
+        (-4.5, -6, -8, 9, 1, 2, "brow"),
+        (-3, -9, -4, 6, 1, 6, "head"),
+        (-3, 0, -7, 6, 2, 1, "teeth"),
         (2.5, -6, -2, 2, 3, 3, "flesh"),
     ])
-    part("jaw", "head", (0, 0, 1), (0.35, 0, 0), [
-        (-3.5, 0, -7, 7, 2, 7, "jaw"),
-        (-3, -2, -7, 6, 2, 1, "teeth"),
+    part("jaw", "head", (0, 0, 1.5), (0.35, 0, 0), [
+        (-3.5, 0, -8, 7, 2, 8, "jaw"),
+        (-3, -2, -8, 6, 2, 1, "teeth"),
     ])
     # Arms: far too long, hanging past the knees; bone blades for fingers.
     for side, sx in (("l", 1), ("r", -1)):
-        part(f"shoulder_{side}", "chest", (14 * sx, -21, 0), (0, 0, 0), [(-3 if sx > 0 else -2, -3, -3, 5, 5, 6, "bone")])
+        part(f"shoulder_{side}", "chest", (14 * sx, -23, 1), (0, 0, 0), [(-3 if sx > 0 else -2, -3, -3, 5, 5, 6, "bone")])
         part(f"arm_{side}", f"shoulder_{side}", (1.5 * sx, 0, 0), (-0.15, 0, -0.12 * sx), [
             (-2.5, -2, -2.5, 5, 33, 5, "flesh"),
             (-1, 26, 2, 2, 3, 4, "bone"),
         ])
-        part(f"fore_{side}", f"arm_{side}", (0, 31, 0), (-0.3, 0, 0), [
+        part(f"fore_{side}", f"arm_{side}", (0, ARM_UPPER, 0), (-0.3, 0, 0), [
             (-2, -1, -2, 4, 31, 4, "sinew"),
             (-1, 9, -3, 2, 7, 1, "bone"),
         ])
-        part(f"wrist_{side}", f"fore_{side}", (0, 30, 0), (-0.1, 0, 0), [(-1.5, -1, -1.5, 3, 11, 3, "bone")])
-        part(f"hand_{side}", f"wrist_{side}", (0, 10, 0), (0, 0, 0), [(-3, -1, -2, 6, 7, 4, "black")])
+        part(f"wrist_{side}", f"fore_{side}", (0, ARM_FORE, 0), (-0.1, 0, 0), [(-1.5, -1, -1.5, 3, 11, 3, "bone")])
+        part(f"hand_{side}", f"wrist_{side}", (0, ARM_WRIST, 0), (0, 0, 0), [
+            (-2.5, -1, -1.5, 5, 6, 3, "black"),
+            (-2, 4, -2, 4, 1, 1, "bone"),
+        ])
         for k in range(4):
             name = f"finger_{side}{k}"
-            part(name, f"hand_{side}", (-2.25 + 1.5 * k, 5.5, -0.5), (-0.25, 0, (k - 1.5) * 0.1 * sx), [(-0.5, 0, -0.5, 1, 10, 1, "blade")],
+            part(name, f"hand_{side}", (-1.875 + 1.25 * k, 4.5, 0), (-0.25, 0, (k - 1.5) * 0.1 * sx), [(-0.5, 0, -0.5, 1, 11, 1, "blade")],
                  f"finger{k}")
-            part(f"{name}/tip", name, (0, 9.5, 0), (-0.35, 0, 0), [(-0.5, 0, -0.5, 1, 8, 1, "blade")], "tip")
+            part(f"{name}/tip", name, (0, 10.5, 0), (-0.35, 0, 0), [(-0.5, 0, -0.5, 1, 9, 1, "blade")], "tip")
+
+
+# Joint lengths the pose solver needs (pixels); ItModel uses the same values.
+LEG_THIGH = 24.0
+LEG_SHIN = 26.0
+LEG_CANNON = 18.0
+LEG_CANNON_BEND = -0.75
+ARM_UPPER = 31.0
+ARM_FORE = 30.0
+ARM_WRIST = 10.0
+ARM_PALM = 5.0
+CHEST_TENTACLES = [((-3, -13, -2), (-0.35, math.pi - 0.35, 0)), ((3, -10, -2), (-0.45, math.pi + 0.4, 0)),
+                   ((0, -16, -2), (-0.1, math.pi + 0.05, 0))]
+BACK_TENTACLES = [((-5, -21, 8.5), (0.55, -0.3, 0.1)), ((5, -19, 8.5), (0.65, 0.35, -0.1)),
+                  ((-7, -12, 8.5), (0.3, -0.55, 0.0)), ((6, -10, 8.5), (0.35, 0.6, 0.0))]
 
 
 build_model()
@@ -428,7 +451,7 @@ def paint():
                 g = glow_for(p, b, face, pts, uw, vh, seed)
                 if g is not None:
                     glow[v0:v0 + vh, u0:u0 + uw] = g
-                    if p.name == "head" and face == "north" and b.material == "head":
+                    if p.name == "head" and face == "north" and b is p.boxes[0]:
                         # Under the glow the eye sockets are black.
                         lit = g[..., 3] > 0
                         tex[v0:v0 + vh, u0:u0 + uw, :3][lit] = [14, 4, 4]
@@ -438,34 +461,35 @@ def paint():
 
 def glow_for(p, b, face, pts, uw, vh, seed):
     out = np.zeros((vh, uw, 4))
-    if p.name == "head" and b.material == "head" and face == "north":
-        # Two eyes and two smaller wrong ones, on an 8x8 face.
-        eyes = [((1, 3), (2, 2), 1.0), ((5, 3), (2, 2), 1.0), ((4, 1), (1, 1), 0.7), ((6, 5), (1, 1), 0.55)]
-        for (x, y), (w, h), strength in eyes:
-            for yy in range(y, y + h):
-                for xx in range(x, x + w):
-                    out[yy, xx] = [255 * strength, 238 * strength, 214 * strength, 255]
-            # A red bleed around each eye.
-            for yy in range(max(0, y - 1), min(vh, y + h + 1)):
-                for xx in range(max(0, x - 1), min(uw, x + w + 1)):
-                    if out[yy, xx, 3] == 0:
-                        out[yy, xx] = [120 * strength, 12 * strength, 8 * strength, 255]
+    if p.name == "head" and b is p.boxes[0] and face == "north":
+        # Two slit eyes burning white over an ember-red underglow, and two smaller wrong ones.
+        eyes = [((1, 3), 2, 1.0), ((5, 3), 2, 1.0), ((4, 1), 1, 0.65), ((6, 5), 1, 0.5)]
+        for (x, y), w, strength in eyes:
+            for xx in range(x, x + w):
+                out[y, xx] = [255 * strength, 240 * strength, 206 * strength, 255]
+                if strength >= 1.0 and y + 1 < vh:
+                    out[y + 1, xx] = [176, 44, 18, 255]
+            if strength >= 1.0:
+                for xx in (x - 1, x + w):
+                    if 0 <= xx < uw and out[y, xx, 3] == 0:
+                        out[y, xx] = [64, 6, 4, 255]
         return out
     if b.material == "cavity" and face == "north":
         n = fbm(pts, 3.0, seed + 91)
-        v = np.clip(n * 1.6 - 0.45, 0, 1)
-        out[..., 0] = 26 + 70 * v
-        out[..., 1] = 2 + 6 * v
-        out[..., 2] = 2 + 4 * v
+        ridge = np.clip(1 - np.abs(fbm(pts, 2.2, seed + 92) - 0.5) * 7, 0, 1)
+        v = np.clip(n * 1.4 - 0.5, 0, 1) * 0.6 + ridge * 0.4
+        out[..., 0] = 10 + 62 * v
+        out[..., 1] = 1 + 4 * v
+        out[..., 2] = 1 + 3 * v
         out[..., 3] = 255
         return out
     if p.name == "chest" and b.material == "back" and face == "north":
         # The inside of the back plate, seen through the open chest: the faintest red.
         n = fbm(pts, 4.0, seed + 93)
         v = np.clip(n * 1.4 - 0.5, 0, 1)
-        out[..., 0] = 10 + 34 * v
-        out[..., 1] = 1 + 2 * v
-        out[..., 2] = 1 + 2 * v
+        out[..., 0] = 4 + 22 * v
+        out[..., 1] = 1 + 1 * v
+        out[..., 2] = 1 + 1 * v
         out[..., 3] = 255
         return out
     return None
@@ -565,6 +589,18 @@ final class ItModelLayer {{
 
 
 # ====================================================================== posing (mirror of ItModel's maths)
+#
+# ItModel poses the model with exactly these formulas (kept in step by hand): the torso from the
+# stance blend, the legs by 2-bone IK onto gait foot paths (the shin and cannon act as one rigid
+# lower leg), the arms by 3-bone-as-2 IK onto hand targets (or hanging), the tentacles by layered
+# waves. All in model space (pixels), angles in radians.
+
+STAND_HIP_Y = -36.0
+RUN_HIP_Y = -24.0
+CROUCH_HIP_Y = -21.0
+ANKLE_Y = 22.0
+HAND_Y = 15.0
+
 
 def rot_zyx(x, y, z):
     cx, sx = math.cos(x), math.sin(x)
@@ -576,77 +612,275 @@ def rot_zyx(x, y, z):
     return rz @ ry @ rx
 
 
+def euler_zyx(r):
+    """Angles (x, y, z) with r = Rz(z) Ry(y) Rx(x), as ModelPart applies them."""
+    sy = -r[2, 0]
+    y = math.asin(max(-1.0, min(1.0, sy)))
+    if math.cos(y) > 1e-4:
+        return math.atan2(r[2, 1], r[2, 2]), y, math.atan2(r[1, 0], r[0, 0])
+    return math.atan2(-r[1, 2], r[1, 1]), y, 0.0
+
+
+class Pose:
+    """Absolute pivot (pixels) and rotation (radians) of every part, starting at the rest pose."""
+
+    def __init__(self):
+        self.v = {p.name: list(p.pivot) + list(p.rot) for p in PARTS}
+
+    def set(self, name, x=None, y=None, z=None, rx=None, ry=None, rz=None):
+        v = self.v[name]
+        for i, value in enumerate((x, y, z, rx, ry, rz)):
+            if value is not None:
+                v[i] = value
+
+    def add(self, name, rx=0.0, ry=0.0, rz=0.0):
+        v = self.v[name]
+        v[3] += rx
+        v[4] += ry
+        v[5] += rz
+
+    def frame(self, name):
+        """Model-space rotation and origin of a part's frame."""
+        chain_ = []
+        p = BY_NAME[name]
+        while p is not None:
+            chain_.append(p)
+            p = p.parent
+        r = np.eye(3)
+        o = np.zeros(3)
+        for q in reversed(chain_):
+            v = self.v[q.name]
+            o = o + r @ np.array(v[0:3])
+            r = r @ rot_zyx(v[3], v[4], v[5])
+        return r, o
+
+
+def solve_leg(pose, side, target, toe):
+    hips = pose.v["hips"]
+    thigh = pose.v[f"thigh_{side}"]
+    hip_r, hip_o = pose.frame("hips")
+    hip = hip_o + hip_r @ np.array(thigh[0:3])
+    dx, dy, dz = target[0] - hip[0], target[1] - hip[1], target[2] - hip[2]
+    splay = -math.atan2(dx, dy)
+    down = math.hypot(dx, dy)
+    ly = LEG_SHIN + LEG_CANNON * math.cos(LEG_CANNON_BEND)
+    lz = LEG_CANNON * math.sin(LEG_CANNON_BEND)
+    l2 = math.hypot(ly, lz)
+    delta = math.atan2(lz, ly)
+    l1 = LEG_THIGH
+    dist = max(abs(l1 - l2) + 0.5, min(l1 + l2 - 0.5, math.hypot(down, dz)))
+    phi = math.atan2(dz, down)
+    cos_a = (l1 * l1 + dist * dist - l2 * l2) / (2 * l1 * dist)
+    a1 = phi - math.acos(max(-1.0, min(1.0, cos_a)))
+    ky, kz = l1 * math.cos(a1), l1 * math.sin(a1)
+    ty, tz = dist * math.cos(phi), dist * math.sin(phi)
+    a2 = math.atan2(tz - kz, ty - ky)
+    pose.set(f"thigh_{side}", rx=a1 - hips[3], ry=0.0, rz=splay)
+    pose.set(f"shin_{side}", rx=(a2 - delta) - a1)
+    pose.set(f"cannon_{side}", rx=LEG_CANNON_BEND)
+    pose.set(f"foot_{side}", rx=toe - (a2 - delta + LEG_CANNON_BEND))
+
+
+def solve_arm(pose, side, target, pole):
+    """Upper arm (x, y, z) in its parent frame and the elbow bend, reaching the palm to target."""
+    arm = pose.v[f"arm_{side}"]
+    sh_r, sh_o = pose.frame(f"shoulder_{side}")
+    s = sh_o + sh_r @ np.array(arm[0:3])
+    l1 = ARM_UPPER
+    l2 = ARM_FORE + ARM_WRIST + ARM_PALM
+    d = np.array(target, dtype=float) - s
+    length = float(np.linalg.norm(d))
+    dn = d / length if length > 1e-6 else np.array([0.0, 1.0, 0.0])
+    dist = max(abs(l1 - l2) + 0.5, min(l1 + l2 - 0.5, length))
+    a = (l1 * l1 + dist * dist - l2 * l2) / (2 * dist)
+    h = math.sqrt(max(0.0, l1 * l1 - a * a))
+    q = np.array(pole, dtype=float)
+    q = q - (q @ dn) * dn
+    ql = float(np.linalg.norm(q))
+    q = q / ql if ql > 1e-6 else np.array([0.0, 0.0, 1.0])
+    elbow = s + dn * a + q * h
+    u = (elbow - s) / l1
+    f = s + dn * dist - elbow
+    f = f / float(np.linalg.norm(f))
+    w = f - (f @ u) * u
+    wl = float(np.linalg.norm(w))
+    w = w / wl if wl > 1e-6 else np.array([0.0, 0.0, -1.0])
+    z_axis = -w
+    x_axis = np.cross(u, z_axis)
+    rm = np.stack([x_axis, u, z_axis], 1)
+    local = sh_r.T @ rm
+    x, y, z = euler_zyx(local)
+    bend = math.acos(max(-1.0, min(1.0, float(u @ f))))
+    return (x, y, z), -bend
+
+
+def frac(v):
+    return v - math.floor(v)
+
+
+def smooth(t):
+    t = max(0.0, min(1.0, t))
+    return t * t * (3 - 2 * t)
+
+
+class State:
+    """What ItModel knows about one IT in one frame."""
+
+    def __init__(self, **kw):
+        self.t = 0.0          # age in ticks
+        self.run = 0.0        # 0 upright .. 1 galloping on all fours
+        self.speed = 0.0      # blocks per tick
+        self.phase = 0.0      # gait cycles
+        self.crouch = 0.0     # 0..1 bent down (at a window, seizing)
+        self.scream = 0.0     # 0..1
+        self.look_yaw = 0.0
+        self.look_pitch = 0.0
+        self.jaw = 0.0        # extra jaw opening
+        self.right_target = None  # model-space palm targets (kill, scrape, window)
+        self.left_target = None
+        self.right_weight = 0.0
+        self.left_weight = 0.0
+        self.grip = 0.0       # 0..1 right fingers closed
+        self.pierce = 0.0     # 0..1 left fingers straight and together
+        self.tentacle_reach = 0.0
+        self.tentacle_target = None
+        self.neck_extra = 0.0
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+
+def cycle_length(speed):
+    """Blocks covered per gait cycle: long slow steps when it prowls, huge bounds at a gallop."""
+    return 4.0 + 4.0 * min(1.0, speed / 0.78)
+
+
+def stride_px(speed, duty):
+    return 16.0 * duty * cycle_length(speed) * min(1.0, speed / 0.04)
+
+
+def pose_model(st):
+    pose = Pose()
+    run = st.run
+    crouch = st.crouch
+    ph = st.phase
+    tau = 2.0 * math.pi
+    breath = math.sin(st.t * 0.09)
+    bob = 2.2 * run * math.sin(2.0 * tau * ph)
+    hip_y = STAND_HIP_Y + (RUN_HIP_Y - STAND_HIP_Y) * run + (CROUCH_HIP_Y - STAND_HIP_Y) * crouch * (1.0 - run) + bob
+    hips_pitch = 0.12 * run + 0.1 * crouch
+    spine_pitch = 0.35 + 0.32 * run + 0.42 * crouch + 0.015 * breath
+    chest_pitch = 0.25 + 0.26 * run + 0.36 * crouch + 0.02 * breath + 0.07 * run * math.sin(2.0 * tau * ph + 0.6)
+    pose.set("hips", y=hip_y, rx=hips_pitch)
+    pose.set("spine", rx=spine_pitch)
+    pose.set("chest", rx=chest_pitch, rz=0.03 * math.sin(st.t * 0.05))
+    neck_pitch = 0.55 - 0.45 * run + 0.2 * crouch + 0.25 * st.scream + st.neck_extra
+    torso = hips_pitch + spine_pitch + chest_pitch
+    pose.set("neck", rx=neck_pitch)
+    pose.set("head", rx=-(torso + neck_pitch) + 0.3 - 0.15 * run + st.look_pitch - 0.25 * st.scream + 0.35 * st.neck_extra,
+             ry=st.look_yaw, rz=0.14 * st.scream * math.sin(st.t * 1.9))
+    pose.set("jaw", rx=0.35 + 0.15 * breath * (1 - st.scream) + st.jaw + 1.0 * st.scream)
+
+    # Legs: feet on paths under the hips, planted while in stance.
+    duty = 0.62 + (0.42 - 0.62) * run
+    lift = (5.0 + 9.0 * run) * min(1.0, st.speed / 0.12)
+    stride = stride_px(st.speed, duty)
+    for side, sx, off_walk, off_run in (("l", 1.0, 0.0, 0.0), ("r", -1.0, 0.5, 0.12)):
+        p = frac(ph + off_walk + (off_run - off_walk) * run)
+        zc = 2.0 + 3.0 * run - 5.0 * crouch
+        x = sx * (7.0 + 2.5 * crouch)
+        if p < duty:
+            sp = p / duty
+            z = zc - stride * 0.5 + stride * sp
+            y = ANKLE_Y
+            toe = 0.0
+        else:
+            sp = (p - duty) / (1.0 - duty)
+            z = zc + stride * 0.5 - stride * smooth(sp)
+            y = ANKLE_Y - lift * math.sin(math.pi * sp)
+            toe = 0.55 * math.sin(math.pi * sp)
+        solve_leg(pose, side, (x, y, z), toe)
+
+    # Arms: hanging and swinging when it walks, front legs when it gallops, reaching for targets.
+    for side, sx, off_walk, off_run, target, weight in (
+            ("l", 1.0, 0.5, 0.5, st.left_target, st.left_weight),
+            ("r", -1.0, 0.0, 0.62, st.right_target, st.right_weight)):
+        swing = 0.3 * min(1.0, st.speed / 0.2) * (1.0 - run) * math.sin(tau * (ph + off_walk))
+        hang = (-torso - 0.1 + swing - 0.45 * st.scream, 0.0, -0.1 * sx - 0.55 * sx * st.scream)
+        hang_fore = -0.25 - 0.3 * st.scream
+        arm = hang
+        fore = hang_fore
+        planted = 0.0
+        if run > 0.01:
+            p = frac(ph + off_run)
+            sh_r, sh_o = pose.frame(f"shoulder_{side}")
+            sz = sh_o[2]
+            astride = stride * 0.85
+            zc = sz - 18.0
+            if p < duty:
+                sp = p / duty
+                z = zc - astride * 0.5 + astride * sp
+                y = HAND_Y
+                planted = math.sin(math.pi * sp)
+            else:
+                sp = (p - duty) / (1.0 - duty)
+                z = zc + astride * 0.5 - astride * smooth(sp)
+                y = HAND_Y - (6.0 + 14.0 * run) * math.sin(math.pi * sp)
+            ik, bend = solve_arm(pose, side, (sx * 15.0, y, z), (sx * 0.7, -0.4, 1.0))
+            arm = tuple(h + (i - h) * run for h, i in zip(arm, ik))
+            fore = fore + (bend - fore) * run
+        if target is not None and weight > 0.0:
+            ik, bend = solve_arm(pose, side, target, (sx * 0.6, 0.8, 0.3))
+            arm = tuple(h + (i - h) * weight for h, i in zip(arm, ik))
+            fore = fore + (bend - fore) * weight
+        pose.set(f"arm_{side}", rx=arm[0], ry=arm[1], rz=arm[2])
+        pose.set(f"fore_{side}", rx=fore)
+        pose.set(f"wrist_{side}", rx=-0.1 * (1.0 - run) * (1.0 - weight))
+        grip = st.grip if side == "r" else 0.0
+        pierce = st.pierce if side == "l" else 0.0
+        for k in range(4):
+            spread = (k - 1.5) * sx * (0.1 + 0.25 * st.scream + 0.15 * planted * run) * (1.0 - pierce)
+            curl = -0.25 - 0.4 * planted * run - 1.0 * grip + 0.2 * pierce
+            pose.set(f"finger_{side}{k}", rx=curl, rz=spread)
+            pose.set(f"finger_{side}{k}/tip", rx=-0.35 - 0.9 * grip + 0.3 * pierce + 0.2 * planted * run)
+
+    # Tentacles: layered waves, never in step; dragged back at a gallop, flaring when it screams.
+    for p in PARTS:
+        base = p.name.split("/")[0]
+        if base[:2] not in ("ct", "bt") or not base[2:].isdigit():
+            continue
+        i = int(base[2:])
+        k = 0 if "/" not in p.name else int(p.name.split("/s")[-1])
+        back = base.startswith("bt")
+        along = (k + 1) / 7.0
+        amp = (0.07 + 0.15 * along) * (1.0 if back else 1.4) * (1.0 + 1.5 * st.scream + 0.8 * st.tentacle_reach)
+        speed = (0.10 + 0.021 * i) * (1.0 + 1.2 * st.scream + 0.6 * run)
+        rx = amp * math.sin(st.t * speed + i * 2.1 + k * 0.7)
+        ry = amp * math.cos(st.t * speed * 0.83 + i * 1.3 + k * 0.55)
+        if back:
+            rx += -0.16 * run * along + (0.3 * st.scream if k == 0 else 0.0)
+        else:
+            rx += 0.1 * run * along - 0.25 * st.tentacle_reach * (1 if k == 0 else 0.3)
+        pose.add(p.name, rx=rx, ry=ry)
+    return pose
+
+
 def world_matrices(pose):
-    """Model-space 4x4 matrix of every part for a pose {name: (dx, dy, dz, drx, dry, drz)} added to the rest pose."""
     mats = {}
     for p in PARTS:
-        dx, dy, dz, rx, ry, rz = pose.get(p.name, (0, 0, 0, 0, 0, 0))
+        v = pose.v[p.name]
         m = np.eye(4)
-        m[:3, 3] = [p.pivot[0] + dx, p.pivot[1] + dy, p.pivot[2] + dz]
-        m[:3, :3] = rot_zyx(p.rot[0] + rx, p.rot[1] + ry, p.rot[2] + rz)
+        m[:3, 3] = v[0:3]
+        m[:3, :3] = rot_zyx(v[3], v[4], v[5])
         mats[p.name] = (mats[p.parent.name] if p.parent else np.eye(4)) @ m
     return mats
 
 
-def preview_pose(kind, phase=0.0, t=0.0):
-    """A few of the poses ItModel produces, with the same formulas (kept in step by hand)."""
-    pose = {}
+def model_to_world(m):
+    return np.array([m[0] / 16.0, -m[1] / 16.0 + 1.501, -m[2] / 16.0])
 
-    def add(name, dx=0, dy=0, dz=0, rx=0, ry=0, rz=0):
-        a = pose.get(name, (0, 0, 0, 0, 0, 0))
-        pose[name] = (a[0] + dx, a[1] + dy, a[2] + dz, a[3] + rx, a[4] + ry, a[5] + rz)
 
-    run = 1.0 if kind == "run" else 0.0
-    peer = 1.0 if kind == "peer" else 0.0
-    two_pi = 2 * math.pi
-    # Stance.
-    add("hips", dy=11 * run + 13 * peer + 2.2 * run * math.sin(2 * two_pi * phase), rx=0.22 * run + 0.18 * peer)
-    add("spine", rx=0.42 * run + 0.5 * peer)
-    add("chest", rx=0.36 * run + 0.42 * peer)
-    add("neck", rx=-0.6 * run - 0.3 * peer)
-    add("head", rx=-0.45 * run - 0.6 * peer)
-    for side, sx, off in (("l", 1, 0.0), ("r", -1, 0.12)):
-        s = math.sin(two_pi * (phase + off))
-        c = math.cos(two_pi * (phase + off))
-        lift = max(0.0, c)
-        add(f"thigh_{side}", rx=-0.25 * peer + run * (0.75 * s - 0.25) - 0.35 * peer)
-        add(f"shin_{side}", rx=0.3 * peer + run * (0.35 + 0.45 * lift))
-        add(f"cannon_{side}", rx=-0.15 * peer + run * (-0.3 * lift))
-        add(f"foot_{side}", rx=run * (0.4 * s))
-        sa = math.sin(two_pi * (phase + 0.5 + off * 1.5))
-        ca = math.cos(two_pi * (phase + 0.5 + off * 1.5))
-        add(f"arm_{side}", rx=-run * (1.15 + 0.7 * sa) - peer * 0.9, rz=0.08 * sx * run)
-        add(f"fore_{side}", rx=run * (0.25 + 0.55 * max(0.0, ca)) - peer * 0.4)
-        add(f"wrist_{side}", rx=run * 0.5 * max(0.0, -ca))
-    if kind == "scream":
-        add("jaw", rx=1.25)
-        add("head", rx=-0.25)
-        add("neck", rx=-0.2)
-        add("arm_l", rz=-0.5)
-        add("arm_r", rz=0.5)
-    if kind == "kill":
-        add("spine", rx=-0.1)
-        add("arm_r", rx=-2.1, rz=0.25)
-        add("fore_r", rx=-0.55)
-        add("arm_l", rx=-1.4, rz=-0.3)
-        add("fore_l", rx=-1.2)
-        add("jaw", rx=1.2)
-        add("neck", rx=0.25)
-        for k in range(4):
-            add(f"finger_r{k}", rx=-0.9)
-            add(f"finger_r{k}/tip", rx=-0.8)
-    # Tentacles: layered waves, never in step; dragged back when it runs.
-    for p in PARTS:
-        base = p.name.split("/")[0]
-        if base[:2] in ("ct", "bt") and base[2:].isdigit():
-            i = int(base[2:])
-            k = 0 if "/" not in p.name else int(p.name.split("/s")[-1])
-            along = (k + 1) / 7.0
-            amp = (0.08 + 0.16 * along) * (1.5 if base.startswith("ct") else 1.0)
-            w1 = 0.11 + 0.023 * i
-            add(p.name, rx=amp * math.sin(t * w1 + i * 2.1 + k * 0.7) + (0.12 * run * along if base.startswith("bt") else 0),
-                ry=amp * math.cos(t * w1 * 0.83 + i * 1.3 + k * 0.55))
-    return pose
+def world_to_model(w):
+    return np.array([w[0] * 16.0, (1.501 - w[1]) * 16.0, -w[2] * 16.0])
 
 
 # ====================================================================== preview renderer
@@ -657,80 +891,87 @@ LIGHT0 /= np.linalg.norm(LIGHT0)
 LIGHT1 /= np.linalg.norm(LIGHT1)
 
 
-def render(tex, glow, pose, yaw_deg, pitch_deg, size=720, dark=False, distance=11.0, extra=None):
+def box_quads(x0, y0, z0, x1, y1, z1):
+    """The six faces of a box, corners ordered so texture coordinates run (u0,v0) (u1,v0) (u1,v1) (u0,v1)."""
+    return {
+        "top": [(x0, y0, z1), (x1, y0, z1), (x1, y0, z0), (x0, y0, z0)],
+        "bottom": [(x0, y1, z0), (x1, y1, z0), (x1, y1, z1), (x0, y1, z1)],
+        "west": [(x0, y0, z1), (x0, y0, z0), (x0, y1, z0), (x0, y1, z1)],
+        "north": [(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0)],
+        "east": [(x1, y0, z0), (x1, y0, z1), (x1, y1, z1), (x1, y1, z0)],
+        "south": [(x1, y0, z1), (x0, y0, z1), (x0, y1, z1), (x1, y1, z1)],
+    }
+
+
+GROUND = np.zeros((16, 16, 4))
+GROUND[..., 3] = 255
+GROUND[..., :3] = np.where(((np.indices((16, 16)).sum(0)) % 2 == 0)[..., None], [70, 66, 52], [58, 55, 44])
+VICTIM = np.zeros((2, 2, 4))
+VICTIM[...] = [150, 120, 100, 255]
+
+
+def render(tex, glow, pose, yaw_deg, pitch_deg, size=720, dark=False, distance=12.0, victim=None, target_y=3.0, target_z=0.0):
     """Perspective view of the posed model. World: blocks, y up, IT standing at the origin facing +Z."""
     mats = world_matrices(pose)
     img = np.zeros((size, size, 3))
     img[:] = (6, 6, 8) if dark else (122, 128, 138)
-    if not dark:
-        grad = np.linspace(0, 1, size)[:, None]
-        img[:] = img * (1.0 - 0.25 * grad[..., None])
     zbuf = np.full((size, size), np.inf)
     yaw = math.radians(yaw_deg)
     pitch = math.radians(pitch_deg)
-    target = np.array([0.0, 3.1, 0.0])
+    target = np.array([0.0, target_y, target_z])
     eye = target + distance * np.array([math.sin(yaw) * math.cos(pitch), math.sin(pitch), math.cos(yaw) * math.cos(pitch)])
     fwd = target - eye
     fwd /= np.linalg.norm(fwd)
     right = np.cross(fwd, [0, 1, 0])
     right /= np.linalg.norm(right)
     up = np.cross(right, fwd)
-    focal = size * 1.25
-
-    def to_world(m_pts):
-        # Model pixels -> blocks, entity facing +Z: (x/16, -y/16 + 1.501, -z/16).
-        return np.stack([m_pts[..., 0] / 16.0, -m_pts[..., 1] / 16.0 + 1.501, -m_pts[..., 2] / 16.0], -1)
+    focal = size * 1.15
 
     def project(w):
         rel = w - eye
         cz = rel @ fwd
-        cx = rel @ right
-        cy = rel @ up
-        return np.stack([size / 2 + focal * cx / cz, size / 2 - focal * cy / cz, cz], -1)
+        return np.stack([size / 2 + focal * (rel @ right) / cz, size / 2 - focal * (rel @ up) / cz, cz], -1)
 
-    quads = []
-    for p in PARTS:
-        m = mats[p.name]
-        for b in p.boxes:
-            x0, y0, z0 = b.x, b.y, b.z
-            x1, y1, z1 = x0 + b.w, y0 + b.h, z0 + b.d
-            corners = {
-                "top": [(x0, y0, z1), (x1, y0, z1), (x1, y0, z0), (x0, y0, z0)],
-                "bottom": [(x0, y1, z0), (x1, y1, z0), (x1, y1, z1), (x0, y1, z1)],
-                "west": [(x0, y0, z1), (x0, y0, z0), (x0, y1, z0), (x0, y1, z1)],
-                "north": [(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0)],
-                "east": [(x1, y0, z0), (x1, y0, z1), (x1, y1, z1), (x1, y1, z0)],
-                "south": [(x1, y0, z1), (x0, y0, z1), (x0, y1, z1), (x1, y1, z1)],
-            }
-            rects = face_rects(b)
-            for face, pts in corners.items():
-                local = np.array(pts, dtype=float)
-                homo = np.concatenate([local, np.ones((4, 1))], 1) @ m.T
-                quads.append((to_world(homo[:, :3]), rects[face]))
-    # The corners are listed so their texture coordinates run (u0,v0) (u1,v0) (u1,v1) (u0,v1).
-    for world, (u0, v0, uw, vh) in quads:
+    def draw_quad(world, uv, texture, glow_tex, lit):
         scr = project(world)
         if np.any(scr[:, 2] < 0.1):
-            continue
+            return
         normal = np.cross(world[1] - world[0], world[3] - world[0])
         nl = np.linalg.norm(normal)
         if nl < 1e-9:
-            continue
+            return
         normal /= nl
-        # Both sides are drawn (no culling); light the side we see.
         if np.dot(normal, eye - world[0]) < 0:
             normal = -normal
-        shade = min(1.0, 0.4 + 0.6 * (max(0.0, normal @ LIGHT0) + max(0.0, normal @ LIGHT1)))
-        uv = np.array([[u0, v0], [u0 + uw, v0], [u0 + uw, v0 + vh], [u0, v0 + vh]], dtype=float)
+        shade = min(1.0, 0.4 + 0.6 * (max(0.0, normal @ LIGHT0) + max(0.0, normal @ LIGHT1))) if lit else 1.0
         for tri in ((0, 1, 2), (0, 2, 3)):
-            raster(img, zbuf, scr[list(tri)], uv[list(tri)], tex, glow, shade, dark)
-    if extra is not None:
-        extra(img, project)
+            raster(img, zbuf, scr[list(tri)], uv[list(tri)], texture, glow_tex, shade, dark)
+
+    for gx in range(-12, 12, 2):
+        for gz in range(-12, 12, 2):
+            draw_quad(np.array([[gx, 0, gz], [gx + 2, 0, gz], [gx + 2, 0, gz + 2], [gx, 0, gz + 2]], float),
+                      np.array([[0, 0], [2, 0], [2, 2], [0, 2]], float), GROUND, None, True)
+    if victim is not None:
+        vx, vy, vz = victim
+        for pts in box_quads(vx - 0.3, vy, vz - 0.3, vx + 0.3, vy + 1.8, vz + 0.3).values():
+            draw_quad(np.array(pts, float), np.array([[0, 0], [2, 0], [2, 2], [0, 2]], float), VICTIM, None, True)
+    for p in PARTS:
+        m = mats[p.name]
+        for b in p.boxes:
+            rects = face_rects(b)
+            for face, pts in box_quads(b.x, b.y, b.z, b.x + b.w, b.y + b.h, b.z + b.d).items():
+                local = np.array(pts, dtype=float)
+                homo = np.concatenate([local, np.ones((4, 1))], 1) @ m.T
+                world = np.array([model_to_world(c) for c in homo[:, :3]])
+                u0, v0, uw, vh = rects[face]
+                uv = np.array([[u0, v0], [u0 + uw, v0], [u0 + uw, v0 + vh], [u0, v0 + vh]], dtype=float)
+                draw_quad(world, uv, tex, glow, True)
     return Image.fromarray(np.clip(img, 0, 255).astype(np.uint8))
 
 
 def raster(img, zbuf, s, uv, tex, glow, shade, dark):
     size = img.shape[0]
+    th, tw = tex.shape[0], tex.shape[1]
     xmin = max(int(math.floor(s[:, 0].min())), 0)
     xmax = min(int(math.ceil(s[:, 0].max())), size - 1)
     ymin = max(int(math.floor(s[:, 1].min())), 0)
@@ -754,24 +995,42 @@ def raster(img, zbuf, s, uv, tex, glow, shade, dark):
     depth = 1.0 / iz
     u = (w0 * uv[0, 0] / z0 + w1 * uv[1, 0] / z1 + w2 * uv[2, 0] / z2) * depth
     v = (w0 * uv[0, 1] / z0 + w1 * uv[1, 1] / z1 + w2 * uv[2, 1] / z2) * depth
-    ui = np.clip(np.floor(u).astype(int), 0, TEX_W - 1)
-    vi = np.clip(np.floor(v).astype(int), 0, TEX_H - 1)
+    ui = np.clip(np.floor(u).astype(int), 0, tw - 1)
+    vi = np.clip(np.floor(v).astype(int), 0, th - 1)
     texel = tex[vi, ui]
     ok = inside & (texel[..., 3] >= 26) & (depth < zbuf[ys, xs])
     if not ok.any():
         return
-    light = shade * (0.07 if dark else 1.0)
-    color = texel[..., :3] * light
-    g = glow[vi, ui, :3] * (glow[vi, ui, 3:4] / 255.0)
-    color = color + g
+    color = texel[..., :3] * (shade * (0.07 if dark else 1.0))
+    if glow is not None:
+        color = color + glow[vi, ui, :3] * (glow[vi, ui, 3:4] / 255.0)
     sel_y, sel_x = ys[ok], xs[ok]
     img[sel_y, sel_x] = color[ok]
     zbuf[sel_y, sel_x] = depth[ok]
 
 
+def gait_report(speed, run, steps=16):
+    """Lowest point of every foot and hand over one gait cycle (blocks above the ground)."""
+    rows = []
+    for i in range(steps):
+        ph = i / steps
+        pose = pose_model(State(run=run, speed=speed, phase=ph, t=i * 3.0))
+        mats = world_matrices(pose)
+        row = []
+        for name in ("foot_l", "foot_r", "hand_l", "hand_r", "finger_l1/tip", "finger_r1/tip"):
+            m = mats[name]
+            lowest = 99.0
+            for b in BY_NAME[name].boxes:
+                for c in box_quads(b.x, b.y, b.z, b.x + b.w, b.y + b.h, b.z + b.d)["bottom"] + box_quads(b.x, b.y, b.z, b.x + b.w, b.y + b.h, b.z + b.d)["top"]:
+                    w = model_to_world((m @ np.array([*c, 1.0]))[:3])
+                    lowest = min(lowest, w[1])
+            row.append(lowest)
+        rows.append((ph, row))
+    return rows
+
+
 def preview(tex, glow, out_dir):
     out_dir.mkdir(parents=True, exist_ok=True)
-    # The unwrapped texture, 3x, with every face outlined.
     scale = 3
     flat = Image.fromarray(np.clip(tex, 0, 255).astype(np.uint8), "RGBA")
     bg = Image.new("RGBA", flat.size, (40, 90, 40, 255))
@@ -788,25 +1047,114 @@ def preview(tex, glow, out_dir):
     gbg.alpha_composite(gflat)
     gbg.save(out_dir / "it_glow_unwrapped.png")
 
-    def sheet(name, views):
-        tiles = [render(tex, glow, pose, yaw, pitch, dark=dark) for (pose, yaw, pitch, dark) in views]
-        w = tiles[0].width
-        out = Image.new("RGB", (w * len(tiles), w))
+    def sheet(name, views, size=720):
+        tiles = [render(tex, glow, v["pose"], v["yaw"], v["pitch"], size=size, dark=v.get("dark", False),
+                        victim=v.get("victim"), distance=v.get("distance", 12.0)) for v in views]
+        out = Image.new("RGB", (size * len(tiles), size))
         for i, tile in enumerate(tiles):
-            out.paste(tile, (i * w, 0))
+            out.paste(tile, (i * size, 0))
         out.save(out_dir / name)
 
-    rest = {}
-    sheet("it_rest.png", [(rest, 180, 8, False), (rest, 135, 10, False), (rest, 90, 5, False), (rest, 0, 15, False)])
-    sheet("it_run.png", [(preview_pose("run", ph, ph * 40), 90, 5, False) for ph in (0.0, 0.25, 0.5, 0.75)])
-    sheet("it_poses.png", [(preview_pose("peer", t=3), 120, 8, False), (preview_pose("scream", t=5), 160, 10, False),
-                           (preview_pose("kill", t=9), 130, 8, False), (preview_pose("run", 0.1, 4), 150, 12, False)])
-    sheet("it_dark.png", [(rest, 180, 6, True), (preview_pose("run", 0.3, 7), 140, 6, True),
-                          (preview_pose("scream", t=2), 180, 4, True)])
+    rest = Pose()
+    stand = pose_model(State(t=10))
+    sheet("it_rest.png", [dict(pose=rest, yaw=0, pitch=10), dict(pose=rest, yaw=90, pitch=5)]
+          + [dict(pose=stand, yaw=y, pitch=8) for y in (0, 40, 90, 180)])
+    sheet("it_gallop.png", [dict(pose=pose_model(State(run=1.0, speed=0.78, phase=i / 6, t=i * 2.0)), yaw=90, pitch=4)
+                            for i in range(6)], size=560)
+    sheet("it_gallop_34.png", [dict(pose=pose_model(State(run=1.0, speed=0.78, phase=i / 3 + 0.1, t=i * 3.0)), yaw=y, pitch=10)
+                               for i, y in enumerate((30, 150, 210))])
+    sheet("it_walk.png", [dict(pose=pose_model(State(run=0.0, speed=0.18, phase=i / 4, t=i * 7.0)), yaw=90, pitch=4)
+                          for i in range(4)], size=560)
+    sheet("it_poses.png", [dict(pose=pose_model(State(crouch=1.0, t=3)), yaw=110, pitch=8),
+                           dict(pose=pose_model(State(scream=1.0, t=5)), yaw=20, pitch=10)])
+    for name, view in kill_views():
+        sheet(name, view)
+    sheet("it_dark.png", [dict(pose=stand, yaw=0, pitch=6, dark=True),
+                          dict(pose=pose_model(State(run=1.0, speed=0.78, phase=0.3, t=7)), yaw=40, pitch=6, dark=True),
+                          dict(pose=pose_model(State(scream=1.0, t=2)), yaw=0, pitch=4, dark=True)])
     vig = Image.fromarray(np.clip(kill_vignette(), 0, 255).astype(np.uint8), "RGBA")
     shot = Image.new("RGBA", (512, 288), (90, 96, 104, 255))
     shot.alpha_composite(vig.resize((512, 288), Image.BILINEAR))
     shot.save(out_dir / "kill_vignette_on_grey.png")
+    lines = []
+    for speed, run in ((0.78, 1.0), (0.18, 0.0)):
+        lines.append(f"speed {speed} run {run}: phase  foot_l foot_r hand_l hand_r tip_l tip_r (blocks above ground)")
+        for ph, row in gait_report(speed, run):
+            lines.append(f"  {ph:4.2f}  " + "  ".join(f"{v:6.2f}" for v in row))
+    (out_dir / "gait.txt").write_text("\n".join(lines) + "\n")
+
+
+# ItKillPath's keyframes (victim's feet: right, up, forward) and timeline, mirrored for the previews.
+KILL_SEIZE_END, KILL_LIFT_END, KILL_PIERCE_AT, KILL_DEVOUR_START = 20, 45, 52, 72
+KILL_BITE_AT, KILL_TEAR_AT, KILL_SWALLOW_AT, KILL_END = 82, 90, 100, 108
+KILL_TIMES = [KILL_SEIZE_END, KILL_LIFT_END, KILL_PIERCE_AT, KILL_PIERCE_AT + 5, KILL_DEVOUR_START, KILL_SWALLOW_AT, KILL_END]
+KILL_KEYS = [(0.45, 0.25, 2.9), (0.3, 4.7, 3.3), (0.3, 4.78, 3.5), (0.3, 4.66, 3.25), (0.25, 4.64, 3.2), (0.05, 4.55, 2.75),
+             (0.0, 4.6, 2.55)]
+
+
+def kill_path(t, start=(0.0, 0.0, 2.6)):
+    low = max(0.0, min(3.0, start[1]))
+    if t <= KILL_SEIZE_END:
+        a = smooth(t / KILL_SEIZE_END)
+        return tuple(s0 + (k + (low if i == 1 else 0.0) - s0) * a for i, (s0, k) in enumerate(zip(start, KILL_KEYS[0])))
+    for i in range(1, len(KILL_TIMES)):
+        if t <= KILL_TIMES[i]:
+            a = smooth((t - KILL_TIMES[i - 1]) / (KILL_TIMES[i] - KILL_TIMES[i - 1]))
+            prev = list(KILL_KEYS[i - 1])
+            if i == 1:
+                prev[1] += low
+            return tuple(p0 + (k - p0) * a for p0, k in zip(prev, KILL_KEYS[i]))
+    return KILL_KEYS[-1]
+
+
+def bite(kt, at):
+    d = kt - at
+    return 0.0 if d < 0 or d > 6 else (d / 1.5 if d < 1.5 else 1.0 - (d - 1.5) / 4.5)
+
+
+def kill_state(kt):
+    """The kill branch of ItModel.setupAnim, for a victim carried along the path."""
+    r, u, f = kill_path(kt)
+    feet = np.array([-r, u, f])
+    rt = world_to_model(feet + np.array([0.0, 1.8 * 0.53, 0.0]))
+    chest = world_to_model(feet + np.array([0.0, 1.8 * 0.7, 0.0]))
+    st = dict(right_target=rt, right_weight=smooth(kt / 6.0), grip=smooth((kt - 3) / 8.0))
+    st["crouch"] = 0.9 if kt < KILL_SEIZE_END else 0.9 * (1.0 - smooth((kt - KILL_SEIZE_END) / 18.0))
+    jaw = 0.2 + 0.3 * smooth((kt - KILL_SEIZE_END) / 25.0)
+    left_weight = 0.0
+    pierce = 0.0
+    reach = 0.0
+    neck = 0.0
+    lt = None
+    windup = KILL_PIERCE_AT - 8.0
+    if kt >= windup:
+        back = smooth((kt - windup) / 6.0)
+        strike = smooth((kt - KILL_PIERCE_AT + 1.0) / 2.5)
+        lt = np.array([chest[0] + 12.0 * (1 - strike), chest[1] - 4.0 * (1 - strike), chest[2] + 22.0 * (1 - strike) - 8.0 * strike])
+        left_weight = back
+        pierce = strike
+        if kt > KILL_DEVOUR_START + 10:
+            hold = smooth((kt - KILL_DEVOUR_START - 10) / 10.0)
+            lt = lt + (np.array([chest[0] + 9.0, chest[1] + 2.0, chest[2] + 3.0]) - lt) * hold
+            pierce *= 1.0 - hold
+    if kt >= KILL_DEVOUR_START:
+        devour = smooth((kt - KILL_DEVOUR_START) / 8.0)
+        jaw = jaw + (1.35 - jaw) * devour
+        jaw -= 0.9 * (bite(kt, KILL_BITE_AT) + bite(kt, KILL_TEAR_AT) + 0.6 * bite(kt, KILL_SWALLOW_AT))
+        neck = 0.35 * devour
+        reach = devour
+    elif kt >= KILL_LIFT_END:
+        reach = 0.4
+    st.update(jaw=jaw, left_target=lt, left_weight=left_weight, pierce=pierce, tentacle_reach=reach, neck_extra=neck, t=kt)
+    return State(**st), tuple(feet)
+
+
+def kill_views():
+    views = []
+    for kt in (12, 40, 56, 96):
+        state, feet = kill_state(kt)
+        views.append(dict(pose=pose_model(state), yaw=-55, pitch=8, victim=feet, distance=11.0))
+    return [("it_kill.png", views)]
 
 
 # ====================================================================== main

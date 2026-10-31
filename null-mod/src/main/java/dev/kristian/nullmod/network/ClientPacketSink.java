@@ -23,4 +23,7 @@ public interface ClientPacketSink {
 
     default void mobVariant(MobVariantPayload payload) {
     }
+
+    default void field(FieldPayload payload) {
+    }
 }

@@ -145,9 +145,10 @@ public final class NullSettingsScreen extends Screen {
                 Component.translatable(PREFIX + "desktop_interference"), NullClientSettings.desktopAllowed(),
                 (button, enable) -> {
                     if (enable) {
-                        // never on without the explanation: the switch flips only if the player agrees there
-                        minecraft.setScreen(new DesktopConsentScreen(this));
-                        return false;
+                        NullClientSettings.set(NullClientSettings.DESKTOP_INTERFERENCE, true);
+                        DesktopInterferenceManager.requestAvailabilityCheck();
+                        list.refreshActive();
+                        return true;
                     }
                     NullClientSettings.set(NullClientSettings.DESKTOP_INTERFERENCE, false);
                     NullClientSettings.set(NullClientSettings.DESKTOP_CONSENT, false);

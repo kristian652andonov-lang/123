@@ -4,17 +4,21 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 
 /**
- * The five stages of NULL: STATIC, FRACTURE, INFESTATION, VISITATION and NULL. Stages only
+ * The six stages of NULL: STATIC, FRACTURE, INFESTATION, VISITATION, NULL and HARVEST. Stages only
  * ever move forward on their own; an administrator can move them in either direction with
- * {@code /null stage}. The constant names and ids are the original ones and stay as they are,
- * because saved worlds and configs refer to them.
+ * {@code /null stage}. The constant names and ids of stages 1-5 are the original ones and stay as
+ * they are, because saved worlds and configs refer to them.
+ *
+ * <p>Stages 1-5 are reached by the corruption clock. HARVEST (6) is not: it begins when a player
+ * has survived long enough in the NULL dimension, and it is the last stage (the wheat field).
  */
 public enum CorruptionStage {
     START(1, "start", "STATIC"),
     UNDER_MIDDLE(2, "under_middle", "FRACTURE"),
     MIDDLE(3, "middle", "INFESTATION"),
     ABOVE_MIDDLE(4, "above_middle", "VISITATION"),
-    NULL(5, "null", "NULL");
+    NULL(5, "null", "NULL"),
+    HARVEST(6, "harvest", "HARVEST");
 
     private static final CorruptionStage[] VALUES = values();
 
@@ -61,8 +65,17 @@ public enum CorruptionStage {
         return number >= min.number && number <= max.number;
     }
 
+    /** The last stage, HARVEST. */
     public boolean isFinal() {
-        return this == NULL;
+        return this == HARVEST;
+    }
+
+    /**
+     * Index into per-stage tables written for stages 1-5 (five entries): HARVEST shares the NULL
+     * stage's entry.
+     */
+    public int tableIndex() {
+        return Math.min(number, NULL.number) - 1;
     }
 
     public CorruptionStage next() {

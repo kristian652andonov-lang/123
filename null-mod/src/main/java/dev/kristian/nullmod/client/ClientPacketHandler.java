@@ -1,10 +1,12 @@
 package dev.kristian.nullmod.client;
 
 import dev.kristian.nullmod.client.effect.ClientEffects;
+import dev.kristian.nullmod.client.field.FieldClientModule;
 import dev.kristian.nullmod.client.variant.ClientMobVariants;
 import dev.kristian.nullmod.network.ClientEffectPayload;
 import dev.kristian.nullmod.network.ClientPacketSink;
 import dev.kristian.nullmod.network.FakePlayersPayload;
+import dev.kristian.nullmod.network.FieldPayload;
 import dev.kristian.nullmod.network.MobVariantPayload;
 import dev.kristian.nullmod.network.StageSyncPayload;
 import dev.kristian.nullmod.network.TransitionPayload;
@@ -34,5 +36,10 @@ final class ClientPacketHandler implements ClientPacketSink {
     @Override
     public void mobVariant(MobVariantPayload payload) {
         ClientMobVariants.accept(payload);
+    }
+
+    @Override
+    public void field(FieldPayload payload) {
+        FieldClientModule.onPayload(payload);
     }
 }

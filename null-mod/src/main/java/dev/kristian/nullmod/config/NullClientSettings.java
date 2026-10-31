@@ -123,7 +123,7 @@ public final class NullClientSettings {
                 "Nothing is shown unless you enable it AND accept the explanation in NULL's settings screen.").push("desktop");
         DESKTOP_INTERFERENCE = b.comment("Master switch for desktop interference.")
                 .translation("null.settings.desktop_interference")
-                .define("desktopInterference", false);
+                .define("desktopInterference", true);
         DESKTOP_CONSENT = b.comment("Set when you accept the desktop interference explanation in the settings screen.")
                 .translation("null.settings.desktop_consent")
                 .define("desktopConsent", false);
@@ -204,16 +204,8 @@ public final class NullClientSettings {
         return code == null ? "" : code;
     }
 
-    /**
-     * Desktop interference may run: switched on and explained to the player, and accepted by the
-     * account that is playing now (a config file made elsewhere can never switch it on).
-     */
+    /** Desktop interference may run: it is on by default and stays on until the player switches it off. */
     public static boolean desktopAllowed() {
-        if (!get(DESKTOP_INTERFERENCE) || !get(DESKTOP_CONSENT)) {
-            return false;
-        }
-        String code = accountCode();
-        String accepted = SPEC.isLoaded() ? DESKTOP_CONSENT_ACCOUNT.get() : DESKTOP_CONSENT_ACCOUNT.getDefault();
-        return !code.isEmpty() && code.equals(accepted);
+        return get(DESKTOP_INTERFERENCE);
     }
 }

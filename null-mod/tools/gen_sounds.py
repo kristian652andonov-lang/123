@@ -2346,8 +2346,13 @@ def main() -> int:
         return 1
 
     selected = [e for e in events if not args.only or any(e.startswith(p) for p in args.only)]
-    if not args.only and SOUND_DIR.exists():
-        shutil.rmtree(SOUND_DIR)
+    # Only the folders of this script's own events are rebuilt: other areas generate their own
+    # sounds into their own folders (assets-src/sounds/<area>.json fragments), which stay.
+    own_groups = sorted({file_stem(e)[0] for e in events})
+    if not args.only:
+        for group in own_groups:
+            if (SOUND_DIR / group).exists():
+                shutil.rmtree(SOUND_DIR / group)
     jobs = [(e, i) for e in selected for i in range(SPECS[e]["variants"])]
     results = []
     with concurrent.futures.ProcessPoolExecutor(max_workers=args.jobs) as pool:
@@ -2376,7 +2381,7 @@ def main() -> int:
     for event in events:
         if event not in sounds_json:
             problems.append(f"no sounds.json entry for {event}")
-    on_disk = set(SOUND_DIR.rglob("*.ogg"))
+    on_disk = {f for group in own_groups for f in (SOUND_DIR / group).rglob("*.ogg")}
     for f in sorted(on_disk - referenced):
         problems.append(f"unreferenced file {f.relative_to(ROOT)}")
     for r in results:
@@ -2404,7 +2409,8 @@ def main() -> int:
         for p in problems:
             print("ERROR:", p, file=sys.stderr)
         return 1
-    return 0
+    # sounds.json was written from scratch: add the other areas' fragments back.
+    return subprocess.run([sys.executable, str(ROOT / "tools" / "merge_sounds.py")]).returncode
 
 
 if __name__ == "__main__":

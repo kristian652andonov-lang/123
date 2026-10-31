@@ -218,7 +218,7 @@ public final class ChatCorruptionManager implements CorruptionSystem {
         float chance = switch (context.stage()) {
             case MIDDLE -> 0.15F;
             case ABOVE_MIDDLE -> 0.3F;
-            case NULL -> 0.4F;
+            case NULL, HARVEST -> 0.4F;
             default -> 0.0F;
         };
         if (chance > 0.0F) {
@@ -313,7 +313,7 @@ public final class ChatCorruptionManager implements CorruptionSystem {
     }
 
     private long delay(float[] table, CorruptionContext ctx, double frequency) {
-        float base = table[ctx.stage().number() - 1];
+        float base = table[ctx.stage().tableIndex()];
         if (ctx.stage() == CorruptionStage.NULL) {
             // Towards saturation the final stage gets more and more chaotic.
             base *= 1.0F - 0.6F * ctx.stageProgress();
@@ -342,7 +342,7 @@ public final class ChatCorruptionManager implements CorruptionSystem {
                 && burst(focus, ctx, stage, r, false)) {
             return true;
         }
-        int[] weights = AMBIENT_WEIGHTS[stage.number() - 1].clone();
+        int[] weights = AMBIENT_WEIGHTS[stage.tableIndex()].clone();
         if (!personal) {
             weights[Ambient.NAME.ordinal()] = 0;
         }
@@ -565,7 +565,7 @@ public final class ChatCorruptionManager implements CorruptionSystem {
         if (!single(player, ctx, ctx.stage(), category, topic, true, delay, random, overrides, 1.0F, condition)) {
             return false;
         }
-        state.nextReaction = now + REACTION_GAP[ctx.stage().number() - 1];
+        state.nextReaction = now + REACTION_GAP[ctx.stage().tableIndex()];
         if (cooldownKey != null) {
             state.cooldowns.put(cooldownKey, now + cooldownTicks);
         }
@@ -1013,7 +1013,7 @@ public final class ChatCorruptionManager implements CorruptionSystem {
 
     /** How damaged a line's text is: grows with the stage and its progress, with some lines left clean early on. */
     private static float strength(CorruptionContext ctx, CorruptionStage stage, RandomSource r, boolean alwaysDamaged) {
-        int i = stage.number() - 1;
+        int i = stage.tableIndex();
         float base = STRENGTH[i] + STRENGTH_GROWTH[i] * progress(ctx, stage);
         if (alwaysDamaged) {
             base = Math.max(0.25F, base);

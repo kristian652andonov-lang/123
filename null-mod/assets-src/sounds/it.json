@@ -1,0 +1,138 @@
+{
+  "it.step": {
+    "subtitle": "subtitles.null.it.step",
+    "sounds": [
+      {
+        "name": "null:it/step_1"
+      },
+      {
+        "name": "null:it/step_2"
+      },
+      {
+        "name": "null:it/step_3"
+      },
+      {
+        "name": "null:it/step_4"
+      }
+    ]
+  },
+  "it.howl": {
+    "subtitle": "subtitles.null.it.howl",
+    "sounds": [
+      {
+        "name": "null:it/howl_1"
+      },
+      {
+        "name": "null:it/howl_2"
+      }
+    ]
+  },
+  "it.breath": {
+    "subtitle": "subtitles.null.it.breath",
+    "sounds": [
+      {
+        "name": "null:it/breath_1"
+      },
+      {
+        "name": "null:it/breath_2"
+      },
+      {
+        "name": "null:it/breath_3"
+      }
+    ]
+  },
+  "it.click": {
+    "subtitle": "subtitles.null.it.click",
+    "sounds": [
+      {
+        "name": "null:it/click_1"
+      },
+      {
+        "name": "null:it/click_2"
+      },
+      {
+        "name": "null:it/click_3"
+      },
+      {
+        "name": "null:it/click_4"
+      }
+    ]
+  },
+  "it.scream": {
+    "subtitle": "subtitles.null.it.scream",
+    "sounds": [
+      {
+        "name": "null:it/scream_1"
+      },
+      {
+        "name": "null:it/scream_2"
+      }
+    ]
+  },
+  "it.scrape": {
+    "subtitle": "subtitles.null.it.scrape",
+    "sounds": [
+      {
+        "name": "null:it/scrape_1"
+      },
+      {
+        "name": "null:it/scrape_2"
+      },
+      {
+        "name": "null:it/scrape_3"
+      }
+    ]
+  },
+  "it.grab": {
+    "subtitle": "subtitles.null.it.grab",
+    "sounds": [
+      {
+        "name": "null:it/grab_1"
+      },
+      {
+        "name": "null:it/grab_2"
+      }
+    ]
+  },
+  "it.pierce": {
+    "subtitle": "subtitles.null.it.pierce",
+    "sounds": [
+      {
+        "name": "null:it/pierce_1"
+      },
+      {
+        "name": "null:it/pierce_2"
+      }
+    ]
+  },
+  "it.tear": {
+    "subtitle": "subtitles.null.it.tear",
+    "sounds": [
+      {
+        "name": "null:it/tear_1"
+      },
+      {
+        "name": "null:it/tear_2"
+      }
+    ]
+  },
+  "it.swallow": {
+    "subtitle": "subtitles.null.it.swallow",
+    "sounds": [
+      {
+        "name": "null:it/swallow_1"
+      },
+      {
+        "name": "null:it/swallow_2"
+      }
+    ]
+  },
+  "it.retreat": {
+    "subtitle": "subtitles.null.it.retreat",
+    "sounds": [
+      {
+        "name": "null:it/retreat"
+      }
+    ]
+  }
+}

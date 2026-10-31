@@ -114,7 +114,7 @@ public final class RandomEventManager implements CorruptionSystem {
     }
 
     private long nextDelay(CorruptionStage stage, double frequency) {
-        float base = BASE_INTERVAL_SECONDS[stage.number() - 1];
+        float base = BASE_INTERVAL_SECONDS[stage.tableIndex()];
         float jitter = 0.45F + random.nextFloat() * 1.1F;
         return Math.max(40L, (long) (base * jitter * 20.0F / frequency));
     }

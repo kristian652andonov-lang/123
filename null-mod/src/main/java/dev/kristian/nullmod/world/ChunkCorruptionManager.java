@@ -145,7 +145,7 @@ public final class ChunkCorruptionManager implements CorruptionSystem {
     }
 
     private void checkPlayer(CorruptionContext ctx, ServerLevel level, ServerPlayer player, double setting) {
-        int stage = ctx.stage().number();
+        int stage = ctx.stage().tableIndex() + 1;
         float local = ctx.localCorruption(player.blockPosition());
         float scale = (float) setting * (0.35F + 1.3F * local);
         float spread = SPREAD_CHANCE[stage - 1] * scale;

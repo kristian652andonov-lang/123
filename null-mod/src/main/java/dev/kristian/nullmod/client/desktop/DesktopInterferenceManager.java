@@ -263,7 +263,7 @@ public final class DesktopInterferenceManager {
             case UNDER_MIDDLE -> 1500.0;
             case MIDDLE -> 720.0;
             case ABOVE_MIDDLE -> 420.0;
-            case NULL -> 200.0;
+            case NULL, HARVEST -> 200.0;
         };
         float progress = Math.max(0.0F, Math.min(1.0F, stageProgress));
         return base * (1.15 - 0.3 * progress);

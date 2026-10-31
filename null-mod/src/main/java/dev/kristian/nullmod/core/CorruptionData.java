@@ -38,8 +38,9 @@ public final class CorruptionData extends SavedData {
 
     public static CorruptionData load(CompoundTag tag, HolderLookup.Provider registries) {
         CorruptionData data = new CorruptionData();
-        data.stage = Math.max(1, Math.min(5, tag.getInt("stage")));
-        data.highestStage = Math.max(data.stage, Math.min(5, tag.getInt("highest_stage")));
+        int last = CorruptionStage.HARVEST.number();
+        data.stage = Math.max(1, Math.min(last, tag.getInt("stage")));
+        data.highestStage = Math.max(data.stage, Math.min(last, tag.getInt("highest_stage")));
         data.corruptionTicks = Math.max(0.0, tag.getDouble("corruption_ticks"));
         data.activeTicks = Math.max(0L, tag.getLong("active_ticks"));
         data.paused = tag.getBoolean("paused");
