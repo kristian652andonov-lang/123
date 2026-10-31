@@ -28,7 +28,8 @@ final class SkyBedrockBuilder {
         RandomSource random = req.random();
         int attempts = req.attempts(4);
         for (int i = 0; i < attempts; i++) {
-            LocationFinder.Column c = LocationFinder.column(req.player(), random, req.minDistance(30.0, 16.0), 100.0,
+            double min = req.minDistance(30.0, 16.0);
+            LocationFinder.Column c = LocationFinder.column(req.player(), random, min, req.maxDistance(100.0, min),
                     req.view(LocationFinder.View.ANY));
             int ground = LocationFinder.surfaceY(level, c.x(), c.z());
             if (ground == LocationFinder.NONE) {

@@ -14,10 +14,11 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 
 /**
- * The scrolling body of {@link NullSettingsScreen}: section headings, "label ... control" rows,
- * a status line and button rows, on a dark panel with thin white rules.
+ * The scrolling body of {@link NullSettingsScreen}: section headings, short notes, "label ...
+ * control" rows, a status line and button rows, on a dark panel with thin white rules.
  */
 final class SettingsList extends ContainerObjectSelectionList<SettingsList.Entry> {
     static final int ROW_HEIGHT = 24;
@@ -54,6 +55,14 @@ final class SettingsList extends ContainerObjectSelectionList<SettingsList.Entry
 
     void addText(Supplier<Component> text, IntSupplier color) {
         addEntry(new TextEntry(text, color));
+    }
+
+    /** A short explanation, wrapped to the row width over as many rows as it needs (two lines per row). */
+    void addNote(Component text, int color) {
+        List<FormattedCharSequence> lines = Minecraft.getInstance().font.split(text, Math.max(40, rowWidth - 8));
+        for (int i = 0; i < lines.size(); i += 2) {
+            addEntry(new NoteEntry(lines.get(i), i + 1 < lines.size() ? lines.get(i + 1) : null, color));
+        }
     }
 
     void addButton(AbstractWidget button, BooleanSupplier enabled) {
@@ -185,6 +194,42 @@ final class SettingsList extends ContainerObjectSelectionList<SettingsList.Entry
             Font font = Minecraft.getInstance().font;
             graphics.drawScrollingString(font, text.get(), left + 4, left + width - 4, top + (height - font.lineHeight) / 2 + 1,
                     color.getAsInt());
+        }
+
+        @Override
+        public List<? extends GuiEventListener> children() {
+            return List.of();
+        }
+
+        @Override
+        public List<? extends NarratableEntry> narratables() {
+            return List.of();
+        }
+    }
+
+    /** One or two lines of a note. */
+    private static final class NoteEntry extends Entry {
+        private final FormattedCharSequence first;
+        private final FormattedCharSequence second;
+        private final int color;
+
+        NoteEntry(FormattedCharSequence first, FormattedCharSequence second, int color) {
+            this.first = first;
+            this.second = second;
+            this.color = color;
+        }
+
+        @Override
+        public void render(GuiGraphics graphics, int index, int top, int left, int width, int height, int mouseX, int mouseY,
+                boolean hovering, float partialTick) {
+            Font font = Minecraft.getInstance().font;
+            int lineHeight = font.lineHeight + 1;
+            int lines = second == null ? 1 : 2;
+            int y = top + (height - lines * lineHeight) / 2 + 1;
+            graphics.drawString(font, first, left + 4, y, color, false);
+            if (second != null) {
+                graphics.drawString(font, second, left + 4, y + lineHeight, color, false);
+            }
         }
 
         @Override

@@ -389,22 +389,33 @@ final class MoonEffects {
         chips++;
     }
 
+    /** The cracks around a piece (a shard and the corner shards that break away with it), not those inside it. */
     private static int[] borderCracks(MoonGeometry geometry, int shard) {
         int count = 0;
         for (int i = 0; i < geometry.crackCount(); i++) {
-            MoonGeometry.Crack crack = geometry.crack(i);
-            if (crack.shardA() == shard || crack.shardB() == shard) {
+            if (outlines(geometry, geometry.crack(i), shard)) {
                 count++;
             }
         }
         int[] out = new int[count];
         for (int i = 0, k = 0; i < geometry.crackCount(); i++) {
-            MoonGeometry.Crack crack = geometry.crack(i);
-            if (crack.shardA() == shard || crack.shardB() == shard) {
+            if (outlines(geometry, geometry.crack(i), shard)) {
                 out[k++] = i;
             }
         }
         return out;
+    }
+
+    private static boolean outlines(MoonGeometry geometry, MoonGeometry.Crack crack, int piece) {
+        if (crack.shardA() < 0 || crack.shardB() < 0) {
+            return false;
+        }
+        return (pieceOf(geometry, crack.shardA()) == piece) != (pieceOf(geometry, crack.shardB()) == piece);
+    }
+
+    private static int pieceOf(MoonGeometry geometry, int shard) {
+        int leader = geometry.shard(shard).leader();
+        return leader >= 0 ? leader : shard;
     }
 
     private static ClientLevel overworld() {

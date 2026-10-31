@@ -122,17 +122,21 @@ public final class MoonCorruptionManager implements CorruptionSystem {
             resetMoon(data);
             return;
         }
+        if (to.atLeast(CorruptionStage.NULL)) {
+            // Stage 5 takes the moon, and it stays gone in Stage 6 (HARVEST) whichever way the world
+            // got there (also straight from Stage 4 by command, and back from 6 to 5).
+            if (!from.atLeast(CorruptionStage.NULL) && enabled() && !data.moonGone()) {
+                disappear(server, data);
+            }
+            return;
+        }
         if (to.number() < from.number()) {
-            // Moved back by an administrator: the moon follows the clock back.
+            // Moved back below NULL by an administrator: the moon follows the clock back.
             if (enabled()) {
                 data.setMoonProgress(Math.min(data.moonProgress(), targetProgress(context.corruptionTicks())));
             }
             data.setMoonGone(false);
             clearState(data);
-            return;
-        }
-        if (to == CorruptionStage.NULL && from != CorruptionStage.NULL && enabled() && !data.moonGone()) {
-            disappear(server, data);
         }
     }
 

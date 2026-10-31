@@ -2,6 +2,7 @@ package dev.kristian.nullmod.client.settings;
 
 import dev.kristian.nullmod.client.ClientStageMemory;
 import dev.kristian.nullmod.client.desktop.DesktopInterferenceManager;
+import dev.kristian.nullmod.client.menu.NullScreenLook;
 import dev.kristian.nullmod.config.NullClientSettings;
 import dev.kristian.nullmod.core.CorruptionStage;
 import java.util.ArrayList;
@@ -23,8 +24,9 @@ import net.neoforged.neoforge.common.ModConfigSpec;
  * config button). Dark and outlined like the rest of NULL, but plain and readable: every option
  * explains itself in a tooltip and is saved the moment it changes.
  * <p>
- * Sections: Visual, Audio, Main menu, Desktop. Switching desktop interference on always goes
- * through {@link DesktopConsentScreen}; switching it off closes every desktop window at once.
+ * Sections: Visual, Audio, Main menu, Desktop. Desktop interference is on by default; a short
+ * note under its heading says what the windows are, and switching it off closes every desktop
+ * window at once. Outside a world the screen sits on NULL's dark backdrop like every other menu.
  * "All options..." opens NeoForge's configuration screen for the mod (including the world
  * settings when the player may edit them).
  */
@@ -33,14 +35,9 @@ public final class NullSettingsScreen extends Screen {
     private static final Component ALL_OPTIONS = Component.translatable("null.settings.screen.all_options");
     private static final String PREFIX = "null.settings.";
     private static final long STATUS_MESSAGE_MS = 4_000L;
-    /**
-     * NeoForge's generic screen must not offer the desktop master switch or the consent values as
-     * plain fields: desktop interference is only ever switched on through
-     * {@link DesktopConsentScreen}. Everything else stays editable there.
-     */
-    private static final ConfigurationScreen.ConfigurationSectionScreen.Filter HIDE_DESKTOP_SWITCHES =
-            (context, key, original) -> context.keylist().equals(List.of("desktop"))
-                    && ("desktopInterference".equals(key) || "desktopConsent".equals(key) || "desktopConsentAccount".equals(key))
+    /** NeoForge's generic screen offers every setting except NULL's internal bookkeeping value. */
+    private static final ConfigurationScreen.ConfigurationSectionScreen.Filter HIDE_INTERNAL =
+            (context, key, original) -> context.keylist().equals(List.of("desktop")) && "defaultsVersion".equals(key)
                     ? null : original;
 
     private final Screen parent;
@@ -139,6 +136,8 @@ public final class NullSettingsScreen extends Screen {
 
     private void addDesktop() {
         list.addHeader(Component.translatable("null.settings.section.desktop"));
+        // what the windows are, in two short lines (the switch's tooltip says the rest)
+        list.addNote(Component.translatable("null.settings.desktop_note"), NullStyle.TEXT_DIM);
         BooleanSupplier allowed = NullClientSettings::desktopAllowed;
 
         NullToggleButton master = new NullToggleButton(0, 0, SettingsList.CONTROL_WIDTH, SettingsList.CONTROL_HEIGHT,
@@ -151,8 +150,6 @@ public final class NullSettingsScreen extends Screen {
                         return true;
                     }
                     NullClientSettings.set(NullClientSettings.DESKTOP_INTERFERENCE, false);
-                    NullClientSettings.set(NullClientSettings.DESKTOP_CONSENT, false);
-                    NullClientSettings.set(NullClientSettings.DESKTOP_CONSENT_ACCOUNT, "");
                     DesktopInterferenceManager.disableNow();
                     return true;
                 });
@@ -311,7 +308,7 @@ public final class NullSettingsScreen extends Screen {
         ModContainer container = SettingsClientModule.container();
         if (container != null) {
             commitSliders();
-            minecraft.setScreen(new ConfigurationScreen(container, this, HIDE_DESKTOP_SWITCHES));
+            minecraft.setScreen(new ConfigurationScreen(container, this, HIDE_INTERNAL));
         }
     }
 
@@ -344,7 +341,11 @@ public final class NullSettingsScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        graphics.fill(0, 0, width, height, minecraft != null && minecraft.level != null ? NullStyle.SCREEN_IN_WORLD : NullStyle.SCREEN);
+        boolean inWorld = minecraft != null && minecraft.level != null;
+        // outside a world: the same darkness as every other menu (or plain black with the vanilla look)
+        if (inWorld || !NullScreenLook.drawBackdrop(this, graphics)) {
+            graphics.fill(0, 0, width, height, inWorld ? NullStyle.SCREEN_IN_WORLD : NullStyle.SCREEN);
+        }
     }
 
     @Override

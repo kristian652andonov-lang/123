@@ -1,5 +1,6 @@
 package dev.kristian.nullmod.client.visual;
 
+import dev.kristian.nullmod.client.menu.NullScreenLook;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -88,8 +89,12 @@ final class FakeDisconnectScreen extends DisconnectedScreen {
 
     @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // The real screen appears after the world is gone: panorama, blur and the menu
-        // background, never the translucent in-game one.
+        // The real screen appears after the world is gone: NULL's dark menu backdrop (as on every
+        // menu outside a world), or with that look switched off panorama, blur and the menu
+        // background - never the translucent in-game one.
+        if (NullScreenLook.drawBackdrop(this, graphics)) {
+            return;
+        }
         this.renderPanorama(graphics, partialTick);
         this.renderBlurredBackground(partialTick);
         Screen.renderMenuBackgroundTexture(graphics, Screen.MENU_BACKGROUND, 0, 0, 0.0F, 0.0F, this.width, this.height);

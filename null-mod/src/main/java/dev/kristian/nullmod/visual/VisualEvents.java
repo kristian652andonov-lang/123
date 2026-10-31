@@ -16,6 +16,7 @@ import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.phys.AABB;
 
 import static dev.kristian.nullmod.core.CorruptionStage.ABOVE_MIDDLE;
+import static dev.kristian.nullmod.core.CorruptionStage.HARVEST;
 import static dev.kristian.nullmod.core.CorruptionStage.MIDDLE;
 import static dev.kristian.nullmod.core.CorruptionStage.NULL;
 import static dev.kristian.nullmod.core.CorruptionStage.START;
@@ -31,6 +32,9 @@ import static dev.kristian.nullmod.event.NullEventDefinition.VERY_RARE;
  * only). Server-side actions are only checks: the sky effects need a sky in view, and the
  * effects that take the screen away entirely (freeze, full blackout, fake disconnect) wait for
  * a moment when it cannot get the player killed, unless an administrator forces them.
+ * <p>
+ * In Stage 6 (HARVEST, the wheat field) only three quiet ones remain, by day: the picture
+ * warping, something moving at the edge of sight, and the colour draining away.
  */
 public final class VisualEvents {
     /** Translation keys sent as glitch text; the client shows them translated. */
@@ -98,18 +102,19 @@ public final class VisualEvents {
         NullEventDefinition.builder("sky_flicker")
                 .stages(START, NULL).weight(UNCOMMON)
                 .cooldown(Ticks.minutes(3)).duration(8)
-                .tags(EventTag.VISUAL).place(EventPlace.OUTSIDE_NULL)
+                .tags(EventTag.VISUAL, EventTag.SKY).place(EventPlace.OUTSIDE_NULL)
                 .action(VisualEvents::seesSky)
                 .clientEffect("visual.sky_flicker")
                 .register();
         NullEventDefinition.builder("distant_movement")
-                .stages(START, ABOVE_MIDDLE).weight(UNCOMMON).stageWeights(60, 100, 110, 120, 100)
+                // Not in NULL; back in the wheat field, where something moves between the stalks.
+                .stages(START, HARVEST).weight(UNCOMMON).stageWeights(60, 100, 110, 120, 0, 120)
                 .cooldown(Ticks.minutes(4)).duration(Ticks.seconds(3.5))
                 .tags(EventTag.VISUAL).place(EventPlace.OUTSIDE_NULL)
                 .clientEffect("visual.distant_movement")
                 .register();
         NullEventDefinition.builder("texture_distortion")
-                .stages(START, NULL).weight(COMMON).stageWeights(100, 100, 90, 80, 80)
+                .stages(START, HARVEST).weight(COMMON).stageWeights(100, 100, 90, 80, 80, 60)
                 .cooldown(Ticks.seconds(40)).duration(Ticks.seconds(3))
                 .tags(EventTag.VISUAL)
                 .clientEffect("visual.distort")
@@ -149,7 +154,7 @@ public final class VisualEvents {
         NullEventDefinition.builder("sky_color_shift")
                 .stages(UNDER_MIDDLE, NULL).weight(UNCOMMON)
                 .cooldown(Ticks.minutes(5)).duration(Ticks.seconds(20))
-                .tags(EventTag.VISUAL).place(EventPlace.OUTSIDE_NULL)
+                .tags(EventTag.VISUAL, EventTag.SKY).place(EventPlace.OUTSIDE_NULL)
                 .action(VisualEvents::seesSky)
                 .clientEffect("visual.sky_color")
                 .register();
@@ -171,8 +176,16 @@ public final class VisualEvents {
                 .tags(EventTag.VISUAL)
                 .clientEffect("visual.silhouette")
                 .register();
+        // The NULL stage's runner (stalkers): the figure in the distance sprints at the player and is
+        // gone just before it reaches them. (A distant_silhouette in NULL is sometimes one as well.)
+        NullEventDefinition.builder("silhouette_runner")
+                .stages(NULL, NULL).weight(UNCOMMON)
+                .cooldown(Ticks.minutes(5)).duration(Ticks.seconds(10))
+                .tags(EventTag.VISUAL, EventTag.INTENSE)
+                .clientEffect("visual.silhouette_runner")
+                .register();
         NullEventDefinition.builder("color_drain")
-                .stages(MIDDLE, NULL).weight(UNCOMMON)
+                .stages(MIDDLE, HARVEST).weight(UNCOMMON).stageWeights(100, 100, 100, 100, 100, 70)
                 .cooldown(Ticks.minutes(4)).duration(Ticks.seconds(15))
                 .tags(EventTag.VISUAL)
                 .clientEffect("visual.desaturate")

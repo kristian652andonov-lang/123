@@ -606,8 +606,9 @@ public class ItEntity extends PathfinderMob {
      * easing off as it closes in so it does not overshoot, but always faster than its prey.
      */
     static double chaseSpeed(double distance, double preySpeed) {
-        double easing = ItTuning.CHASE_SPEED * Mth.clamp((distance - 1.4) / 6.0, 0.15, 1.0);
-        return Math.min(ItTuning.CHASE_SPEED, Math.max(easing, preySpeed + ItTuning.CLOSING_SPEED));
+        double top = ItTuning.chaseSpeed();
+        double easing = top * Mth.clamp((distance - 1.4) / 6.0, 0.15, 1.0);
+        return Math.min(top, Math.max(easing, preySpeed + ItTuning.closingSpeed()));
     }
 
     /** Within reach, nothing solid in between, and not hidden. */
@@ -899,7 +900,7 @@ public class ItEntity extends PathfinderMob {
         switch (killTicks) {
             case ItKillPath.PIERCE_AT -> {
                 level.broadcastEntityEvent(this, EVENT_PIERCE);
-                float amount = Math.min(ItTuning.PIERCE_DAMAGE, held.getHealth() - 1.0F);
+                float amount = Math.min(ItTuning.pierceDamage(), held.getHealth() - 1.0F);
                 if (amount >= 0.5F) {
                     held.invulnerableTime = 0;
                     held.hurt(ItDamage.source(level, this), amount);
@@ -1133,7 +1134,7 @@ public class ItEntity extends PathfinderMob {
         if (distance > 0.25) {
             float desired = (float) (Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90.0F;
             desired = avoid(level, desired, speed, distance);
-            float turn = Mth.lerp((float) Mth.clamp(groundSpeed / ItTuning.CHASE_SPEED, 0.0, 1.0), ItTuning.TURN_SLOW, ItTuning.TURN_FAST);
+            float turn = Mth.lerp((float) Mth.clamp(groundSpeed / ItTuning.chaseSpeed(), 0.0, 1.0), ItTuning.TURN_SLOW, ItTuning.TURN_FAST);
             yaw = Mth.approachDegrees(yaw, desired, turn);
             double alignment = Math.cos(Math.toRadians(Mth.degreesDifference(yaw, desired)));
             want = Math.min(speed * Mth.clamp(alignment, 0.2, 1.0), distance * 0.45 + 0.02);

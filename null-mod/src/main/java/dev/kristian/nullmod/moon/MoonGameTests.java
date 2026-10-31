@@ -1,6 +1,7 @@
 package dev.kristian.nullmod.moon;
 
 import dev.kristian.nullmod.NullMod;
+import dev.kristian.nullmod.core.CorruptionContext;
 import dev.kristian.nullmod.core.CorruptionData;
 import dev.kristian.nullmod.core.CorruptionManager;
 import dev.kristian.nullmod.core.CorruptionStage;
@@ -12,7 +13,7 @@ import net.minecraft.server.MinecraftServer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
-/** Tests for the Shattering Moon: the shared geometry and the server-side progression. */
+/** Tests for the Shattering Moon: the shared geometry, the cracked moon's pixels and the server-side progression. */
 @GameTestHolder(NullMod.MODID)
 @PrefixGameTestTemplate(false)
 public final class MoonGameTests {
@@ -61,6 +62,22 @@ public final class MoonGameTests {
                     }
                 }
             }
+            // The cracks spread from the middle of the moon.
+            float fromCentre = (float) Math.hypot(a.impactX() - 0.5F, a.impactY() - 0.5F);
+            helper.assertTrue(fromCentre <= 0.125F, "the impact is " + fromCentre + " from the centre for seed " + seed);
+            // Corner shards (a square moon shows them) break away as part of a piece, never alone.
+            for (int s = 0; s < a.shardCount(); s++) {
+                MoonGeometry.Shard shard = a.shard(s);
+                if (shard.leader() < 0) {
+                    continue;
+                }
+                MoonGeometry.Shard leader = a.shard(shard.leader());
+                helper.assertTrue(leader.leader() < 0 && leader.breakAt() == shard.breakAt(),
+                        "shard " + s + " does not break with its piece for seed " + seed);
+                for (int k = 0; k < a.holeCount(); k++) {
+                    helper.assertTrue(a.hole(k) != s, "shard " + s + " is part of a piece but also a hole for seed " + seed);
+                }
+            }
             helper.assertTrue(a.nextHole(0.0F) == a.hole(0), "nextHole disagrees with the hole order");
             helper.assertTrue(a.newestHole(1.0F) == a.hole(a.holeCount() - 1), "newestHole disagrees with the hole order");
             List<MoonCorruptionManager.Milestone> milestones = MoonCorruptionManager.INSTANCE.milestones(seed);
@@ -71,6 +88,20 @@ public final class MoonGameTests {
         }
         helper.assertTrue(NullEventRegistry.get("moon_crack").isPresent() && NullEventRegistry.get("moon_piece").isPresent()
                 && NullEventRegistry.get("moon_distortion").isPresent(), "moon events are not registered");
+        helper.succeed();
+    }
+
+    /**
+     * The damage stays on the moon: with moon sheets laid out like vanilla's (a small moon in the
+     * middle of each phase cell), high-resolution, oddly sized and off-centre packs, in every phase
+     * and at every progress value, nothing outside the moon's body changes, crack lines only darken
+     * the lit side, the crack glow only lights the lit moon and broken pieces are cut from the moon.
+     */
+    @GameTest(template = "empty", batch = "moon_geometry")
+    public static void crackedMoonStaysOnTheMoon(GameTestHelper helper) {
+        List<String> problems = MoonArtCheck.run(42L);
+        helper.assertTrue(problems.isEmpty(), problems.size() + " problems with the cracked moon, first: "
+                + (problems.isEmpty() ? "" : problems.get(0)));
         helper.succeed();
     }
 
@@ -108,6 +139,35 @@ public final class MoonGameTests {
         CorruptionManager.setStage(server, CorruptionStage.ABOVE_MIDDLE);
         helper.assertFalse(data.moonGone(), "moving back to Stage 4 did not bring the moon back");
         helper.assertTrue(data.moonProgress() < 1.0F, "moving back to Stage 4 did not move the moon back");
+        CorruptionManager.setStage(server, CorruptionStage.START);
+        helper.assertTrue(data.moonProgress() == 0.0F && !data.moonGone(), "Stage 1 did not reset the moon");
+        helper.succeed();
+    }
+
+    /** Stage 6 (HARVEST) has no moon, however the world got there; it comes back below Stage 5. */
+    @GameTest(template = "empty", batch = "moon_4")
+    public static void harvestKeepsTheMoonGone(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        CorruptionData data = CorruptionManager.data(server);
+        if (!MoonCorruptionManager.enabled()) {
+            helper.succeed();
+            return;
+        }
+        startWhole(server);
+        CorruptionManager.setStage(server, CorruptionStage.ABOVE_MIDDLE);
+        helper.assertFalse(data.moonGone(), "the moon is gone in Stage 4");
+        // The stage changes themselves are only told to the moon here: the field and the NULL
+        // dimension (not loaded on GameTest servers) stay out of it.
+        CorruptionContext context = CorruptionManager.context(server);
+        MoonCorruptionManager moon = MoonCorruptionManager.INSTANCE;
+        moon.onStageChanged(server, CorruptionStage.ABOVE_MIDDLE, CorruptionStage.HARVEST, context);
+        helper.assertTrue(data.moonGone(), "going from Stage 4 straight to Stage 6 left the moon in the sky");
+        moon.onStageChanged(server, CorruptionStage.HARVEST, CorruptionStage.NULL, context);
+        helper.assertTrue(data.moonGone(), "going back from Stage 6 to Stage 5 brought the moon back");
+        moon.onStageChanged(server, CorruptionStage.NULL, CorruptionStage.HARVEST, context);
+        helper.assertTrue(data.moonGone(), "the moon came back in Stage 6");
+        moon.onStageChanged(server, CorruptionStage.HARVEST, CorruptionStage.ABOVE_MIDDLE, context);
+        helper.assertFalse(data.moonGone(), "going back from Stage 6 to Stage 4 did not bring the moon back");
         CorruptionManager.setStage(server, CorruptionStage.START);
         helper.assertTrue(data.moonProgress() == 0.0F && !data.moonGone(), "Stage 1 did not reset the moon");
         helper.succeed();

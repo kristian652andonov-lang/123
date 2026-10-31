@@ -15,14 +15,16 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.client.event.SelectMusicEvent;
 
 /**
- * Client entry point of the corrupted main menu.
+ * Client entry point of the corrupted main menu and of NULL's look on every other menu.
  * <ul>
  *   <li>Swaps the vanilla {@link TitleScreen} for {@link CorruptedMainMenu} while
  *       {@code CUSTOM_MAIN_MENU} is on, and back again when it is switched off.</li>
+ *   <li>NULL's backdrop behind the other screens, darkening and grain on menus inside a world and
+ *       the blood graffiti in container screens ({@link NullScreenLook}).</li>
  *   <li>Keeps the cheerful vanilla menu music away while the corrupted menu (and the screens
  *       opened from it, before a world is joined) has its own sounds.</li>
- *   <li>Frees the menu's textures once the menu has been gone for a while (at once when a
- *       world is joined) and re-reads its art metadata after a resource reload.</li>
+ *   <li>Frees the menu's textures once no screen has shown them for a while (at once when a
+ *       world is joined) and re-reads its art after a resource reload.</li>
  * </ul>
  */
 public final class MenuClientModule {
@@ -40,6 +42,7 @@ public final class MenuClientModule {
         gameBus.addListener(MenuClientModule::onLoggingIn);
         gameBus.addListener(MenuClientModule::onClientTick);
         modBus.addListener(MenuClientModule::onRegisterReloadListeners);
+        NullScreenLook.init(gameBus);
     }
 
     /** The menu was removed: free its textures after {@code delayMs} unless it comes back first. */
@@ -58,6 +61,9 @@ public final class MenuClientModule {
         }
         if (Minecraft.getInstance().screen instanceof CorruptedMainMenu) {
             releaseAtMs = -1L;
+        } else if (NullScreenLook.backdropShowing()) {
+            // another screen outside a world still shows the faces and the fog
+            releaseAtMs = Util.getMillis() + RELEASE_GRACE_MS;
         } else if (Util.getMillis() >= releaseAtMs) {
             releaseAtMs = -1L;
             MenuArt.releaseTextures();
@@ -103,6 +109,10 @@ public final class MenuClientModule {
     }
 
     private static void onRegisterReloadListeners(RegisterClientReloadListenersEvent event) {
-        event.registerReloadListener((ResourceManagerReloadListener) resourceManager -> MenuArt.invalidate());
+        event.registerReloadListener((ResourceManagerReloadListener) resourceManager -> {
+            MenuArt.invalidate();
+            MenuBackdrop.forget();
+            InventoryGraffiti.invalidate();
+        });
     }
 }

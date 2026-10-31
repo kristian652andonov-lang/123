@@ -428,6 +428,20 @@ def compress(x, sr=SR, threshold_db=-18.0, ratio=3.0, window=0.012, smooth=0.01)
     return x * g
 
 
+def limit(x, sr=SR, reduce_db=6.0, window=0.02):
+    """Look-ahead peak limiter: the loudest peaks come down by up to reduce_db under a smooth gain
+    (never late: at every peak the gain is already as low as that peak needs), so the body of a
+    sound with a few sharp transients can sit louder at the same peak level."""
+    w = max(1, ns(window, sr))
+    env = np.abs(x)
+    threshold = float(np.max(env)) * 10 ** (-reduce_db / 20.0)
+    gain = np.minimum(1.0, threshold / np.maximum(env, 1e-12))
+    lowest = np.lib.stride_tricks.sliding_window_view(np.pad(gain, (w, w), mode="edge"), 2 * w + 1).min(axis=1)
+    c = np.cumsum(np.pad(lowest, (w + 1, w), mode="edge"))
+    smooth = (c[2 * w + 1:] - c[:-(2 * w + 1)]) / (2 * w + 1)
+    return x * smooth[:len(x)]
+
+
 def bass_exciter(x, sr=SR, amount=0.5, cutoff=140.0, drive=4.0, circular=False):
     """Adds harmonics of the sub-bass (100-900 Hz) so small speakers and headphones still convey
     a rumble or a thump (the missing-fundamental effect)."""
@@ -656,51 +670,144 @@ def friction_creak(rng, dur, rate_points, res_freqs, res_q=10.0, sr=SR, jitter=0
 
 
 def squelch(rng, dur, centre=900.0, density=14.0, sr=SR, wetness=1.0):
-    """Wet organic texture: short bubbly resonant blips and gated band noise."""
+    """Wet organic texture, flesh shifting in fluid: sticky smacks (noise in soft, low-Q resonances of
+    the flesh), small bubbles popping (a damped resonance rising a semitone or two at most, never a
+    cartoon "bloop") and a churning band of noise."""
     n = ns(dur, sr)
     out = np.zeros(n)
-    count = int(dur * density)
-    for _ in range(count):
-        m = ns(rng.uniform(0.012, 0.05), sr)
-        f0 = centre * rng.uniform(0.4, 1.4)
-        f1 = f0 * rng.uniform(1.4, 2.6)
-        t = tvec(m, sr)
-        f = f0 + (f1 - f0) * (t / t[-1]) ** 1.5
-        blip = np.sin(phase_of(f, sr)) * hann(m) ** 1.5
-        place(out, blip * rng.uniform(0.2, 1.0) * wetness, ns(rng.uniform(0, dur), sr) - m // 2)
-    band = bandpass(white(n, rng), centre, 2.5, sr) * (0.5 + 0.5 * np.clip(smooth_random(n, rng, 12, sr) * 2, -1, 1))
-    return out + 0.35 * band * wetness
+    for _ in range(int(dur * density)):
+        start = ns(rng.uniform(0, dur), sr)
+        if rng.random() < 0.6:
+            m = ns(rng.uniform(0.006, 0.03), sr)
+            burst = white(m, rng) * np.exp(-np.linspace(0, rng.uniform(3, 6), m))
+            smack = iir(np.pad(burst, (0, ns(0.03, sr))), "bp", centre * rng.uniform(0.4, 1.5), rng.uniform(1.5, 3.5), sr=sr)
+            place(out, smack / (np.max(np.abs(smack)) + 1e-9) * rng.uniform(0.2, 0.9) * wetness, start)
+        else:
+            m = ns(rng.uniform(0.012, 0.035), sr)
+            t = tvec(m, sr)
+            f = centre * rng.uniform(0.5, 1.3) * (1.0 + rng.uniform(0.06, 0.12) * t / t[-1])
+            pop = np.sin(phase_of(f, sr)) * np.exp(-t / (m / sr * 0.3)) + white(m, rng) * np.exp(-t / 0.002) * 0.5
+            place(out, pop * rng.uniform(0.15, 0.6) * wetness, start)
+    churn = bandpass(white(n, rng), centre, 2.0, sr) * (0.5 + 0.5 * np.clip(smooth_random(n, rng, 12, sr) * 2, -1, 1))
+    return out + 0.35 * churn * wetness
 
 
-def glass_tinkle(rng, f0, level=1.0, sr=SR, decay=0.35):
-    n = ns(decay * 3.0, sr)
-    t = tvec(n, sr)
-    ratios = [1.0, 2.32, 4.25, 6.63, 9.38]
-    out = np.zeros(n)
-    for k, r in enumerate(ratios):
-        f = f0 * r * rng.uniform(0.985, 1.015)
-        if f > sr * 0.45:
+# ---- the sky breaking: stone and ice under impossible pressure, far above --------------------
+# Everything here is noise exciting low-Q resonances, stick-slip friction and filtered rumble: no
+# oscillator ever glides, so nothing can come out as a "pew", a whistle or a sci-fi sweep.
+
+def impacts(rng, n, times, amps, bands, q=3.0, sr=SR, click=(0.3, 2.5)):
+    """Short impacts (stones, ice, splinters) at the given times: each one is a tiny noise burst
+    ringing one of a few low-Q resonances, so they knock and crunch without a pitch."""
+    excitation = [np.zeros(n) for _ in bands]
+    for t, a in zip(times, amps):
+        k = ns(t, sr)
+        if k >= n:
             continue
-        out += np.exp(-t / (decay / (1 + 0.8 * k))) * np.sin(TAU * f * t + rng.uniform(0, TAU)) / (1 + k * 0.6)
-    k = ns(0.0008, sr)
-    out[:k] += white(k, rng) * 0.5
-    return fade(out * level, 0.0, decay * 0.9, sr)
-
-
-def ice_crack(rng, sr=SR, size=1.0):
-    """Dispersive crack (the eerie 'pew' of cracking ice): high frequencies first, then low."""
-    n = ns(0.5 + 0.4 * size, sr)
+        m = ns(rng.uniform(*click) / 1000.0, sr)
+        burst = white(m, rng) * np.exp(-np.linspace(0, 4, m))
+        place(excitation[int(rng.integers(len(bands)))], burst * a, k)
     out = np.zeros(n)
-    k = ns(0.0015, sr)
-    out[:k] += white(k, rng) * np.exp(-np.linspace(0, 5, k)) * 1.2
-    for j in range(int(rng.integers(2, 4))):
-        f_start = rng.uniform(5000, 8000)
-        f_end = rng.uniform(180, 520) * (1.3 - 0.4 * size)
-        tau = rng.uniform(0.02, 0.05) * (0.8 + 0.6 * size)
-        m = ns(rng.uniform(0.12, 0.3) * (0.8 + 0.5 * size), sr)
-        c = chirp_exp(m, f_start, f_end, tau, sr) * attack_decay(m, 0.0004, rng.uniform(0.04, 0.11) * (0.8 + 0.5 * size), sr)
-        c = fade(c, 0.0, m / sr * 0.35, sr)
-        place(out, c * rng.uniform(0.5, 1.0), ns(j * rng.uniform(0.002, 0.012), sr))
+    for exc, fc in zip(excitation, bands):
+        if np.any(exc):
+            out += iir(exc, "bp", fc * rng.uniform(0.94, 1.06), q, sr=sr)
+    return out
+
+
+def cascade_times(rng, start, length, count, decay=0.35):
+    """Times of a crumbling cascade: dense at first, thinning out (exponential spacing)."""
+    t = start + rng.exponential(length * decay, count)
+    return np.sort(t[t < start + length])
+
+
+def debris(rng, n, start, length, count, sr=SR, low=250.0, high=2600.0, recede=True):
+    """Debris crumbling and falling far above: a cascade of stony impacts that thins out and,
+    falling away, loses its brightness. Pareto-distributed loudness: a few big pieces, many small."""
+    times = cascade_times(rng, start, length, count)
+    amps = np.minimum(2.0, rng.pareto(2.5, len(times)) + 0.3)
+    if recede:
+        amps = amps * np.exp(-(times - start) / max(0.2, length * 0.8))
+    bands = list(np.geomspace(low, high, 9))
+    # Stones ring for a few milliseconds and bounce: longer bursts than a click.
+    out = impacts(rng, n, times, amps, bands, q=rng.uniform(2.2, 3.5), sr=sr, click=(1.5, 7.0))
+    if recede:
+        t = tvec(n, sr)
+
+        def gain(tt, f):
+            cut = high * 1.6 * np.exp(-np.clip(tt - start, 0, None) / (length * 1.2)) + low * 2.0
+            return 1.0 / (1.0 + (f[None, :] / cut[:, None]) ** 2)
+        out = stft_shape(out, gain, n_fft=1024, hop=256, sr=sr)
+        out *= np.clip((t - start) * 40.0, 0.0, 1.0)
+    # A texture, not a row of clicks: the biggest knocks are held back so the crumbling carries.
+    return limit(out, sr, 9.0, 0.008)
+
+
+def thunder_roll(rng, n, start, length, cutoff=260.0, sr=SR, bursts=48):
+    """A huge low rumble rolling on like distant thunder: many overlapping low noise bursts (the same
+    fracture arriving along longer and longer paths), dense at first, then sparser and darker."""
+    out = np.zeros(n)
+    times = cascade_times(rng, start, length, bursts, 0.4)
+    for i, t0 in enumerate(times):
+        m = ns(rng.uniform(0.08, 0.45), sr)
+        burst = lowpass(white(m, rng), cutoff * rng.uniform(0.5, 1.1), 2, sr) * hann(m) ** 1.5
+        age = (t0 - start) / max(length, 1e-3)
+        place(out, burst * rng.uniform(0.4, 1.0) * np.exp(-2.2 * age), ns(t0, sr))
+    bed = rumble_bed(rng, n, cutoff * 0.6, sr)
+    bed *= env_points(n, [(0, 0), (start, 0), (start + 0.08, 1.0), (start + length, 0.0), (n / sr, 0.0)], sr)
+    return out + 0.35 * bed * (np.max(np.abs(out)) + 1e-9) / (np.max(np.abs(bed)) + 1e-9)
+
+
+def strain(rng, dur, sr=SR, rate=(7.0, 16.0), modes=(62.0, 97.0, 148.0, 233.0, 355.0), q=7.0, grit=0.5):
+    """A deep, slow groan of something enormous under strain: stick-slip friction at a few pulses a
+    second ringing the low modes of a huge slab. The pulse rate wanders irregularly within its range
+    (never a glide); a grinding hiss rides on the loudest moments."""
+    n = ns(dur, sr)
+    lo, hi = rate
+    knots = [(0.0, lo)]
+    t = 0.0
+    while t < dur:
+        t += rng.uniform(0.15, 0.5)
+        knots.append((min(t, dur), rng.uniform(lo, hi)))
+    out = friction_creak(rng, dur, knots, [m * rng.uniform(0.95, 1.05) for m in modes], q, sr=sr, jitter=0.35, grit=grit)
+    swell = np.clip(0.55 + 0.45 * smooth_random(n, rng, 1.6, sr), 0.0, 1.0) ** 1.5
+    hiss = bandpass(white(n, rng), rng.uniform(500, 900), 1.2, sr) * swell ** 2 * 0.25
+    out = out / (np.max(np.abs(out)) + 1e-9)
+    return (out + hiss * grit) * swell
+
+
+def grind(rng, dur, sr=SR, density=900.0, low=180.0, high=1400.0):
+    """Stone grinding against stone: thousands of tiny frictional impacts a second, pulsing as the
+    surfaces catch and slip."""
+    n = ns(dur, sr)
+    count = int(dur * density)
+    times = np.sort(rng.uniform(0, dur, count))
+    pulse = np.clip(0.5 + 0.5 * smooth_random(n, rng, 6.0, sr), 0.0, 1.0) ** 2
+    amps = rng.uniform(0.05, 1.0, count) * pulse[np.minimum((times * sr).astype(int), n - 1)]
+    out = impacts(rng, n, times, amps, list(np.geomspace(low, high, 7)), q=1.6, sr=sr, click=(0.1, 0.8))
+    out = limit(out, sr, 9.0, 0.008)
+    return out * env_points(n, [(0, 0), (min(0.05, dur * 0.2), 1), (dur, 1)], sr)
+
+
+def fracture(rng, n, at, size=1.0, sr=SR, boom_level=1.0):
+    """One fracture in something huge and far away: the snap (low-passed by the distance), the
+    slab ringing deep down, a boom felt more than heard and the first grit flying off."""
+    out = np.zeros(n)
+    m = ns(rng.uniform(0.002, 0.005), sr)
+    snap = white(m, rng) * np.exp(-np.linspace(0, 3, m))
+    snap = spectral(np.pad(snap, (0, ns(0.05, sr))), r_mul(r_hp(220, 2), r_lp(rng.uniform(2200, 3600) / (0.7 + 0.3 * size), 2)), sr)
+    place(out, snap * 1.4, ns(at, sr))
+    k = ns(0.012, sr)
+    body_exc = white(k, rng) * np.exp(-np.linspace(0, 5, k))
+    body = np.zeros(ns(1.2, sr))
+    for f, qq, a in [(rng.uniform(70, 90), 4.0, 1.0), (rng.uniform(118, 140), 4.5, 0.8), (rng.uniform(190, 230), 4.0, 0.6),
+                     (rng.uniform(300, 360), 3.5, 0.4), (rng.uniform(480, 560), 3.0, 0.25)]:
+        place(body, iir(np.pad(body_exc, (0, len(body) - k)), "bp", f / (0.85 + 0.15 * size), qq * 1.6, sr=sr) * a, 0)
+    place(out, body * 2.2 * size, ns(at, sr))
+    boom = thump(rng, ns(1.6, sr), rng.uniform(46, 56) / (0.9 + 0.1 * size), rng.uniform(24, 29), 0.14, 0.35 + 0.25 * size, sr)
+    place(out, boom * 1.1 * size * boom_level, ns(at + 0.004, sr))
+    times = at + 0.01 + rng.exponential(0.08, int(14 * size) + 6)
+    amps = rng.uniform(0.1, 0.6, len(times)) * np.exp(-(times - at) / 0.15)
+    place(out, impacts(rng, n, times, amps, [420.0, 700.0, 1100.0, 1700.0], q=2.5, sr=sr) * 0.8, 0)
     return out
 
 
@@ -734,11 +841,13 @@ SPECS: dict[str, dict] = {}
 
 
 def sound(event, *, variants=3, subtitle=None, stream=False, stereo=False, attenuation=None,
-          sr=SR, peak=-1.5, rms_db=None, quality=4, loop=False, fades=(0.002, 0.01)):
+          sr=SR, peak=-1.5, rms_db=None, quality=4, loop=False, fades=(0.002, 0.01), client=False):
+    """Registers a recipe. client=True: an event only the client plays, by name (NULL's music
+    variants and overlays): it is written to sounds.json but has no SoundEvent in NullSounds.java."""
     def wrap(fn):
         SPECS[event] = dict(fn=fn, variants=variants, subtitle=subtitle, stream=stream, stereo=stereo,
                             attenuation=attenuation, sr=sr, peak=peak, rms=rms_db, quality=quality,
-                            loop=loop, fades=fades)
+                            loop=loop, fades=fades, client=client)
         return fn
     return wrap
 
@@ -804,14 +913,19 @@ def s_digital_interference(rng, v, sr):
         pos += burst + ns(rng.choice([0.02, 0.04, 0.09, 0.2, 0.45], p=[0.3, 0.25, 0.2, 0.15, 0.1]), sr)
     gate = lowpass(gate, 180, 2, sr)
     out = buzz * gate
-    # Data chirps.
+    # Corrupted data: bursts of crushed noise caught in a few fixed resonances, some of them stuck
+    # and repeating like a jammed buffer (broken, never a "data chirp").
     for _ in range(int(rng.integers(2, 6))):
-        m = ns(rng.uniform(0.04, 0.16), sr)
-        f = np.geomspace(rng.uniform(400, 1200), rng.uniform(1500, 4200), m)
+        m = ns(rng.uniform(0.04, 0.14), sr)
+        src = white(m, rng)
+        burst = sum(iir(src, "bp", fc * rng.uniform(0.9, 1.1), 3.0, sr=sr)
+                    for fc in rng.choice([700.0, 1100.0, 1600.0, 2300.0, 3100.0], 2, replace=False))
+        burst = bitcrush(burst / (np.max(np.abs(burst)) + 1e-9) * 0.8, int(rng.integers(3, 5)), int(rng.integers(2, 7)))
+        burst = burst * hann(m) ** 0.3
         if rng.random() < 0.5:
-            f = f[::-1]
-        c = square_raw(f, m, sr) * hann(m) * 0.35
-        place(out, bitcrush(c, 4, int(rng.integers(1, 4))), ns(rng.uniform(0, dur - 0.2), sr))
+            g_len = ns(rng.uniform(0.015, 0.035), sr)
+            burst = stutter(burst[:g_len] * hann(g_len) ** 0.2, int(rng.integers(3, 7)), 0.9)
+        place(out, burst * 0.35, ns(rng.uniform(0, dur - 0.25), sr))
     # Crushed clicks.
     for _ in range(int(dur * 7)):
         m = ns(rng.uniform(0.001, 0.004), sr)
@@ -882,11 +996,16 @@ def s_underground(rng, v, sr):
             k = door_knock(rng, 0.8, sr, modes=[(55, 0.12, 1.0), (90, 0.08, 0.7), (143, 0.05, 0.4), (260, 0.02, 0.2)])
             place(out, lowpass(k, 500, 2, sr) * rng.uniform(0.5, 0.9), ns(rng.uniform(0.3, dur - 1.5), sr))
     if v == 1:
+        # Water dripping somewhere in the dark: a tiny splash and the drop's short ring, rising a
+        # semitone or two as it settles (a real drop, not a cartoon "bloop").
         for _ in range(int(rng.integers(3, 6))):
-            m = ns(0.12, sr)
-            f = np.geomspace(rng.uniform(900, 1300), rng.uniform(1800, 2600), m)
-            drip = np.sin(phase_of(f, sr)) * attack_decay(m, 0.001, 0.025, sr)
-            place(out, drip * rng.uniform(0.15, 0.35), ns(rng.uniform(0.2, dur - 0.5), sr))
+            m = ns(0.06, sr)
+            t = tvec(m, sr)
+            f = rng.uniform(1100, 2300) * (1.0 + rng.uniform(0.06, 0.16) * np.minimum(1.0, t / 0.02))
+            drip = np.sin(phase_of(f, sr)) * attack_decay(m, 0.0005, rng.uniform(0.008, 0.014), sr)
+            k = ns(0.0015, sr)
+            drip[:k] += white(k, rng) * np.exp(-np.linspace(0, 4, k)) * 0.6
+            place(out, drip * rng.uniform(0.12, 0.3), ns(rng.uniform(0.2, dur - 0.5), sr))
     if v == 2:
         grind = np.zeros(n)
         for _ in range(int(dur * 40)):
@@ -1003,14 +1122,16 @@ def s_wrong_wind(rng, v, sr):
         g = g + 0.35 * np.exp(-0.5 * ((ff - f2[idx][:, None]) / 140.0) ** 2)
         return g * gu ** 1.2
     wind = stft_shape(src, gain, n_fft=2048, hop=512, sr=sr)
-    t = tvec(n, sr)
-    # A whistle that glides in stepped, almost vocal intervals.
-    steps = np.cumsum(rng.choice([-2, -1, 1, 2, 3], size=8))
-    knots = np.linspace(0, dur, len(steps))
-    semis = np.interp(t, knots, steps)
-    whistle_f = 760.0 * 2 ** (semis / 12.0) * (1 + 0.006 * np.sin(TAU * 5.2 * t))
-    whistle = np.sin(phase_of(whistle_f, sr)) * (0.5 + 0.5 * smooth_random(n, rng, 0.7, sr)) ** 2
-    out = wind / (rms(wind) + 1e-9) * 0.25 + whistle * 0.09
+    # Somewhere the wind whistles through a gap: a narrow band of the wind itself (no oscillator),
+    # its pitch following the gusts by a semitone or two at most.
+    gap_f = 820.0 * 2 ** ((gust - 0.55) * 3.0 / 12.0)
+
+    def whistle_gain(tt, f):
+        idx = np.clip((tt * rate).astype(int), 0, ctrl_n - 1)
+        centre = gap_f[idx][:, None]
+        return np.exp(-0.5 * ((f[None, :] - centre) / (centre * 0.025)) ** 2) * gust[idx][:, None] ** 2
+    whistle = stft_shape(coloured(n, rng, 1.0, sr), whistle_gain, n_fft=2048, hop=512, sr=sr)
+    out = wind / (rms(wind) + 1e-9) * 0.25 + whistle / (rms(whistle) + 1e-9) * 0.05
     if v == 1:   # the wind stops dead for a moment, then carries on
         k0 = ns(dur * rng.uniform(0.45, 0.6), sr)
         k1 = k0 + ns(rng.uniform(0.25, 0.4), sr)
@@ -1106,13 +1227,14 @@ def s_knock(rng, v, sr):
 @sound("event.glitch", variants=4, subtitle="Glitching", attenuation=24, peak=-2.0, fades=(0.001, 0.004))
 def s_glitch(rng, v, sr):
     if v == 0:
+        # A stuck audio buffer: one grain of mains buzz and noise repeating, jittering, dropping out.
+        m = ns(rng.uniform(0.03, 0.05), sr)
+        grain = square_raw(rng.choice([50.0, 60.0]) * rng.choice([2, 3]), m, sr, duty=0.3) * 0.5 + white(m, rng) * 0.35
+        grain = bitcrush(lowpass(grain, 5000, 2, sr) * hann(m) ** 0.15, 4, 2)
         parts = []
-        f = rng.uniform(380, 520)
-        for k in range(int(rng.integers(9, 14))):
-            m = ns(0.024, sr)
-            g = square_raw(f, m, sr, duty=rng.uniform(0.2, 0.5)) * 0.6 + white(m, rng) * 0.25
-            parts.append(bitcrush(g * hann(m) ** 0.1, 4, 2))
-            f *= rng.uniform(0.9, 0.98)
+        for _ in range(int(rng.integers(8, 13))):
+            cut = max(ns(0.01, sr), int(m * rng.uniform(0.75, 1.0)))
+            parts.append(grain[:cut] * (0.0 if rng.random() < 0.12 else rng.uniform(0.7, 1.0)))
         return np.concatenate(parts)
     if v == 1:
         n = ns(0.38, sr)
@@ -1126,15 +1248,26 @@ def s_glitch(rng, v, sr):
             i += h
         return bitcrush(out, 4) * env_points(n, [(0, 1), (0.3, 0.8), (0.38, 0)], sr)
     if v == 2:
+        # Corrupted data: chunks of crushed noise, mains buzz, clicks and silence, in no order at all.
         n = ns(0.55, sr)
         out = np.zeros(n)
         pos = 0
         while pos < n:
-            m = ns(rng.uniform(0.008, 0.03), sr)
-            tone = square_raw(rng.choice([330, 440, 587, 880, 1175, 1760, 2349]) * rng.uniform(0.97, 1.03), m, sr)
-            out[pos:pos + m] = tone[:max(0, min(m, n - pos))] * (0 if rng.random() < 0.15 else rng.uniform(0.4, 0.8))
+            m = min(ns(rng.uniform(0.008, 0.035), sr), n - pos)
+            kind = rng.random()
+            if kind < 0.45:
+                chunk = bitcrush(white(m, rng) * 0.6, int(rng.integers(2, 5)), int(rng.integers(2, 16)))
+            elif kind < 0.7:
+                chunk = square_raw(rng.choice([50.0, 60.0]) * rng.choice([1, 2, 3]), m, sr, 0.25) * 0.5 + white(m, rng) * 0.2
+            elif kind < 0.85:
+                chunk = np.zeros(m)
+                c = ns(0.001, sr)
+                chunk[:c] = rng.choice([-1.0, 1.0]) * 0.3 * np.exp(-np.linspace(0, 3, c))
+            else:
+                chunk = np.zeros(m)
+            out[pos:pos + m] = chunk[:m] * rng.uniform(0.5, 1.0)
             pos += m
-        return bitcrush(spectral(out, r_lp(6000, 2), sr), 5, 2)
+        return limit(bitcrush(spectral(out, r_lp(6500, 2), sr), 5, 2), sr, 6.0, 0.005)
     n = ns(0.75, sr)
     out = np.zeros(n)
     k = ns(0.002, sr)
@@ -1148,24 +1281,37 @@ def s_glitch(rng, v, sr):
 
 @sound("event.blackout", variants=2, subtitle="Power fails", attenuation=24, peak=-1.5, fades=(0.001, 0.2))
 def s_blackout(rng, v, sr):
+    # The mains hum, a heavy relay clunk, and the power dies: the hum sputters and is gone, the wiring
+    # fizzes and ticks as it cools, and something far below switches off with a deep thud.
     dur = [2.2, 2.0][v]
     n = ns(dur, sr)
     out = np.zeros(n)
     pre = ns(0.18, sr)
-    hum = (sine(50, pre, sr) * 0.3 + sine(100, pre, sr) * 0.15 + sine(150, pre, sr) * 0.1) * np.linspace(0.6, 1, pre)
-    place(out, hum, 0)
+    mains = float(rng.choice([50.0, 60.0]))
+    hum_n = pre + ns(0.5, sr)
+    hum = sine(mains, hum_n, sr) * 0.3 + sine(mains * 2, hum_n, sr) * 0.15 + sine(mains * 3, hum_n, sr) * 0.1
+    gate = np.ones(hum_n)
+    gate[:pre] = np.linspace(0.6, 1.0, pre)
+    k = pre
+    while k < hum_n:
+        on = ns(rng.uniform(0.01, 0.05), sr)
+        off = ns(rng.uniform(0.02, 0.08), sr)
+        gate[k:k + on] = max(0.0, 1.0 - (k - pre) / (hum_n - pre)) * rng.uniform(0.4, 1.0)
+        gate[k + on:k + on + off] = 0.0
+        k += on + off
+    place(out, hum * lowpass(gate, 300, 2, sr), 0)
     clunk = door_knock(rng, 1.2, sr, modes=[(70, 0.08, 1.0), (180, 0.04, 0.5), (1900, 0.01, 0.25), (3400, 0.006, 0.2)])
     place(out, clunk, pre)
+    fizz = spectral(white(ns(0.8, sr), rng), r_mul(r_hp(1800, 2), r_lp(7000, 2)), sr)
+    fizz *= np.clip(smooth_random(len(fizz), rng, 40, sr) * 2.0, 0, 1) * np.linspace(1, 0, len(fizz)) ** 2
+    place(out, fizz * 0.12, pre + ns(0.01, sr))
     if v == 0:
-        m = ns(1.5, sr)
-        f = 40 + 1800 * np.exp(-tvec(m, sr) / 0.28)
-        whine = (np.sin(phase_of(f, sr)) + 0.3 * np.sin(phase_of(f * 2.01, sr))) * attack_decay(m, 0.01, 0.5, sr)
-        place(out, whine * 0.35, pre)
+        place(out, thump(rng, ns(1.2, sr), 60, 30, 0.1, 0.35, sr) * 0.7, pre + ns(0.05, sr))
     else:
-        m = ns(1.4, sr)
-        place(out, thump(rng, m, 82, 24, 0.15, 0.45, sr) * 1.0, pre)
-        ring = sine(rng.uniform(4800, 6200), ns(1.6, sr), sr) * env_points(ns(1.6, sr), [(0, 0), (0.3, 0.02), (1.6, 0)], sr)
-        place(out, ring, pre + ns(0.2, sr))
+        place(out, thump(rng, ns(1.4, sr), 82, 24, 0.15, 0.45, sr), pre)
+    # Cooling metal: a few tiny ticks in the silence.
+    times = pre / sr + rng.uniform(0.4, dur - pre / sr - 0.2, int(rng.integers(3, 7)))
+    out += impacts(rng, n, times, rng.uniform(0.05, 0.15, len(times)), [2400.0, 3600.0, 5200.0], q=2.0, sr=sr, click=(0.2, 0.6))
     return bass_exciter(out, sr, 0.4, 130.0)
 
 
@@ -1213,18 +1359,22 @@ def s_disconnect(rng, v, sr):
     n = ns([1.5, 1.8][v], sr)
     out = np.zeros(n)
     if v == 0:
-        # A data beep that sags, chokes into a stutter and dies; a relay click; a fizz that cuts.
+        # The line's own noise chokes: crushed data stutters, catches, stutters again and dies; a
+        # relay click; a fizz that cuts.
         m = ns(0.34, sr)
-        f = 1046.5 * np.exp(-tvec(m, sr) * np.log(2) * 2.5)
-        beep = square_raw(f, m, sr, duty=0.3) * env_points(m, [(0, 0), (0.004, 1), (0.26, 0.8), (0.34, 0)], sr)
-        k = ns(0.16, sr)
-        beep[k:] *= square_raw(38.0, m - k, sr, 0.5) * 0.5 + 0.5
-        place(out, bitcrush(beep * 0.5, 5, 2), 0)
+        data = spectral(white(m, rng), r_mul(r_hp(500, 2), r_lp(5000, 2)), sr)
+        data = bitcrush(data / (np.max(np.abs(data)) + 1e-9) * 0.8, 4, int(rng.integers(3, 6)))
+        g_len = ns(rng.uniform(0.025, 0.04), sr)
+        grain = data[:g_len] * hann(g_len) ** 0.2
+        choke = np.concatenate([data[:ns(0.12, sr)], stutter(grain, int(rng.integers(3, 6)), 0.75), np.zeros(ns(0.03, sr)),
+                                stutter(grain * 0.5, 2, 0.6)])
+        place(out, choke * 0.7, 0)
+        at = len(choke) + ns(0.02, sr)
         clk = door_knock(rng, 0.7, sr, modes=[(120, 0.03, 1.0), (2600, 0.004, 0.5)])
-        place(out, clk, ns(0.36, sr))
+        place(out, clk / (np.max(np.abs(clk)) + 1e-9) * 0.6, at)
         m = ns(0.7, sr)
         fizz = spectral(white(m, rng), r_mul(r_hp(800, 2), r_lp(7000, 2)), sr) * np.linspace(1, 0, m) ** 2 * 0.3
-        place(out, fizz, ns(0.38, sr))
+        place(out, fizz, at + ns(0.02, sr))
     else:
         m = ns(0.9, sr)
         x = white(m, rng)
@@ -1252,8 +1402,9 @@ def s_sky_flicker(rng, v, sr):
     for _ in range(int(rng.integers(4, 10))):
         m = ns(rng.uniform(0.001, 0.006), sr)
         place(out, highpass(white(m, rng), 2000, 2, sr) * rng.uniform(0.4, 1.0), ns(rng.uniform(0, dur), sr))
-    tink = sine(rng.uniform(3200, 4200), ns(0.12, sr), sr) * exp_decay(ns(0.12, sr), 0.025, sr) * 0.2
-    place(out, tink, ns(rng.uniform(0, dur * 0.5), sr))
+    # The filament: a dry, tiny tick as it strains (no ringing tone).
+    tick = iir(np.pad(white(ns(0.0015, sr), rng), (0, ns(0.02, sr))), "bp", rng.uniform(3000, 4500), 1.5, sr=sr)
+    place(out, tick / (np.max(np.abs(tick)) + 1e-9) * 0.25, ns(rng.uniform(0, dur * 0.5), sr))
     return out
 
 
@@ -1302,78 +1453,133 @@ def s_breath_behind(rng, v, sr):
 
 # ---- The moon --------------------------------------------------------------------------------
 
+def sky_space(x, rng, sr, rt60=4.2, wet=0.45):
+    """The sky as a cavern: a long, dark reverb whose onset comes late (the sound is very far away)."""
+    return sky_master(reverb(x, rng, rt60, wet=wet, dry=1.0, bright=0.22, predelay=0.07, sr=sr, size=2.2), sr)
+
+
+def sky_master(x, sr, drive=2.5, reduce_db=6.0, body=1.5):
+    """Keeps the sub-bass from eating all the headroom: its peaks are rounded off (which also adds the
+    harmonics small speakers need to carry it) and the sharpest transients are limited, so the
+    audible body of the sound reaches the loudness the old moon sounds had at the same peak level."""
+    low = lowpass(x, 120.0, 2, sr)
+    rest = x - low
+    peak = float(np.max(np.abs(low))) + 1e-9
+    low = np.tanh(drive * low / peak) / np.tanh(drive) * peak * 0.7
+    return limit(low + rest * body, sr, reduce_db, 0.02)
+
+
 @sound("moon.crack", variants=3, subtitle="The sky cracks", attenuation=64, peak=-1.5, fades=(0.0005, 0.5))
 def s_moon_crack(rng, v, sr):
+    # The sky strains with a deep groan, then fractures far above: a distant snap, the slab ringing
+    # deep down, a boom felt more than heard that rolls on like thunder, and grit trickling down.
+    # The third variant breaks a second time, deeper.
     dur = [1.6, 2.0, 2.4][v]
-    n = ns(dur, sr)
+    n = ns(dur + 1.2, sr)
     out = np.zeros(n)
-    place(out, ice_crack(rng, sr, size=1.2), 0)
-    for _ in range(int(rng.integers(3, 8))):
-        place(out, ice_crack(rng, sr, size=rng.uniform(0.3, 0.7)) * rng.uniform(0.15, 0.45), ns(rng.uniform(0.05, dur * 0.5), sr))
-    place(out, thump(rng, ns(0.9, sr), 55, 30, 0.1, 0.3, sr) * 0.4, ns(0.005, sr))
-    return reverb(out, rng, 2.6, wet=0.38, dry=1.0, bright=0.6, predelay=0.03, sr=sr)[:n + ns(0.8, sr)]
+    pre = [0.14, 0.42, 0.24][v]
+    groan = strain(rng, pre + 0.35, sr, rate=(14.0, 34.0), modes=(70.0, 108.0, 165.0, 260.0, 410.0), q=6.0)
+    groan *= env_points(len(groan), [(0, 0), (pre * 0.8, 1.0), (pre + 0.06, 0.7), (pre + 0.35, 0.0)], sr)
+    place(out, groan * 0.35, 0)
+    place(out, fracture(rng, n, pre, 1.0, sr), 0)
+    place(out, thunder_roll(rng, n, pre + 0.03, dur - pre + 0.3, rng.uniform(170, 260), sr, bursts=40) * 0.9, 0)
+    g = grind(rng, rng.uniform(0.35, 0.6), sr, density=700.0)
+    place(out, g / (np.max(np.abs(g)) + 1e-9) * 0.12 * hann(len(g)) ** 0.5, ns(pre + 0.06, sr))
+    place(out, debris(rng, n, pre + 0.15, dur - pre, int(rng.integers(10, 22)), sr) * 0.4, 0)
+    if v == 2:
+        second = pre + rng.uniform(0.6, 0.8)
+        place(out, fracture(rng, n, second, 1.25, sr) * 0.9, 0)
+        place(out, thunder_roll(rng, n, second + 0.02, dur - second + 0.2, 180.0, sr, bursts=30) * 0.7, 0)
+    out = bass_exciter(out, sr, 0.45, 150.0)
+    return sky_space(out, rng, sr, 4.2, 0.45)[:n]
 
 
 @sound("moon.fragment", variants=3, subtitle="Something breaks away above", attenuation=64, peak=-2.0, fades=(0.0005, 0.6))
 def s_moon_fragment(rng, v, sr):
+    # A piece tears loose high above: stone grinding as it gives, a splitting crack, then rubble
+    # crumbling and falling away into the dark, the deep rumble of it rolling on.
     dur = [1.8, 2.2, 2.5][v]
-    n = ns(dur, sr)
+    n = ns(dur + 1.0, sr)
     out = np.zeros(n)
-    place(out, ice_crack(rng, sr, size=0.8) * 0.8, 0)
-    for _ in range(int(rng.integers(10, 22))):
-        place(out, glass_tinkle(rng, rng.uniform(2200, 6000), rng.uniform(0.08, 0.35), sr, rng.uniform(0.08, 0.3)),
-              ns(0.03 + rng.uniform(0, 0.45) ** 1.3, sr))
-    m = ns(1.6, sr)
-    t = tvec(m, sr)
-    f = rng.uniform(1100, 1500) * 2 ** (-t * rng.uniform(0.35, 0.6))
-    fall = (np.sin(phase_of(f, sr)) + 0.4 * np.sin(phase_of(f * 2.76, sr)) + 0.2 * np.sin(phase_of(f * 5.4, sr)))
-    fall *= attack_decay(m, 0.02, 0.5, sr) * 0.22
-    place(out, fall, ns(0.12, sr))
-    return reverb(out, rng, 2.8, wet=0.42, dry=1.0, bright=0.6, predelay=0.04, sr=sr)[:n + ns(0.8, sr)]
+    tear = [0.12, 0.2, 0.3][v]
+    g = grind(rng, tear + 0.18, sr, density=1400.0, low=260.0, high=2000.0)
+    g *= env_points(len(g), [(0, 0), (tear, 1.0), (tear + 0.18, 0.0)], sr)
+    place(out, g / (np.max(np.abs(g)) + 1e-9) * 0.42, 0)
+    s1 = strain(rng, tear + 0.25, sr, rate=(18.0, 40.0), modes=(120.0, 190.0, 300.0, 470.0, 720.0), q=5.0)
+    place(out, s1 * env_points(len(s1), [(0, 0), (tear, 1.0), (tear + 0.25, 0.0)], sr) * 0.22, 0)
+    place(out, fracture(rng, n, tear, 0.7, sr, boom_level=0.8) * 0.5, 0)
+    # The rubble pouring away: a dense hiss of grit under the bigger pieces, fading as it falls.
+    pour_len = dur - tear + 0.4
+    pour = grind(rng, pour_len, sr, density=3200.0, low=300.0, high=3000.0)
+    pour *= env_points(len(pour), [(0, 0), (0.05, 1.0), (pour_len * 0.35, 0.55), (pour_len, 0.0)], sr)
+    pour = lowpass(pour, 2400.0, 2, sr)
+    place(out, pour / (np.max(np.abs(pour)) + 1e-9) * 0.6, ns(tear + 0.03, sr))
+    place(out, debris(rng, n, tear + 0.05, dur - tear, int(rng.integers(40, 64)), sr, low=320.0, high=3800.0) * 2.0, 0)
+    place(out, thunder_roll(rng, n, tear + 0.05, dur - tear, rng.uniform(150, 220), sr, bursts=28) * 0.45, 0)
+    out = bass_exciter(out, sr, 0.4, 150.0)
+    return sky_space(out, rng, sr, 3.8, 0.45)[:n]
 
 
 @sound("moon.shatter", variants=2, subtitle="The sky shatters", attenuation=96, peak=-1.2, fades=(0.0005, 1.0))
 def s_moon_shatter(rng, v, sr):
+    # The whole sky gives way: a groan that rises to a strained roar, fractures tearing through it
+    # one after another, a boom that swallows everything, an avalanche of rubble and a rumble that
+    # takes seconds to die away in that vast space.
     dur = [5.0, 6.0][v]
     n = ns(dur, sr)
     out = np.zeros(n)
-    for k in range(3):
-        place(out, ice_crack(rng, sr, size=1.3) * rng.uniform(0.7, 1.0), ns(k * rng.uniform(0.04, 0.12), sr))
-    burst = white(ns(0.9, sr), rng) * attack_decay(ns(0.9, sr), 0.01, 0.2, sr)
-    place(out, spectral(burst, r_mul(r_hp(1800, 2), r_lp(11000, 2)), sr) * 0.35, ns(0.15, sr))
-    for _ in range(int(rng.integers(70, 120))):
-        place(out, glass_tinkle(rng, rng.uniform(1500, 7000), rng.uniform(0.05, 0.3), sr, rng.uniform(0.06, 0.35)),
-              ns(0.15 + rng.uniform(0, 1.0) ** 2 * 1.4, sr))
-    place(out, thump(rng, ns(2.0, sr), 72, 26, 0.18, 0.6, sr) * 1.1, ns(0.12, sr))
-    tail = rumble_bed(rng, n, 160, sr) * attack_decay(n, 0.3, 1.4, sr)
-    out += tail * 0.45
-    out = bass_exciter(out, sr, 0.35, 140.0)
-    return reverb(out, rng, 3.2, wet=0.4, dry=1.0, bright=0.5, predelay=0.04, sr=sr)[:n]
+    build = [0.35, 0.55][v]
+    s1 = strain(rng, build + 1.2, sr, rate=(16.0, 42.0), modes=(55.0, 88.0, 131.0, 205.0, 320.0, 505.0), q=5.5, grit=0.8)
+    s1 *= env_points(len(s1), [(0, 0), (build, 1.0), (build + 0.25, 0.8), (build + 1.2, 0.0)], sr)
+    place(out, s1 * 0.45, 0)
+    hits = build + np.cumsum([0.0] + list(rng.uniform(0.06, 0.16, int(rng.integers(3, 5)))))
+    for k, at in enumerate(hits):
+        place(out, fracture(rng, n, float(at), 0.8 + 0.25 * k, sr) * (0.6 + 0.15 * k), 0)
+    main = float(hits[-1]) + 0.02
+    boom = thump(rng, ns(3.0, sr), rng.uniform(40, 46), 21.0, 0.35, 1.1, sr)
+    place(out, boom * 1.6, ns(main, sr))
+    pressure = rumble_bed(rng, n, 55.0, sr) * env_points(n, [(0, 0), (main, 0), (main + 0.15, 1.0), (dur, 0)], sr)
+    out += pressure * 0.5 * np.max(np.abs(boom)) / (np.max(np.abs(pressure)) + 1e-9)
+    g = grind(rng, 2.4, sr, density=2200.0, low=200.0, high=2200.0)
+    g *= env_points(len(g), [(0, 1.0), (0.6, 0.8), (2.4, 0.0)], sr)
+    place(out, g / (np.max(np.abs(g)) + 1e-9) * 0.35, ns(main, sr))
+    place(out, debris(rng, n, main, dur - main - 0.4, int(rng.integers(160, 240)), sr, low=220.0, high=3000.0) * 1.1, 0)
+    place(out, thunder_roll(rng, n, main, dur - main, 300.0, sr, bursts=90) * 1.2, 0)
+    out = bass_exciter(out, sr, 0.5, 150.0)
+    return sky_space(out, rng, sr, 5.0, 0.5)[:n]
 
 
 @sound("moon.gone", variants=1, subtitle="The sky goes quiet", attenuation=128, sr=32000, peak=-1.2, stream=True,
        quality=3, fades=(0.001, 2.0))
 def s_moon_gone(rng, v, sr):
+    # The last of it collapses far away, felt more than heard; the air of the world drains out of the
+    # sound until nothing is left but an empty, ringing silence and a low pressure that slowly dies.
     dur = 13.0
     n = ns(dur, sr)
     t = tvec(n, sr)
     out = np.zeros(n)
-    place(out, thump(rng, ns(3.0, sr), 62, 22, 0.3, 0.9, sr) * 1.2, 0)
-    whoomp = lowpass(white(ns(2.0, sr), rng), 220, 2, sr) * attack_decay(ns(2.0, sr), 0.08, 0.5, sr)
-    place(out, whoomp * 1.4, 0)
-    bed = rumble_bed(rng, n, 220, sr)
-    bed *= env_points(n, [(0, 0), (0.6, 1.0), (4.0, 0.85), (8.0, 0.55), (dur, 0)], sr)
-    bed *= 0.8 + 0.2 * smooth_random(n, rng, 0.5, sr)
-    out += bed * 0.8
-    drone = np.zeros(n)
-    for ratio, amp in [(1.0, 1.0), (1.498, 0.5), (2.13, 0.35), (2.93, 0.2), (4.07, 0.12)]:
-        f = 196.0 * ratio * 2 ** (-t / dur * 1.2)
-        drone += amp * np.sin(phase_of(f * (1 + 0.003 * np.sin(TAU * 0.13 * t * ratio)), sr))
-    drone *= env_points(n, [(0, 0), (1.5, 0.0), (4.0, 0.3), (9.0, 0.24), (dur, 0)], sr)
-    out = bass_exciter(out, sr, 0.4, 140.0) + drone
-    for _ in range(6):
-        place(out, ice_crack(rng, sr, size=0.6) * rng.uniform(0.05, 0.15), ns(rng.uniform(0.2, 2.5), sr))
-    return reverb(out, rng, 3.5, wet=0.35, dry=1.0, bright=0.3, predelay=0.05, sr=sr)[:n]
+    place(out, thump(rng, ns(3.5, sr), 44.0, 20.0, 0.4, 1.3, sr) * 1.3, 0)
+    whoomp = lowpass(white(ns(2.5, sr), rng), 160, 2, sr) * attack_decay(ns(2.5, sr), 0.06, 0.6, sr)
+    place(out, whoomp / (np.max(np.abs(whoomp)) + 1e-9) * 0.8, 0)
+    place(out, thunder_roll(rng, n, 0.05, 4.0, 140.0, sr, bursts=36) * 0.7, 0)
+    # The air of the world, draining away.
+    air = spectral(coloured(n, rng, 1.0, sr), r_mul(r_hp(120, 2), r_lp(2600, 2)), sr)
+    air *= env_points(n, [(0, 0.0), (0.4, 1.0), (1.6, 0.8), (3.6, 0.0), (dur, 0.0)], sr)
+    out += air / (np.max(np.abs(air)) + 1e-9) * 0.12
+    # What is left: a faint, high ringing made of air (two narrow bands of noise, slowly beating)...
+    ring = np.zeros(n)
+    for fc, width, level in [(5900.0, 0.05, 1.0), (8400.0, 0.06, 0.55)]:
+        band = spectral(white(n, rng), lambda f, fc=fc, width=width: np.exp(-0.5 * ((f - fc) / (fc * width)) ** 2), sr)
+        band = band / (rms(band) + 1e-9) * level
+        ring += band * (0.7 + 0.3 * np.sin(TAU * rng.uniform(0.11, 0.27) * t + rng.uniform(0, TAU)))
+    ring *= env_points(n, [(0, 0), (1.8, 0.0), (4.5, 1.0), (9.5, 0.7), (dur, 0.0)], sr)
+    out += ring * 0.004
+    # ...and a low pressure in the ears that takes a long time to go.
+    tail = rumble_bed(rng, n, 48.0, sr)
+    tail *= env_points(n, [(0, 0), (1.0, 1.0), (dur, 0.0)], sr) ** 1.5
+    out += tail / (np.max(np.abs(tail)) + 1e-9) * 0.35
+    out = bass_exciter(out, sr, 0.4, 140.0)
+    return sky_master(reverb(out, rng, 5.0, wet=0.45, dry=1.0, bright=0.25, predelay=0.08, sr=sr, size=2.2)[:n], sr)
 
 
 # ---- NULLROOT ---------------------------------------------------------------------------------
@@ -1414,19 +1620,32 @@ def s_nullroot_reach(rng, v, sr):
 
 @sound("nullroot.grab", variants=3, subtitle="Something grabs", attenuation=24, peak=-1.2, fades=(0.0005, 0.08))
 def s_nullroot_grab(rng, v, sr):
+    # A wet slap of flesh closing on flesh, then the squeeze: sinew stretching, fluid forced out.
     dur = [0.7, 0.9, 1.1][v]
     n = ns(dur, sr)
     out = np.zeros(n)
-    snap = highpass(white(ns(0.012, sr), rng), 1200, 2, sr) * np.exp(-np.linspace(0, 6, ns(0.012, sr)))
-    place(out, snap * 1.2, 0)
-    place(out, chirp_exp(ns(0.06, sr), 2400, 180, 0.012, sr) * attack_decay(ns(0.06, sr), 0.0005, 0.02, sr) * 0.8, 0)
-    place(out, thump(rng, ns(0.4, sr), 95, 45, 0.03, 0.08, sr) * 0.9, 0)
-    cd = dur - 0.08
-    squeeze = friction_creak(rng, cd, [(0, 40), (cd, rng.uniform(140, 220))], [rng.uniform(300, 420), rng.uniform(700, 950)], 10.0, sr=sr)
-    squeeze = squeeze / (np.max(np.abs(squeeze)) + 1e-9) * env_points(len(squeeze), [(0, 0), (0.05, 0.9), (cd, 0)], sr)
-    place(out, squeeze * 0.8, ns(0.05, sr))
-    sq = squelch(rng, dur, 900, 25, sr)
-    out += sq / (np.max(np.abs(sq)) + 1e-9) * 0.45 * env_points(n, [(0, 1), (dur, 0.2)], sr)
+    # The slap: a broadband smack, the meat of it ringing low, a thud under it, spatter after it.
+    m = ns(0.004, sr)
+    smack = np.pad(white(m, rng) * np.exp(-np.linspace(0, 4, m)), (0, ns(0.08, sr)))
+    slap = (iir(smack, "bp", rng.uniform(1400, 2200), 1.0, sr=sr) * 0.8
+            + iir(smack, "bp", rng.uniform(280, 380), 2.2, sr=sr) * 1.6
+            + iir(smack, "bp", rng.uniform(650, 900), 2.8, sr=sr) * 0.9)
+    place(out, slap / (np.max(np.abs(slap)) + 1e-9), 0)
+    place(out, thump(rng, ns(0.35, sr), 92, 46, 0.03, 0.07, sr) * 0.8, 0)
+    times = rng.uniform(0.008, 0.09, int(rng.integers(6, 14)))
+    spatter = impacts(rng, n, times, rng.uniform(0.1, 0.5, len(times)), [1800.0, 2600.0, 3600.0], q=2.0, sr=sr, click=(0.2, 0.8))
+    place(out, spatter / (np.max(np.abs(spatter)) + 1e-9) * 0.3, 0)
+    # The squeeze.
+    cd = dur - 0.06
+    squeeze = friction_creak(rng, cd, [(0, 22), (cd * 0.6, rng.uniform(45, 70)), (cd, rng.uniform(30, 50))],
+                             [rng.uniform(260, 360), rng.uniform(560, 760)], 7.0, sr=sr, jitter=0.3)
+    squeeze = squeeze / (np.max(np.abs(squeeze)) + 1e-9) * env_points(len(squeeze), [(0, 0), (0.06, 0.8), (cd * 0.7, 1.0), (cd, 0)], sr)
+    place(out, squeeze * 0.55, ns(0.05, sr))
+    sq = squelch(rng, dur, 700, 30, sr)
+    out += sq / (np.max(np.abs(sq)) + 1e-9) * 0.45 * env_points(n, [(0, 0.2), (0.05, 1.0), (dur, 0.15)], sr)
+    ooze = lowpass(white(n, rng), 600, 2, sr) * np.clip(smooth_random(n, rng, 25, sr) * 2.0, 0, 1)
+    ooze *= env_points(n, [(0, 0), (0.06, 1), (dur, 0.2)], sr)
+    out += ooze / (np.max(np.abs(ooze)) + 1e-9) * 0.25
     out = compress(out, sr, threshold_db=-16.0, ratio=4.0, window=0.008)
     return reverb(out, rng, 0.5, wet=0.12, dry=1.0, sr=sr)
 
@@ -1502,11 +1721,14 @@ def s_nullroot_consume(rng, v, sr):
     for k in range(int(rng.integers(2, 4))):
         place(out, door_knock(rng, 0.7, sr, modes=[(140, 0.03, 1.0), (390, 0.02, 0.6), (1100, 0.008, 0.3)]) * 0.6,
               ns(rng.uniform(0.05, 0.8), sr))
-    m = ns(0.6, sr)
-    gulp_f = 320 * np.exp(-tvec(m, sr) / 0.15) + 70
-    gulp = np.sin(phase_of(gulp_f, sr)) * attack_decay(m, 0.01, 0.18, sr)
-    gulp = iir(gulp + 0.2 * white(m, rng) * attack_decay(m, 0.01, 0.08, sr), "lp", 900, 1.2, sr=sr)
-    place(out, gulp * 1.2, ns(dur * 0.45, sr))
+    # The swallow: a deep muscular contraction, a low thud and a squeezed, gurgling throat (no pitch).
+    at = ns(dur * 0.45, sr)
+    place(out, thump(rng, ns(0.5, sr), 80, 42, 0.05, 0.12, sr), at)
+    throat = friction_creak(rng, 0.35, [(0, 26), (0.2, 14), (0.35, 9)], [rng.uniform(150, 190), rng.uniform(260, 320)], 6.0,
+                            sr=sr, jitter=0.3)
+    place(out, throat / (np.max(np.abs(throat)) + 1e-9) * 0.6 * hann(len(throat)) ** 0.5, at)
+    gurgle = lowpass(white(ns(0.45, sr), rng), 520, 2, sr) * np.clip(smooth_random(ns(0.45, sr), rng, 14, sr) * 2.5, 0, 1)
+    place(out, gurgle / (np.max(np.abs(gurgle)) + 1e-9) * 0.45 * hann(len(gurgle)), at + ns(0.03, sr))
     sq = squelch(rng, dur, 600, 18, sr)
     out += sq / (np.max(np.abs(sq)) + 1e-9) * 0.35 * env_points(n, [(0, 0.3), (dur * 0.5, 1), (dur, 0)], sr)
     place(out, thump(rng, ns(0.8, sr), 70, 35, 0.05, 0.2, sr) * 0.8, ns(dur * 0.7, sr))
@@ -1582,13 +1804,13 @@ def s_nullroot_grow(rng, v, sr):
 def s_visitor_vanish(rng, v, sr):
     dur = [0.55, 0.7, 0.9][v]
     n = ns(dur, sr)
+    # The air where it stood is drawn in, as if something inhaled the space it took up, and closes
+    # with a dull, soft pop (no shimmer, no tone).
     rush = lowpass(white(n, rng), rng.uniform(1500, 2600), 2, sr) * np.linspace(0, 1, n) ** 3
-    shimmer = np.zeros(n)
-    for _ in range(5):
-        m = ns(0.3, sr)
-        tone = sine(rng.uniform(1800, 4200), m, sr) * exp_decay(m, 0.08, sr)
-        place(shimmer, tone[::-1] * 0.1, n - m)
-    out = rush * 0.6 + shimmer
+    inhale_n = ns(dur * 0.8, sr)
+    inhale = breath_cycle(rng, dur * 0.8, 0.05, 0.01, sr, darkness=0.6)[:inhale_n] * np.linspace(0, 1, inhale_n) ** 2
+    out = rush * 0.6
+    place(out, inhale / (np.max(np.abs(inhale)) + 1e-9) * 0.3, n - inhale_n - ns(0.008, sr))
     pop = lowpass(white(ns(0.006, sr), rng), 1200, 2, sr) * hann(ns(0.006, sr))
     place(out, pop * 0.8, n - ns(0.008, sr))
     return out
@@ -1658,20 +1880,34 @@ def s_transition_collapse(rng, v, sr):
     return out
 
 
-@sound("transition.arrival", variants=1, subtitle="A tone rises", attenuation=16, peak=-1.5, rms_db=-14.0, stream=True, quality=4,
-       fades=(1.0, 1.5))
+@sound("transition.arrival", variants=1, subtitle="A roar swells", attenuation=16, peak=-1.5, rms_db=-14.0, stream=True,
+       quality=4, fades=(1.0, 1.5))
 def s_transition_arrival(rng, v, sr):
+    # Out of the dark a vast, low chord of wrong notes swells into a roar. Nothing rises in pitch: it
+    # only grows, louder, rougher (more and more distorted), brighter and shuddering faster, until it
+    # breaks off.
     dur = 10.5
     n = ns(dur, sr)
     t = tvec(n, sr)
-    f = 32.0 * (220.0 / 32.0) ** ((t / dur) ** 1.6)
-    drive = 0.6 + 5.0 * (t / dur) ** 2
-    tone = np.sin(phase_of(f, sr)) + 0.8 * np.sin(phase_of(f * 1.0 + 1.5 * (t / dur), sr))
-    tone += 0.4 * np.sin(phase_of(f * 1.5 + 0.7, sr))
-    dist = np.tanh(tone * drive) / np.tanh(drive)
-    noise = spectral(white(n, rng), r_mul(r_hp(300, 2), r_lp(5000, 2)), sr) * 0.04 * (t / dur)
-    out = dist * env_points(n, [(0, 0), (2.0, 0.25), (7.0, 0.7), (9.5, 1.0), (dur, 0.0)], sr) + noise
-    return spectral(out, r_lp(7000, 2), sr)
+    grow = (t / dur) ** 1.6
+    cluster = np.zeros(n)
+    for midi, a in [(26, 1.0), (33, 0.8), (39, 0.55), (44, 0.4), (50, 0.3), (56, 0.2)]:
+        f = midi_hz(midi)
+        cluster += a * (np.sin(TAU * f * t + rng.uniform(0, TAU)) + np.sin(TAU * f * 1.006 * t + rng.uniform(0, TAU)))
+    drive = 0.8 + 9.0 * grow
+    tone = np.tanh(cluster * 0.3 * drive) / np.tanh(1.2 + 0.3 * drive)
+    shudder = 1.0 - 0.35 * grow * (0.5 + 0.5 * np.sin(phase_of(1.5 + 6.0 * grow, sr)))
+    noise = coloured(n, rng, 1.0, sr)
+
+    def opening(tt, f):
+        g = np.clip(tt / dur, 0, 1)[:, None]
+        cut = 180.0 + 5200.0 * g ** 2
+        return 1.0 / (1.0 + (f[None, :] / cut) ** 2) / (1.0 + (40.0 / np.maximum(f[None, :], 1.0)) ** 4)
+    roar = stft_shape(noise, opening, n_fft=2048, hop=512, sr=sr)
+    roar = roar / (rms(roar) + 1e-9)
+    env = env_points(n, [(0, 0), (2.0, 0.2), (7.0, 0.65), (9.5, 1.0), (dur, 0.0)], sr)
+    out = (tone / (rms(tone) + 1e-9) * shudder + roar * 0.6) * env
+    return limit(spectral(out, r_lp(7000, 2), sr), sr, 6.0, 0.02)
 
 
 def dimension_hum_loop(rng, sr, length):
@@ -1725,16 +1961,20 @@ def s_dimension_shift(rng, v, sr):
 
 @sound("dimension.blackout", variants=2, subtitle="The lights die", attenuation=48, peak=-1.2, fades=(0.001, 0.4))
 def s_dimension_blackout(rng, v, sr):
+    # Something enormous switches off: a deep clunk, the void's own hum collapsing into crushed
+    # static, then nothing but a thin hiss of air in the dark.
     dur = [2.0, 2.4][v]
     n = ns(dur, sr)
     out = np.zeros(n)
     place(out, door_knock(rng, 1.3, sr, modes=[(60, 0.12, 1.0), (140, 0.06, 0.6), (2200, 0.01, 0.3), (4100, 0.006, 0.2)]), 0)
     place(out, thump(rng, ns(1.6, sr), 75, 22, 0.12, 0.5, sr) * 1.1, 0)
-    m = ns(0.8, sr)
-    f = 60 + 900 * np.exp(-tvec(m, sr) / 0.12)
-    place(out, np.sin(phase_of(f, sr)) * attack_decay(m, 0.003, 0.2, sr) * 0.25, ns(0.01, sr))
-    ring = sine(rng.uniform(5200, 6800), n, sr) * env_points(n, [(0, 0), (0.4, 0.015), (dur, 0)], sr)
-    return bass_exciter(out, sr, 0.45, 130.0) + ring
+    m = ns(0.6, sr)
+    collapse = (sine(55.0, m, sr) + 0.5 * sine(110.0, m, sr)) * 0.5 + white(m, rng) * 0.3
+    collapse = bitcrush(collapse * np.linspace(1, 0, m) ** 1.5, int(rng.integers(3, 5)), int(rng.integers(4, 12)))
+    place(out, lowpass(collapse, 3500, 2, sr) * 0.3, ns(0.01, sr))
+    hiss = spectral(white(n, rng), r_mul(r_hp(3000, 2), r_lp(9000, 2)), sr)
+    hiss *= env_points(n, [(0, 0), (0.4, 1.0), (dur, 0)], sr)
+    return bass_exciter(out, sr, 0.45, 130.0) + hiss * 0.006
 
 
 # ---- Music -----------------------------------------------------------------------------------
@@ -1968,6 +2208,295 @@ def s_music_null_theme(rng, v, sr):
     return out
 
 
+# ---- Broken music ------------------------------------------------------------------------------
+# From Stage 4 on, NULL's music is corrupted. The game can only bend a playing stream (pitch and
+# volume, every tick: client/audio/MusicWarp); everything it cannot do is baked into these versions.
+
+def _blend(x, k, processed, fade):
+    """Replaces x[k:k+len(processed)] by processed, crossfading fade samples at both ends."""
+    m = min(len(processed), len(x) - k)
+    if m <= 0:
+        return x
+    w = np.ones(m)
+    f = min(fade, m // 2)
+    if f > 0:
+        w[:f] = np.sin(np.linspace(0, np.pi / 2, f)) ** 2
+        w[-f:] = np.cos(np.linspace(0, np.pi / 2, f)) ** 2
+    if x.ndim == 2:
+        w = w[:, None]
+    x[k:k + m] = x[k:k + m] * (1 - w) + processed[:m] * w
+    return x
+
+
+def _per_channel(x, fn):
+    return np.stack([fn(x[:, c]) for c in range(x.shape[1])], axis=1) if x.ndim == 2 else fn(x)
+
+
+def _freeze(x, k, grain, length, rng, sr):
+    """A note that hangs: the sound just before k, frozen (grains from it, overlapping at random
+    small offsets) for length samples, slowly fading and losing its top."""
+    src = x[max(0, k - grain * 2):k]
+    if len(src) < grain + 16:
+        return np.zeros((length,) + x.shape[1:])
+    out = np.zeros((length + grain,) + x.shape[1:])
+    hop = grain // 3
+    win = hann(grain)
+    if x.ndim == 2:
+        win = win[:, None]
+    pos = 0
+    while pos < length:
+        start = int(rng.integers(0, len(src) - grain))
+        out[pos:pos + grain] += src[start:start + grain] * win * 0.62
+        pos += hop
+    out = out[:length]
+    fade_out = np.linspace(1.0, 0.0, length) ** 1.4
+    out = out * (fade_out[:, None] if x.ndim == 2 else fade_out)
+    return _per_channel(out, lambda c: lowpass(c, 2200, 1, sr))
+
+
+def break_music(x, rng, sr, amount=1.0, start=8.0):
+    """Breaks a finished piece (mono or stereo): reversed fragments, crushed and filtered passages,
+    dropouts, a detuned double running alongside, then repeats (a stuck groove), notes that hang too
+    long and tape-stretch slowdowns. Positions are random but never overlap; amount scales how many."""
+    x = np.array(x, dtype=np.float64, copy=True)
+    n = len(x)
+    fade = ns(0.03, sr)
+    total = n / sr
+
+    def spots(count, length):
+        return sorted(rng.uniform(start, max(start + 1.0, total - length - 2.0), count))
+
+    # In place.
+    for t in spots(int(round(2 * amount)) + 1, 2.5):
+        k, m = ns(t, sr), ns(rng.uniform(1.2, 2.5), sr)
+        seg = x[k:k + m][::-1].copy()
+        _blend(x, k, seg, fade)
+    for t in spots(int(round(2 * amount)), 3.0):
+        k, m = ns(t, sr), ns(rng.uniform(1.5, 3.0), sr)
+        bits, hold = int(rng.integers(4, 7)), int(rng.integers(3, 8))
+        seg = _per_channel(x[k:k + m], lambda c: bitcrush(c / (np.max(np.abs(c)) + 1e-9) * 0.9, bits, hold) * np.max(np.abs(c)))
+        _blend(x, k, seg, fade * 2)
+    for t in spots(int(round(2 * amount)), 6.0):
+        k, m = ns(t, sr), ns(rng.uniform(3.0, 6.0), sr)
+        if rng.random() < 0.5:
+            resp = r_mul(r_hp(450, 2), r_lp(2300, 3))     # a telephone in another room
+        else:
+            resp = r_lp(rng.uniform(450, 700), 2)            # under water, behind a wall
+        seg = _per_channel(x[k:k + m], lambda c: spectral(c, resp, sr) * 1.4)
+        _blend(x, k, seg, ns(0.4, sr))
+    for t in spots(int(round(4 * amount)) + 1, 0.6):
+        k, m = ns(t, sr), ns(rng.uniform(0.08, 0.45), sr)
+        seg = x[k:k + m] * 0.0
+        _blend(x, k, seg, ns(0.008, sr))
+    for t in spots(int(round(1 + amount)), 10.0):
+        k, m = ns(t, sr), ns(rng.uniform(5.0, 9.0), sr)
+        seg = x[k:k + m]
+        ratio = 1.0 + rng.choice([-1.0, 1.0]) * rng.uniform(0.008, 0.016)
+        double = _per_channel(seg, lambda c: resample_pitch(c, ratio))
+        delay = ns(rng.uniform(0.02, 0.07), sr)
+        mix = np.zeros_like(seg)
+        size = min(len(seg) - delay, len(double))
+        if size > 0:
+            mix[delay:delay + size] = double[:size]
+        env = hann(len(seg)) ** 0.5
+        mix = mix * (env[:, None] if seg.ndim == 2 else env) * 0.55
+        x[k:k + m] = seg + mix
+    # Changing the length: worked from the end backwards so earlier positions stay valid.
+    edits = []
+    for t in spots(int(round(3 * amount)) + 1, 1.0):
+        edits.append(("repeat", t))
+    for t in spots(int(round(1 + amount)), 4.0):
+        edits.append(("hang", t))
+    for t in spots(int(round(1 + 1.5 * amount)), 5.0):
+        edits.append(("sag", t))
+    edits.sort(key=lambda e: -e[1])
+    last = total + 1.0
+    for kind, t in edits:
+        if t > last - 3.0:
+            continue
+        last = t
+        k = ns(t, sr)
+        if kind == "sag":
+            # The tape drags: everything slows (at most about 4 semitones, never a tape stop) and
+            # catches up again. The slowed stretch ends exactly where the input does.
+            m = min(ns(rng.uniform(2.0, 4.0), sr), len(x) - k - 4)
+            depth = rng.uniform(0.12, 0.22)
+            length = m / (1.0 - depth / 2.0)
+            j = np.arange(int(length * 1.1) + 16)
+            rate = 1.0 - depth * np.sin(np.pi * np.minimum(j / length, 1.0)) ** 2
+            slowed = _per_channel(x[k:k + m], lambda c: varispeed(c, rate))
+            x = np.concatenate([x[:k], slowed, x[k + m - 3:]], axis=0)
+            continue
+        # A cut in the sound itself: fade the music out over a few ms before it and in after it.
+        edge = ns(0.006, sr)
+        down = np.cos(np.linspace(0, np.pi / 2, edge)) ** 2
+        down = down[:, None] if x.ndim == 2 else down
+        head = x[:k].copy()
+        tail = x[k:].copy()
+        head[-edge:] *= down
+        tail[:edge] *= down[::-1]
+        if kind == "repeat":
+            # The record sticks: the last moment plays again, once or a few times.
+            g = ns(rng.uniform(0.09, 0.6), sr)
+            grain = x[max(0, k - g):k].copy()
+            grain[:edge] *= down[::-1]
+            grain[-edge:] *= down
+            x = np.concatenate([head] + [grain] * int(rng.integers(1, 4)) + [tail], axis=0)
+        else:
+            # A note hangs: the moment freezes and holds, then the music goes on as if nothing happened.
+            frozen = _freeze(x, k, ns(rng.uniform(0.09, 0.16), sr), ns(rng.uniform(1.4, 3.2), sr), rng, sr)
+            x = np.concatenate([head, frozen, tail], axis=0)
+    return x
+
+
+def reed_note(rng, f, dur, sr, velocity=0.7, detune_cents=0.0, attack=0.06, release=0.25):
+    """A small reed organ (harmonium): two slightly mistuned reeds, a slow attack, the bellows never
+    quite steady. Nasal formants around 1.2 and 2.7 kHz."""
+    n = ns(dur + release, sr)
+    t = tvec(n, sr)
+    f = f * 2 ** (detune_cents / 1200.0)
+    partials = []
+    for k in range(1, 24):
+        fk = f * k
+        if fk > sr * 0.42:
+            break
+        amp = (1.0 / k ** 0.8) * (1.0 + 1.2 * np.exp(-0.5 * ((fk - 1200.0) / 350.0) ** 2)
+                                  + 0.6 * np.exp(-0.5 * ((fk - 2700.0) / 500.0) ** 2))
+        partials.append((k, amp))
+    bellows = 1.0 + 0.0015 * smooth_random(n, rng, 3.0, sr)
+    tone = additive(f * bellows, n, partials, sr) + 0.7 * additive(f * 1.0021 * bellows, n, partials, sr)
+    env = np.minimum(1.0, t / attack) * np.where(t < dur, 1.0, np.exp(-(t - dur) / (release / 3.0)))
+    env *= 0.92 + 0.08 * smooth_random(n, rng, 1.5, sr)
+    return tone * env * velocity / 6.0
+
+
+def gramophone(x, rng, sr, crackle=10.0):
+    """An old record, far away: the narrow band of a horn, a little grit, surface crackle and hiss."""
+    y = spectral(x, r_mul(r_hp(300, 2), r_lp(3400, 3)), sr)
+    y = soft_clip(y / (np.max(np.abs(y)) + 1e-9) * 1.2, 1.3)
+    n = len(y)
+    clicks = np.zeros(n)
+    for _ in range(int(n / sr * crackle)):
+        m = ns(rng.uniform(0.0002, 0.0012), sr)
+        place(clicks, white(m, rng) * min(3.0, rng.pareto(2.0) + 0.2), ns(rng.uniform(0, n / sr), sr))
+    clicks = spectral(clicks, r_mul(r_hp(900, 2), r_lp(6000, 2)), sr)
+    surface = spectral(white(n, rng), r_mul(r_hp(1200, 1), r_lp(5000, 2)), sr)
+    return y + clicks * 0.05 + surface * 0.012
+
+
+@sound("music.field_day", client=True, variants=1, stereo=True, stream=True, sr=32000, quality=2, peak=-3.0,
+       rms_db=-24.0, fades=(1.5, 3.0))
+def s_music_field_day(rng, v, sr):
+    # The field by day: a slow pastoral tune on a small reed organ over a drone, coming from an old
+    # record somewhere far across the wheat. The second time round it goes wrong: the major turns
+    # minor, notes slip out of tune, the record sticks, a note hangs, the tape drags, and it dies.
+    eighth = 0.36
+    tune = [[(74, 3), (71, 3), (67, 2), (69, 1), (71, 3), (69, 3), (67, 2), (64, 1), (62, 6)],
+            [(74, 3), (71, 3), (67, 2), (69, 1), (71, 2), (74, 1), (76, 3), (74, 2), (71, 1), (69, 6)],
+            [(79, 3), (76, 3), (74, 2), (76, 1), (74, 2), (71, 1), (69, 3), (71, 2), (74, 1), (76, 6)],
+            [(74, 3), (71, 3), (67, 2), (69, 1), (71, 3), (69, 2), (67, 1), (64, 2), (62, 1), (67, 6)]]
+    bass = [[43, 43, 48, 50], [43, 43, 48, 50], [40, 43, 50, 50], [43, 43, 50, 43]]
+    events = []
+    t = 3.0
+    for rep in range(2):
+        slow = 1.0 + 0.05 * rep
+        for p, phrase in enumerate(tune):
+            bar_t = t
+            for b, root in enumerate(bass[p]):
+                events.append((bar_t + b * 6 * eighth * slow, reed_note(rng, midi_hz(root), 6 * eighth * slow, sr, 0.35,
+                                                                        rng.uniform(-6, 6) + (rng.uniform(-30, 30) if rep else 0)),
+                               rng.uniform(-0.2, 0.2)))
+            for note, d in phrase:
+                wrong = rep == 1 and note % 12 == 11 and rng.random() < 0.7      # B -> Bb: the major turns minor
+                pitch = note - 1 if wrong else note
+                if rep == 1 and rng.random() < 0.12:
+                    pitch += int(rng.choice([-1, 1]))
+                detune = rng.uniform(-8, 8) + (rng.uniform(-35, 35) if rep == 1 and rng.random() < 0.3 else 0)
+                length = d * eighth * slow
+                events.append((t + rng.uniform(-0.02, 0.02), reed_note(rng, midi_hz(pitch), length * 0.95, sr, 0.75, detune),
+                               rng.uniform(-0.25, 0.25)))
+                t += length
+        t += eighth * 2
+    total = t + 4.0
+    n = ns(total, sr)
+    drone = np.zeros(n)
+    for midi_note, a in [(43, 1.0), (50, 0.7)]:
+        drone += reed_note(rng, midi_hz(midi_note), total - 1.0, sr, 0.22 * a, rng.uniform(-5, 5), attack=1.5, release=1.0)[:n]
+    drone *= env_points(n, [(0, 0), (2.5, 1.0), (total - 5.0, 1.0), (total, 0.0)], sr)
+    st = render_stereo(events, total, sr, rng) + pan(drone, 0.0)
+    chans = []
+    for ch, key in ((0, "L"), (1, "R")):
+        c = tape(st[:, ch], rng_for("field_day/wow"), sr, 0.007, 0.002)
+        c = gramophone(c, rng_for("field_day/record" + key), sr)
+        c = reverb(c, rng_for("field_day/rev" + key), 1.6, wet=0.4, dry=0.75, bright=0.3, sr=sr)
+        chans.append(c)
+    m = min(len(c) for c in chans)
+    out = np.stack([c[:m] for c in chans], axis=1)
+    # It breaks more as it goes on: the first time through it is only old and warped.
+    half = ns(3.0 + 4 * 24 * eighth, sr)
+    broken = break_music(out[half:], rng_for("field_day/break"), sr, amount=0.9, start=1.0)
+    first = np.stack([dropouts(out[:half, c], rng_for("field_day/drop"), sr, 2, 0.05, 0.2, 0.0, start=8.0) for c in range(2)],
+                     axis=1)
+    return np.concatenate([first, broken], axis=0)
+
+
+@sound("music.distorted_1_broken", client=True, variants=1, stereo=True, stream=True, sr=32000, quality=2, peak=-1.5,
+       rms_db=-19.0, fades=(0.5, 3.0))
+def s_music_distorted_1_broken(rng, v, sr):
+    return break_music(s_music_distorted_1(rng_for("music.distorted_1#0"), 0, sr), rng, sr, amount=1.0)
+
+
+@sound("music.distorted_2_broken", client=True, variants=1, stereo=True, stream=True, sr=32000, quality=2, peak=-1.5,
+       rms_db=-19.0, fades=(1.0, 3.0))
+def s_music_distorted_2_broken(rng, v, sr):
+    return break_music(s_music_distorted_2(rng_for("music.distorted_2#0"), 0, sr), rng, sr, amount=1.0)
+
+
+@sound("music.null_theme_broken", client=True, variants=1, stereo=True, stream=True, sr=32000, quality=2, peak=-1.5,
+       rms_db=-19.0, fades=(2.0, 4.0))
+def s_music_null_theme_broken(rng, v, sr):
+    return break_music(s_music_null_theme(rng_for("music.null_theme#0"), 0, sr), rng, sr, amount=1.2, start=10.0)
+
+
+@sound("music.fragment_reversed", client=True, variants=4, sr=32000, quality=3, peak=-3.0, fades=(0.3, 0.004))
+def s_music_fragment_reversed(rng, v, sr):
+    # Laid over a playing piece: a chord or a note running backwards, its echo swelling into an
+    # attack that never comes.
+    if v == 0:
+        src = sum(piano_note(rng, midi_hz(m), 3.0, sr, 0.6, rng.uniform(-10, 10)) for m in (57, 60, 64))
+    elif v == 1:
+        src = sum(music_box_note(rng, midi_hz(m), 3.0, sr, 0.6, rng.uniform(-15, 15)) for m in (76, 81))
+    elif v == 2:
+        src = sum(piano_note(rng, midi_hz(m), 3.5, sr, 0.7, rng.uniform(-8, 8)) for m in (38, 45, 53))
+    else:
+        src = sum(reed_note(rng, midi_hz(m), 1.2, sr, 0.6, rng.uniform(-10, 10)) for m in (55, 59, 62))
+    src = fade(src, 0.0, 0.6, sr)
+    wet = reverb(src, rng, 2.6, wet=0.9, dry=0.4, bright=0.35, sr=sr)
+    out = wet[::-1].copy()
+    return out[-ns([3.0, 3.2, 3.8, 2.6][v], sr):]
+
+
+@sound("music.fragment_hang", client=True, variants=4, sr=32000, quality=3, peak=-3.0, fades=(0.004, 1.2))
+def s_music_fragment_hang(rng, v, sr):
+    # Laid over a playing piece: one note that does not stop when it should. It holds, beating
+    # against itself, slowly losing its colour, and fades long after the music has moved on.
+    note = [57, 62, 65, 64][v]
+    hold = [5.0, 5.5, 4.5, 6.0][v]
+    if v % 2 == 0:
+        src = piano_note(rng, midi_hz(note), 1.2, sr, 0.7)
+    else:
+        src = music_box_note(rng, midi_hz(note + 12), 1.2, sr, 0.7)
+    k = ns(0.25, sr)
+    frozen = _freeze(np.concatenate([src, np.zeros(ns(0.1, sr))]), k + ns(0.15, sr), ns(0.12, sr), ns(hold, sr), rng, sr)
+    beat = resample_pitch(frozen, 1.004)
+    body = frozen[:len(beat)] + 0.6 * beat
+    out = np.concatenate([src[:k], body])
+    t = tvec(len(out), sr)
+    out = varispeed(out, 1.0 + 0.003 * np.sin(TAU * 0.4 * t))
+    return reverb(out, rng, 1.8, wet=0.35, dry=1.0, bright=0.3, sr=sr)
+
+
+
 # ---- Corrupted blocks --------------------------------------------------------------------
 
 def digital_tick(rng, sr, level=0.5):
@@ -2010,9 +2539,9 @@ def s_corrupted_place(rng, v, sr):
     out = thump(rng, n, rng.uniform(140, 180), 80, 0.015, 0.035, sr) * 0.8
     knock = door_knock(rng, 0.8, sr, modes=[(210, 0.02, 1.0), (520, 0.012, 0.5), (1300, 0.006, 0.3)])
     place(out, knock * 0.7, 0)
-    m = ns(0.03, sr)
-    blip = square_raw(rng.choice([660, 880, 990]), m, sr, 0.25) * np.linspace(1, 0, m)
-    place(out, bitcrush(blip * 0.3, 3, 3), ns(rng.uniform(0.02, 0.06), sr))
+    m = ns(0.02, sr)
+    tick = bitcrush(white(m, rng) * np.linspace(1, 0, m) ** 2 * 0.5, 3, int(rng.integers(3, 7)))
+    place(out, iir(tick, "bp", rng.uniform(900, 1500), 1.5, sr=sr) * 0.6, ns(rng.uniform(0.02, 0.06), sr))
     return out
 
 
@@ -2077,23 +2606,33 @@ def s_menu_ambience(rng, v, sr):
 
 @sound("menu.hover", variants=3, subtitle=None, peak=-4.0, fades=(0.0003, 0.01))
 def s_menu_hover(rng, v, sr):
+    # A dull, dry tick, like a fingernail on old wood somewhere behind the wall (no tone).
     n = ns(0.07, sr)
-    t = tvec(n, sr)
-    tone = np.sin(TAU * [2400, 2650, 2200][v] * t) * np.exp(-t / 0.012) * 0.5
-    k = ns(0.0015, sr)
-    tone[:k] += white(k, rng) * np.exp(-np.linspace(0, 4, k)) * 0.5
-    return iir(tone, "lp", 6000, 0.7, sr=sr)
+    k = ns(0.0012, sr)
+    exc = np.zeros(n)
+    exc[:k] = white(k, rng) * np.exp(-np.linspace(0, 4, k))
+    body = (iir(exc, "bp", [430.0, 520.0, 370.0][v], 4.0, sr=sr)
+            + iir(exc, "bp", [1250.0, 1500.0, 1100.0][v], 3.5, sr=sr) * 0.45)
+    body = body / (np.max(np.abs(body)) + 1e-9)
+    body += thump(rng, n, [130.0, 150.0, 120.0][v], 80.0, 0.006, 0.018, sr) * 0.5
+    echo = np.roll(exc, ns([0.017, 0.022, 0.014][v], sr)) * 0.5
+    late = iir(echo, "bp", [610.0, 700.0, 540.0][v], 3.0, sr=sr)
+    body += late / (np.max(np.abs(late)) + 1e-9) * 0.35
+    grit_n = ns(0.012, sr)
+    place(body, bitcrush(white(grit_n, rng) * np.exp(-np.linspace(0, 6, grit_n)) * 0.08, 4, 3), 0)
+    return lowpass(body, 2800, 2, sr)
 
 
 @sound("menu.click", variants=3, subtitle=None, peak=-3.0, fades=(0.0003, 0.02))
 def s_menu_click(rng, v, sr):
-    n = ns(0.2, sr)
-    out = thump(rng, n, 160, 90, 0.01, 0.03, sr) * 0.8
-    k = ns(0.002, sr)
-    out[:k] += white(k, rng) * 0.6
-    m = ns(0.035, sr)
-    place(out, bitcrush(spectral(white(m, rng), r_hp(1500, 2), sr) * 0.35 * np.linspace(1, 0, m), 4, 3), ns(0.012, sr))
-    return out
+    # A heavy, dry knock of an old switch, then a second, smaller tick a moment too late, as if
+    # something else pressed it as well.
+    n = ns(0.22, sr)
+    out = thump(rng, n, 150, 85, 0.01, 0.03, sr) * 0.7
+    out += door_knock(rng, 0.9, sr, modes=[(190, 0.02, 1.0), (430, 0.012, 0.6), (980, 0.006, 0.35), (2100, 0.003, 0.2)])[:n] * 0.8
+    late = door_knock(rng, 0.5, sr, modes=[(260, 0.012, 1.0), (720, 0.006, 0.5), (1800, 0.003, 0.25)])
+    place(out, late * 0.35, ns([0.045, 0.06, 0.075][v], sr))
+    return lowpass(out, 4000, 2, sr)
 
 
 @sound("menu.whisper", variants=3, subtitle="Whispering", peak=-4.0, fades=(0.02, 0.1))
@@ -2333,10 +2872,12 @@ def main() -> int:
         return 1
     events = registered_events()
     missing = [e for e in events if e not in SPECS]
-    extra = [e for e in SPECS if e not in events]
+    extra = [e for e in SPECS if e not in events and not SPECS[e]["client"]]
     if missing or extra:
         print(f"events without a recipe: {missing}; recipes without an event: {extra}", file=sys.stderr)
         return 1
+    # Events only the client plays by name (music variants, overlays) are listed after the registered ones.
+    events = events + [e for e in SPECS if SPECS[e]["client"] and e not in events]
 
     selected = [e for e in events if not args.only or any(e.startswith(p) for p in args.only)]
     # Only the folders of this script's own events are rebuilt: other areas generate their own

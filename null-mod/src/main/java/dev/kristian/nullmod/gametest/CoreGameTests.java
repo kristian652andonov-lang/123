@@ -95,6 +95,8 @@ public final class CoreGameTests {
     @GameTest(template = "empty", batch = "core_persist")
     public static void corruptionDataRoundTrips(GameTestHelper helper) {
         CompoundTag tag = new CompoundTag();
+        // Format 2: the clock counts in-game nights (older saves are moved to nights on first use).
+        tag.putInt("format", 2);
         tag.putInt("stage", 4);
         tag.putInt("highest_stage", 4);
         tag.putDouble("corruption_ticks", 123456.5);
@@ -111,7 +113,9 @@ public final class CoreGameTests {
 
         var registries = helper.getLevel().registryAccess();
         CorruptionData loaded = CorruptionData.load(tag, registries);
-        CorruptionData again = CorruptionData.load(loaded.save(new CompoundTag(), registries), registries);
+        CompoundTag saved = loaded.save(new CompoundTag(), registries);
+        helper.assertTrue(saved.getInt("format") == 2, "the night clock's format was not saved");
+        CorruptionData again = CorruptionData.load(saved, registries);
         helper.assertTrue(again.stage() == CorruptionStage.ABOVE_MIDDLE, "stage lost");
         helper.assertTrue(again.corruptionTicks() == 123456.5, "clock lost");
         helper.assertTrue(again.activeTicks() == 99L, "active time lost");

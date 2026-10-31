@@ -11,10 +11,13 @@ import javax.annotation.Nullable;
  * <p>
  * The <em>body</em> is what the sky really shows as the moon: the pixels at least
  * {@link #threshold()} bright (light = brightest colour channel times alpha), filled to their
- * convex outline. The faint glow many moon textures draw around the moon (vanilla's has one) and
- * the background never count, and every pixel outside the body stays exactly as the sheet has it,
- * so nothing can appear beside the moon. Disc space (see {@link MoonGeometry}) is mapped onto the
- * body's bounding box, which is found in each phase cell, whatever the texture's resolution.
+ * convex outline. The faint glow many moon textures draw around the moon (vanilla's 32 x 32 cells
+ * hold an 8 x 8 moon inside a dim halo) and the background never count, and every pixel outside
+ * the body stays exactly as the sheet has it, so nothing can ever appear beside the moon. Inside
+ * the body, crack lines darken only the lit side of the current phase (they fade out across the
+ * terminator), while holes go through the whole body. Disc space (see {@link MoonGeometry}) is
+ * mapped onto the body's bounding box, which is found in each phase cell, whatever the texture's
+ * resolution.
  * <p>
  * Plain Java on int arrays, no Minecraft classes: the client draws its moon texture with it and
  * the GameTests check it. Small moons are upscaled (nearest neighbour) so the body is about
@@ -27,6 +30,8 @@ public final class MoonArt {
     public static final int CELLS = COLUMNS * ROWS;
     /** Working pixels the moon's body is drawn across (small moons are upscaled to about this). */
     public static final int TARGET_BODY = 64;
+    /** Largest sheet width {@link #fit} lets through; the moon covers few pixels on screen. */
+    public static final int MAX_SHEET_WIDTH = 1024;
     private static final int MAX_SCALE = 16;
     private static final int MAX_WORKING_WIDTH = 2048;
     /** A sheet whose brightest pixel is darker than this (0..255) has no visible moon. */
@@ -37,7 +42,19 @@ public final class MoonArt {
     private static final float MAX_LIT_FRACTION = 0.60F;
     /** Lit areas smaller than this part of the largest one in a cell are stars or specks. */
     private static final float SPECK_FRACTION = 0.15F;
+    /** Body pixels darker than this part of the threshold are the unlit side: crack lines do not show there. */
+    private static final float UNLIT_FRACTION = 0.5F;
+    /** Matching a phase against the full moon: how many lit pixels to compare, and what counts as a match. */
+    private static final int MIN_MATCH_SAMPLES = 12;
+    private static final int MAX_MATCH_SAMPLES = 600;
+    private static final float GOOD_MATCH = 0.9F;
+    private static final float FAIR_MATCH = 0.75F;
+    private static final float MATCH_MARGIN = 0.15F;
     private static final float NO_EDGE = 1.0E9F;
+
+    /** A moon phase sheet whose cells are exactly a quarter of its width and half of its height. */
+    public record Sheet(int[] pixels, int width, int height) {
+    }
 
     private final int[] base;
     private final int baseWidth;
@@ -47,6 +64,7 @@ public final class MoonArt {
 
     private final boolean found;
     private final float threshold;
+    private final float unlit;
     /** The body's bounding box in source pixels and its outline inside that box. */
     private final int bodyW;
     private final int bodyH;
@@ -85,10 +103,13 @@ public final class MoonArt {
     private final boolean[] broken;
     private final float[] offsetX;
     private final float[] offsetY;
+    /** The piece each shard belongs to (itself, or the leader it moves with). */
+    private final int[] piece;
 
     /**
      * @param base       the sheet's pixels (ABGR), row by row, {@code baseWidth} per row
-     * @param baseWidth  sheet width; the cells are {@code baseWidth / 4} wide
+     * @param baseWidth  sheet width; the cells are {@code baseWidth / 4} wide (use {@link #fit} first
+     *                   so they are exactly where the sky's UVs put them)
      * @param baseHeight sheet height; the cells are {@code baseHeight / 2} high
      */
     public MoonArt(int[] base, int baseWidth, int baseHeight, MoonGeometry geometry) {
@@ -104,6 +125,7 @@ public final class MoonArt {
         Layout layout = detect(base, baseWidth, baseCellW, baseCellH);
         this.found = layout.found;
         this.threshold = layout.threshold;
+        this.unlit = layout.threshold * UNLIT_FRACTION;
         this.bodyW = layout.bodyW;
         this.bodyH = layout.bodyH;
         this.bodyTexels = layout.body;
@@ -145,11 +167,53 @@ public final class MoonArt {
         this.shardVisible = new boolean[shards];
         this.shardCenterX = new float[shards];
         this.shardCenterY = new float[shards];
+        this.piece = new int[shards];
+        for (int i = 0; i < shards; i++) {
+            int leader = geometry.shard(i).leader();
+            piece[i] = leader >= 0 ? leader : i;
+        }
         buildShardMap();
         measureShards();
 
         this.canvas = new int[width * height];
         fillCanvasFromBase();
+    }
+
+    /**
+     * Prepares a resource pack's moon sheet: resampled (nearest neighbour) so its cells are exactly a
+     * quarter of its width and half of its height, at most {@code maxWidth} wide. Every output texel
+     * takes the source texel that the sky's own UVs (phase cell = a quarter by a half of the texture)
+     * point at, so the moon stays exactly where it is with sheets of any size, even ones not divisible
+     * by four.
+     *
+     * @return the prepared sheet (the input itself if it already fits), or null if it cannot hold phases
+     */
+    @Nullable
+    public static Sheet fit(int[] pixels, int width, int height, int maxWidth) {
+        if (width < COLUMNS || height < ROWS || pixels.length < width * height) {
+            return null;
+        }
+        int cell = width / COLUMNS;
+        int cellHeight = height / ROWS;
+        int limit = Math.max(1, maxWidth / COLUMNS);
+        if (cell > limit) {
+            cellHeight = Math.max(1, (int) ((long) cellHeight * limit / cell));
+            cell = limit;
+        }
+        int w = cell * COLUMNS;
+        int h = cellHeight * ROWS;
+        if (w == width && h == height) {
+            return new Sheet(pixels, width, height);
+        }
+        int[] out = new int[w * h];
+        for (int y = 0; y < h; y++) {
+            int sy = (int) Math.min(height - 1L, (2L * y + 1L) * height / (2L * h));
+            for (int x = 0; x < w; x++) {
+                int sx = (int) Math.min(width - 1L, (2L * x + 1L) * width / (2L * w));
+                out[y * w + x] = pixels[sy * width + sx];
+            }
+        }
+        return new Sheet(out, w, h);
     }
 
     // ------------------------------------------------------------------ layout queries
@@ -168,6 +232,15 @@ public final class MoonArt {
 
     public int cellHeight() {
         return cellH;
+    }
+
+    /** Width of the source sheet (the texture fragments are cut from). */
+    public int sheetWidth() {
+        return baseCellW * COLUMNS;
+    }
+
+    public int sheetHeight() {
+        return baseCellH * ROWS;
     }
 
     /** Working pixels per source pixel. */
@@ -233,6 +306,30 @@ public final class MoonArt {
         return bodyH / (float) baseCellH;
     }
 
+    /**
+     * Where a disc-space x lands across the phase cell the sky shows (0 = the cell's left edge,
+     * 1 = its right edge). The sky stretches the cell over the moon quad, so this is also the
+     * position on the quad; anything placed relative to the moon goes through here.
+     */
+    public float cellFractionX(int phase, float discX) {
+        return discFractionX(phase) + discX * discFractionW();
+    }
+
+    /** The same for a disc-space y (0 = the cell's top edge). */
+    public float cellFractionY(int phase, float discY) {
+        return discFractionY(phase) + discY * discFractionH();
+    }
+
+    /** Texture u of a disc-space x in the phase's cell of the whole sheet (any texture of this layout). */
+    public float sheetU(int phase, float discX) {
+        return (cellOf(phase) % COLUMNS + cellFractionX(phase, discX)) / COLUMNS;
+    }
+
+    /** Texture v of a disc-space y in the phase's cell of the whole sheet. */
+    public float sheetV(int phase, float discY) {
+        return (cellOf(phase) / COLUMNS + cellFractionY(phase, discY)) / ROWS;
+    }
+
     /** True if the working pixel (whole-sheet coordinates) belongs to the moon's body of its cell. */
     public boolean inBody(int x, int y) {
         if (!found || x < 0 || y < 0 || x >= width || y >= height) {
@@ -242,6 +339,17 @@ public final class MoonArt {
         int bx = x - ((cell % COLUMNS) * cellW + cellBoxX[cell] * scale);
         int by = y - ((cell / COLUMNS) * cellH + cellBoxY[cell] * scale);
         return bx >= 0 && by >= 0 && bx < boxW && by < boxH && bodyMask[by * boxW + bx];
+    }
+
+    /** True if the source pixel (whole-sheet coordinates) belongs to the moon's body of its cell. */
+    public boolean inBodyTexel(int x, int y) {
+        if (!found || x < 0 || y < 0 || x >= baseCellW * COLUMNS || y >= baseCellH * ROWS) {
+            return false;
+        }
+        int cell = (y / baseCellH) * COLUMNS + x / baseCellW;
+        int bx = x - ((cell % COLUMNS) * baseCellW + cellBoxX[cell]);
+        int by = y - ((cell / COLUMNS) * baseCellH + cellBoxY[cell]);
+        return bx >= 0 && by >= 0 && bx < bodyW && by < bodyH && bodyTexels[by * bodyW + bx];
     }
 
     /** The untouched source pixel shown at a working pixel (whole-sheet coordinates). */
@@ -292,14 +400,16 @@ public final class MoonArt {
         for (int i = 0; i < broken.length; i++) {
             MoonGeometry.Shard shard = geometry.shard(i);
             broken[i] = shard.brokenAt(progress);
-            float dx = shard.centroidX() - geometry.impactX();
-            float dy = shard.centroidY() - geometry.impactY();
+            // A shard moves with the piece it belongs to.
+            MoonGeometry.Shard mover = geometry.shard(piece[i]);
+            float dx = mover.centroidX() - geometry.impactX();
+            float dy = mover.centroidY() - geometry.impactY();
             float len = (float) Math.sqrt(dx * dx + dy * dy);
             if (len > 1.0E-4F && shatter > 0.0F) {
                 // Shattering: what is left drifts apart, away from the impact.
-                float push = shatter * (0.018F + 0.03F * shard.depth()) * size;
-                offsetX[i] = dx / len * push * boxW / size;
-                offsetY[i] = dy / len * push * boxH / size;
+                float push = shatter * (0.018F + 0.03F * mover.depth());
+                offsetX[i] = dx / len * push * boxW;
+                offsetY[i] = dy / len * push * boxH;
             } else {
                 offsetX[i] = 0.0F;
                 offsetY[i] = 0.0F;
@@ -345,11 +455,13 @@ public final class MoonArt {
     }
 
     /**
-     * The source sheet with everything that is not the moon's body made transparent black: the
-     * texture broken-off pieces are cut from, so a piece is exactly the part missing from the moon.
+     * The source sheet ({@link #sheetWidth()} x {@link #sheetHeight()}) with everything that is not
+     * the moon's body made transparent black: the texture broken-off pieces are cut from, so a piece
+     * is exactly the part missing from the moon, in the phase the sky shows.
      */
     public int[] bodyOnly() {
-        int[] out = new int[base.length];
+        int sheetW = baseCellW * COLUMNS;
+        int[] out = new int[sheetW * baseCellH * ROWS];
         if (!found) {
             return out;
         }
@@ -359,8 +471,7 @@ public final class MoonArt {
             for (int y = 0; y < bodyH; y++) {
                 for (int x = 0; x < bodyW; x++) {
                     if (bodyTexels[y * bodyW + x]) {
-                        int index = (oy + y) * baseWidth + ox + x;
-                        out[index] = base[index];
+                        out[(oy + y) * sheetW + ox + x] = base[(oy + y) * baseWidth + ox + x];
                     }
                 }
             }
@@ -403,8 +514,6 @@ public final class MoonArt {
         int cell = cellOf(phase);
         int ox = cellBoxX[cell] * scale;
         int oy = cellBoxY[cell] * scale;
-        float floor = threshold * 0.5F;
-        float span = Math.max(1.0F, threshold - floor);
         for (int y = 0; y < boxH; y++) {
             for (int x = 0; x < boxW; x++) {
                 int local = y * boxW + x;
@@ -412,8 +521,7 @@ public final class MoonArt {
                 if (glow <= 0.0F || !bodyMask[local]) {
                     continue;
                 }
-                float lit = smooth((light(basePixel(cell, x, y)) - floor) / span);
-                int alpha = Math.round(Math.min(1.0F, glow * lit) * 255.0F);
+                int alpha = Math.round(Math.min(1.0F, glow * litness(basePixel(cell, x, y))) * 255.0F);
                 if (alpha > 0) {
                     out[(oy + y) * cellW + ox + x] = (alpha << 24) | (0xE6 << 16) | (0xF4 << 8) | 0xFF;
                 }
@@ -433,18 +541,18 @@ public final class MoonArt {
         int id = shardMap[local];
         float sampleX = x;
         float sampleY = y;
-        float factor = 1.0F;
+        float shade = 0.0F;
         if (id >= 0) {
             if (broken[id]) {
                 return 0;
             }
             int neighbour = edgeNeighbour[local];
             float distance = edgeDist[local];
-            if (neighbour >= 0) {
+            if (neighbour >= 0 && piece[neighbour] != piece[id]) {
                 if (broken[neighbour]) {
                     // Freshly broken edge: a dark rim where the piece tore away.
                     if (distance < rim) {
-                        factor *= 0.4F + 0.35F * (distance / rim);
+                        shade = 0.6F - 0.35F * (distance / rim);
                     }
                 } else if (gap > 0.0F && distance < gap) {
                     // Shattered: the remaining pieces drift apart.
@@ -456,14 +564,23 @@ public final class MoonArt {
         }
         int pixel = basePixel(cell, (int) Math.floor(sampleX), (int) Math.floor(sampleY));
         float crack = crackMask[local];
-        if (crack > 0.0F) {
-            factor *= 1.0F - crack * 0.86F;
+        float shine = lightMask[local];
+        if (shade <= 0.0F && crack <= 0.0F && shine <= 0.0F) {
+            return pixel;
         }
-        float light = lightMask[local];
-        if (light > 0.0F) {
-            factor *= 1.0F + light * 0.32F;
+        // Lines only show where the moon is lit: on the dark side of a phase there is nothing to
+        // darken, and dark strokes there would read as lines beside the moon.
+        float lit = litness(pixel);
+        if (lit <= 0.0F) {
+            return pixel;
         }
-        return factor == 1.0F ? pixel : scaleColor(pixel, factor);
+        float factor = (1.0F - shade * lit) * (1.0F - crack * 0.86F * lit) * (1.0F + shine * 0.32F * lit);
+        return scaleColor(pixel, factor);
+    }
+
+    /** 0 on the unlit side (and off the moon), 1 where the moon is fully lit. */
+    private float litness(int pixel) {
+        return smooth((light(pixel) - unlit) / Math.max(1.0F, threshold - unlit));
     }
 
     /** The source pixel at a working position relative to a cell's body box (clamped to the cell). */
@@ -665,7 +782,7 @@ public final class MoonArt {
             }
         }
         for (int i = 0; i < shards; i++) {
-            shardVisible[i] = count[i] > 0;
+            shardVisible[i] = found && count[i] > 0;
             if (count[i] > 0) {
                 shardCenterX[i] = (float) (sumX[i] / count[i] / boxW);
                 shardCenterY[i] = (float) (sumY[i] / count[i] / boxH);
@@ -776,19 +893,133 @@ public final class MoonArt {
             }
         }
         // The same outline in every phase, moved only if a pack draws a phase's moon elsewhere.
+        float tolerance = Math.max(8.0F, peak * 0.06F);
         for (int cell = 0; cell < CELLS; cell++) {
-            int x = box[0];
-            int y = box[1];
-            boolean[] lit = cell == reference ? null : litRegion(light, cellW, cellH, cell, t);
-            if (lit != null) {
-                int[] litBox = bounds(lit, cellW, cellH);
-                x = place(x, layout.bodyW, litBox[0], litBox[2], cellW);
-                y = place(y, layout.bodyH, litBox[1], litBox[3], cellH);
-            }
-            layout.cellX[cell] = x;
-            layout.cellY[cell] = y;
+            int[] at = cell == reference ? new int[] {box[0], box[1]}
+                    : locate(light, cellW, cellH, cell, reference, box[0], box[1], layout.bodyW, layout.bodyH, t, tolerance);
+            layout.cellX[cell] = at[0];
+            layout.cellY[cell] = at[1];
         }
         return layout;
+    }
+
+    /**
+     * Where the body box sits in another phase's cell. Normally exactly where it is in the reference
+     * cell. If the lit part of the phase is the full moon's surface somewhere else (a pack that draws
+     * a phase off-centre), the box goes there; if the lit part merely sticks out of the box, the box
+     * moves as little as needed to cover it. A phase with nothing lit keeps the reference position
+     * unless its dim outline is clearly a moon of the body's size elsewhere.
+     */
+    private static int[] locate(float[] light, int cellW, int cellH, int cell, int reference, int refX, int refY,
+                                int bodyW, int bodyH, float t, float tolerance) {
+        boolean[] lit = litRegion(light, cellW, cellH, cell, t);
+        if (lit == null) {
+            return locateUnlit(light, cellW, cellH, cell, refX, refY, bodyW, bodyH);
+        }
+        int[] litBox = bounds(lit, cellW, cellH);
+        int fallbackX = place(refX, bodyW, litBox[0], litBox[2], cellW);
+        int fallbackY = place(refY, bodyH, litBox[1], litBox[3], cellH);
+        int minX = Math.max(0, litBox[2] - bodyW + 1);
+        int maxX = Math.min(cellW - bodyW, litBox[0]);
+        int minY = Math.max(0, litBox[3] - bodyH + 1);
+        int maxY = Math.min(cellH - bodyH, litBox[1]);
+        int count = 0;
+        for (boolean value : lit) {
+            if (value) {
+                count++;
+            }
+        }
+        if (minX > maxX || minY > maxY || count < MIN_MATCH_SAMPLES) {
+            return new int[] {fallbackX, fallbackY};
+        }
+        // Up to MAX_MATCH_SAMPLES lit pixels, spread evenly over the lit part.
+        int every = Math.max(1, count / MAX_MATCH_SAMPLES);
+        int[] sampleX = new int[count / every + 1];
+        int[] sampleY = new int[sampleX.length];
+        float[] sampleLight = new float[sampleX.length];
+        int stride = cellW * COLUMNS;
+        int ox = (cell % COLUMNS) * cellW;
+        int oy = (cell / COLUMNS) * cellH;
+        int n = 0;
+        for (int p = 0, seen = 0; p < lit.length && n < sampleX.length; p++) {
+            if (lit[p] && seen++ % every == 0) {
+                sampleX[n] = p % cellW;
+                sampleY[n] = p / cellW;
+                sampleLight[n] = light[(oy + sampleY[n]) * stride + ox + sampleX[n]];
+                n++;
+            }
+        }
+        int rx = (reference % COLUMNS) * cellW;
+        int ry = (reference / COLUMNS) * cellH;
+        boolean referenceFits = refX >= minX && refX <= maxX && refY >= minY && refY <= maxY;
+        float referenceScore = referenceFits
+                ? match(light, stride, rx + refX, ry + refY, sampleX, sampleY, sampleLight, n, refX, refY, tolerance) : 0.0F;
+        if (referenceScore >= GOOD_MATCH) {
+            return new int[] {refX, refY};
+        }
+        float bestScore = -1.0F;
+        int bestDistance = Integer.MAX_VALUE;
+        int bestX = fallbackX;
+        int bestY = fallbackY;
+        for (int y = minY; y <= maxY; y++) {
+            for (int x = minX; x <= maxX; x++) {
+                float score = match(light, stride, rx + refX, ry + refY, sampleX, sampleY, sampleLight, n, x, y, tolerance);
+                int distance = Math.abs(x - refX) + Math.abs(y - refY);
+                if (score > bestScore + 1.0E-6F || (score > bestScore - 1.0E-6F && distance < bestDistance)) {
+                    bestScore = score;
+                    bestDistance = distance;
+                    bestX = x;
+                    bestY = y;
+                }
+            }
+        }
+        if (bestScore >= FAIR_MATCH && bestScore >= referenceScore + MATCH_MARGIN) {
+            return new int[] {bestX, bestY};
+        }
+        return new int[] {fallbackX, fallbackY};
+    }
+
+    /**
+     * Share of the samples (cell-local positions with their light) that show the reference moon's
+     * surface when the body box of their cell is at {@code (x, y)}; {@code refLeft/refTop} is the
+     * reference box's corner in the whole sheet.
+     */
+    private static float match(float[] light, int stride, int refLeft, int refTop, int[] sampleX, int[] sampleY,
+                               float[] sampleLight, int n, int x, int y, float tolerance) {
+        int hits = 0;
+        for (int i = 0; i < n; i++) {
+            float reference = light[(refTop + sampleY[i] - y) * stride + refLeft + sampleX[i] - x];
+            if (Math.abs(reference - sampleLight[i]) <= tolerance) {
+                hits++;
+            }
+        }
+        return hits / (float) n;
+    }
+
+    /** A phase with nothing lit: its dim outline, if that is one body-sized area, else the reference position. */
+    private static int[] locateUnlit(float[] light, int cellW, int cellH, int cell, int refX, int refY, int bodyW, int bodyH) {
+        int stride = cellW * COLUMNS;
+        int ox = (cell % COLUMNS) * cellW;
+        int oy = (cell / COLUMNS) * cellH;
+        float max = 0.0F;
+        for (int y = 0; y < cellH; y++) {
+            for (int x = 0; x < cellW; x++) {
+                max = Math.max(max, light[(oy + y) * stride + ox + x]);
+            }
+        }
+        boolean[] dim = max < MIN_PEAK * 0.5F ? null : litRegion(light, cellW, cellH, cell, max * 0.5F);
+        if (dim == null) {
+            return new int[] {refX, refY};
+        }
+        int[] box = bounds(dim, cellW, cellH);
+        int w = box[2] - box[0] + 1;
+        int h = box[3] - box[1] + 1;
+        if (Math.abs(w - bodyW) > 1 || Math.abs(h - bodyH) > 1) {
+            return new int[] {refX, refY};
+        }
+        int x = Math.max(0, Math.min(cellW - bodyW, box[0] + (w - bodyW) / 2));
+        int y = Math.max(0, Math.min(cellH - bodyH, box[1] + (h - bodyH) / 2));
+        return new int[] {x, y};
     }
 
     /**

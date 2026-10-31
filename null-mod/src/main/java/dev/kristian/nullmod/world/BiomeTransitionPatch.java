@@ -42,7 +42,8 @@ public final class BiomeTransitionPatch {
         MinecraftServer server = req.server();
         UUID who = req.player().getUUID();
         for (int i = 0; i < attempts; i++) {
-            BlockPos center = LocationFinder.findGround(level, req.player(), random, req.minDistance(30.0, 12.0), 90.0,
+            double min = req.minDistance(30.0, 12.0);
+            BlockPos center = LocationFinder.findGround(level, req.player(), random, min, req.maxDistance(90.0, min),
                     req.view(LocationFinder.View.EDGE), 4, pos -> true);
             if (center == null) {
                 continue;

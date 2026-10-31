@@ -200,30 +200,36 @@ final class UndergroundBuilder {
     private static Entrance entrance(GenerationRequest req, RandomSource random) {
         ServerPlayer player = req.player();
         if (LocationFinder.isUnderground(player)) {
-            Entrance wall = caveWall(req.level(), player, random);
+            Entrance wall = caveWall(req.level(), player, random, req.showcase());
             if (wall != null) {
                 return wall;
             }
         }
-        BlockPos ground = LocationFinder.findGround(req.level(), player, random, req.minDistance(18.0, 10.0), 48.0,
+        double min = req.minDistance(18.0, 10.0);
+        BlockPos ground = LocationFinder.findGround(req.level(), player, random, min, req.maxDistance(48.0, min),
                 req.view(LocationFinder.View.HIDDEN), 6, pos -> true);
         if (ground == null) {
             return null;
         }
-        Direction direction = Direction.Plane.HORIZONTAL.getRandomDirection(random);
+        // In the showcase the stairs lead away from the player, so the opening faces them.
+        Direction direction = req.showcase() ? player.getDirection() : Direction.Plane.HORIZONTAL.getRandomDirection(random);
         return new Entrance(ground, direction, true, 9 + random.nextInt(5));
     }
 
-    /** A natural wall of the cave the player is in, two to sixteen blocks away, preferably behind them. */
+    /**
+     * A natural wall of the cave the player is in, two to sixteen blocks away, preferably behind
+     * them (in front of them for the showcase).
+     */
     @Nullable
-    private static Entrance caveWall(ServerLevel level, ServerPlayer player, RandomSource random) {
+    private static Entrance caveWall(ServerLevel level, ServerPlayer player, RandomSource random, boolean inFront) {
         BlockPos feet = player.blockPosition();
         List<Direction> directions = new ArrayList<>();
         for (Direction d : Direction.Plane.HORIZONTAL) {
             directions.add(d);
         }
-        // Behind the player first, then the sides, then in front.
-        directions.sort((a, b) -> Double.compare(facingDot(player, a), facingDot(player, b)));
+        // Behind the player first, then the sides, then in front (the reverse for the showcase).
+        directions.sort((a, b) -> inFront ? Double.compare(facingDot(player, b), facingDot(player, a))
+                : Double.compare(facingDot(player, a), facingDot(player, b)));
         for (Direction dir : directions) {
             for (int i = 2; i <= 16; i++) {
                 BlockPos p = feet.relative(dir, i);

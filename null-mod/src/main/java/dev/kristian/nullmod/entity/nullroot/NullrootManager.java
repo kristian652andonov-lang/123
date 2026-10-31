@@ -6,6 +6,8 @@ import dev.kristian.nullmod.core.CorruptionContext;
 import dev.kristian.nullmod.core.CorruptionStage;
 import dev.kristian.nullmod.core.CorruptionSystem;
 import dev.kristian.nullmod.core.WorldMemory;
+import dev.kristian.nullmod.event.EventPacing;
+import dev.kristian.nullmod.event.ShowcaseHint;
 import dev.kristian.nullmod.field.FieldDimension;
 import dev.kristian.nullmod.registry.NullDimensions;
 import dev.kristian.nullmod.world.LocationFinder;
@@ -51,6 +53,10 @@ public final class NullrootManager implements CorruptionSystem {
     private static final int MAX_SATELLITES = 6;
     /** Chance per background growth that a colony is attempted, by stage. */
     private static final float[] COLONY_CHANCE = {0.0F, 0.0F, 0.06F, 0.12F, 0.15F};
+    /** Background growths for one player are never closer than this (30 s). */
+    private static final long MIN_GROWTH_GAP_TICKS = 20L * 30L;
+    /** In the showcase a single organism is looked for this many times until it grows in plain view. */
+    private static final int SHOWCASE_SPOT_TRIES = 6;
 
     private final List<NullrootEntity> organisms = new ArrayList<>();
     private final Map<UUID, Long> nextGrowth = new HashMap<>();
@@ -115,12 +121,18 @@ public final class NullrootManager implements CorruptionSystem {
             nextGrowth.clear();
             return;
         }
+        if (ctx.stage() == CorruptionStage.HARVEST) {
+            // Stage 6 happens in the wheat field: nothing new grows (what grew stays where it is).
+            nextGrowth.clear();
+            return;
+        }
         double frequency = NullConfig.get(NullConfig.NULLROOT_FREQUENCY);
         int max = NullConfig.get(NullConfig.MAX_NULLROOTS_PER_PLAYER);
         if (ctx.paused() || frequency <= 0.0 || max <= 0) {
             return;
         }
         long now = server.overworld().getGameTime();
+        double speed = EventPacing.speedFactor(ctx);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             // Nothing grows in NULL's dimension or in the field (Stage 6), which nothing may change.
             if (player.isSpectator() || !player.isAlive() || NullDimensions.isNull(player.level())
@@ -129,28 +141,32 @@ public final class NullrootManager implements CorruptionSystem {
             }
             Long next = nextGrowth.get(player.getUUID());
             if (next == null) {
-                nextGrowth.put(player.getUUID(), now + nextDelay(ctx, frequency));
+                nextGrowth.put(player.getUUID(), now + nextDelay(ctx, frequency, speed));
                 continue;
             }
             if (now < next) {
                 continue;
             }
-            nextGrowth.put(player.getUUID(), now + nextDelay(ctx, frequency));
+            nextGrowth.put(player.getUUID(), now + nextDelay(ctx, frequency, speed));
             if (countNear(player) < max) {
                 growBackground(player, ctx, max);
             }
         }
     }
 
-    /** Average wait between background growths: about three minutes early in Stage 3, ninety seconds in NULL. */
-    private long nextDelay(CorruptionContext ctx, double frequency) {
+    /**
+     * Average wait between background growths: about a minute and a half early in Stage 3 (it
+     * was three minutes before the pacing was raised), a minute later on; shorter when corruption
+     * time is sped up, never under thirty seconds.
+     */
+    private long nextDelay(CorruptionContext ctx, double frequency, double speedFactor) {
         float seconds = switch (ctx.stage()) {
-            case MIDDLE -> Mth.lerp(ctx.stageProgress(), 200.0F, 130.0F);
-            case ABOVE_MIDDLE -> 115.0F;
-            default -> 90.0F;
+            case MIDDLE -> Mth.lerp(ctx.stageProgress(), 95.0F, 62.0F);
+            case ABOVE_MIDDLE -> 57.0F;
+            default -> 60.0F;
         };
         seconds *= 0.6F + random.nextFloat() * 0.8F;
-        return Math.max(20L * 30L, (long) (seconds * 20.0F / frequency));
+        return EventPacing.scale(seconds * 20.0, frequency, speedFactor, MIN_GROWTH_GAP_TICKS);
     }
 
     private void growBackground(ServerPlayer player, CorruptionContext ctx, int max) {
@@ -182,7 +198,9 @@ public final class NullrootManager implements CorruptionSystem {
             }
         }
         ServerLevel level = player.serverLevel();
-        Optional<NullrootSpots.Spot> spot = NullrootSpots.sprout(level, player, rnd, ctx.stage(), forced);
+        Optional<NullrootSpots.Spot> spot = ShowcaseHint.active(player)
+                ? spotInView(level, player, rnd, ctx.stage())
+                : NullrootSpots.sprout(level, player, rnd, ctx.stage(), forced);
         if (spot.isEmpty()) {
             return Optional.empty();
         }
@@ -191,6 +209,28 @@ public final class NullrootManager implements CorruptionSystem {
             WorldMemory.remember(player.server, "nullroot:grown", player.getUUID(), organism.variant().id());
         }
         return Optional.ofNullable(organism);
+    }
+
+    /**
+     * For the showcase: a forced spot the player can see (in front of them, nothing in between),
+     * or the first one found if none of the tries is.
+     */
+    private static Optional<NullrootSpots.Spot> spotInView(ServerLevel level, ServerPlayer player, RandomSource rnd, CorruptionStage stage) {
+        Optional<NullrootSpots.Spot> first = Optional.empty();
+        for (int i = 0; i < SHOWCASE_SPOT_TRIES; i++) {
+            Optional<NullrootSpots.Spot> spot = NullrootSpots.sprout(level, player, rnd, stage, true);
+            if (spot.isEmpty()) {
+                continue;
+            }
+            BlockPos above = spot.get().root().relative(spot.get().face());
+            if (LocationFinder.inView(player, above, 40.0) && LocationFinder.canSee(player, above)) {
+                return spot;
+            }
+            if (first.isEmpty()) {
+                first = spot;
+            }
+        }
+        return first;
     }
 
     /**

@@ -23,6 +23,8 @@ public enum EventTag {
     FAKE_PLAYER,
     /** Concerns the moon. */
     MOON,
+    /** Happens in the sky (the showcase shows it at night and tells the player to look up). */
+    SKY,
     /** Concerns the NULL dimension. */
     DIMENSION,
     /** Flashes, freezes or other effects a client may soften under its accessibility settings. */

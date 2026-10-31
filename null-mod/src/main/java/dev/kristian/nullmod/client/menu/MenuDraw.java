@@ -1,14 +1,42 @@
 package dev.kristian.nullmod.client.menu;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.GameRenderer;
+import org.joml.Matrix4f;
 
 /**
  * Thin lines drawn in real screen pixels instead of GUI units, so outlines stay hair-thin at
- * every GUI scale (1 pixel up to GUI scale 2, 2 pixels at 3-4, ...).
+ * every GUI scale (1 pixel up to GUI scale 2, 2 pixels at 3-4, ...), and horizontal gradients.
  */
 final class MenuDraw {
     private MenuDraw() {
+    }
+
+    /** Rectangle whose colour runs from {@code argbLeft} at x0 to {@code argbRight} at x1 (GUI units). */
+    static void hgradient(GuiGraphics graphics, float x0, float y0, float x1, float y1, int argbLeft, int argbRight) {
+        if (x1 <= x0 || y1 <= y0 || ((argbLeft >>> 24) == 0 && (argbRight >>> 24) == 0)) {
+            return;
+        }
+        graphics.flush();
+        Matrix4f matrix = graphics.pose().last().pose();
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.setShader(GameRenderer::getPositionColorShader);
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        builder.addVertex(matrix, x0, y0, 0.0F).setColor(argbLeft);
+        builder.addVertex(matrix, x0, y1, 0.0F).setColor(argbLeft);
+        builder.addVertex(matrix, x1, y1, 0.0F).setColor(argbRight);
+        builder.addVertex(matrix, x1, y0, 0.0F).setColor(argbRight);
+        BufferUploader.drawWithShader(builder.buildOrThrow());
+        RenderSystem.disableBlend();
     }
 
     static double guiScale() {

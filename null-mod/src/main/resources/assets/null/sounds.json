@@ -754,6 +754,54 @@
       "null:menu/waiting_2"
     ]
   },
+  "music.field_day": {
+    "sounds": [
+      {
+        "name": "null:music/field_day",
+        "stream": true
+      }
+    ]
+  },
+  "music.distorted_1_broken": {
+    "sounds": [
+      {
+        "name": "null:music/distorted_1_broken",
+        "stream": true
+      }
+    ]
+  },
+  "music.distorted_2_broken": {
+    "sounds": [
+      {
+        "name": "null:music/distorted_2_broken",
+        "stream": true
+      }
+    ]
+  },
+  "music.null_theme_broken": {
+    "sounds": [
+      {
+        "name": "null:music/null_theme_broken",
+        "stream": true
+      }
+    ]
+  },
+  "music.fragment_reversed": {
+    "sounds": [
+      "null:music/fragment_reversed_1",
+      "null:music/fragment_reversed_2",
+      "null:music/fragment_reversed_3",
+      "null:music/fragment_reversed_4"
+    ]
+  },
+  "music.fragment_hang": {
+    "sounds": [
+      "null:music/fragment_hang_1",
+      "null:music/fragment_hang_2",
+      "null:music/fragment_hang_3",
+      "null:music/fragment_hang_4"
+    ]
+  },
   "field.wind": {
     "subtitle": "subtitles.null.field.wind",
     "sounds": [

@@ -32,6 +32,7 @@ import net.neoforged.neoforge.internal.BrandingControl;
  * <p>
  * How disturbing it looks follows the highest stage this computer has ever seen
  * ({@code ClientStageMemory}); the menu only reads that value and never advances anything.
+ * The faces in the dark are the ones the user supplied ({@code assets-src/menu-faces}).
  * Every effect follows the menu, animation and accessibility settings.
  */
 public final class CorruptedMainMenu extends Screen {
@@ -49,7 +50,7 @@ public final class CorruptedMainMenu extends Screen {
 
     private final Random random = new Random();
     private final SpriteBatch batch = new SpriteBatch();
-    private final MainMenuAnimationManager animation = new MainMenuAnimationManager(random);
+    private final MainMenuAnimationManager animation = new MainMenuAnimationManager(random, MainMenuAnimationManager.Layout.MAIN);
     private final MainMenuBackgroundRenderer background = new MainMenuBackgroundRenderer();
     private final CorruptedLogoRenderer logo = new CorruptedLogoRenderer();
     private final MenuAudio audio = new MenuAudio();
@@ -115,7 +116,8 @@ public final class CorruptedMainMenu extends Screen {
         firstOpenDone = true;
         pendingAction = null;
         readBranding();
-        animation.reset(mood, art);
+        // back from a sub-screen: whatever was in the dark is still there
+        animation.resume(mood, art);
         logo.reset();
         audio.start(mood);
         events.reset(mood, fresh);
@@ -306,6 +308,7 @@ public final class CorruptedMainMenu extends Screen {
         lastFrameMs = now;
         time += dt;
         if (mood != null) {
+            animation.lookAt(mouseX / (float) Math.max(1, width), mouseY / (float) Math.max(1, height));
             animation.update(dt);
             events.update(dt);
             logo.update(dt, mood, random);
@@ -324,7 +327,7 @@ public final class CorruptedMainMenu extends Screen {
             try {
                 float reveal = 1.0F - MenuMath.smooth((Util.getMillis() - shownAtMs) / (fadeMs * 0.8F));
                 float darken = 1.0F - (1.0F - events.darken()) * (1.0F - reveal);
-                background.render(graphics, batch, art, animation, mood, width, height, time, darken);
+                background.render(graphics, batch, art, animation, mood, width, height, time, darken, scrimRight());
                 logo.render(graphics, batch, uiAlpha(), mood);
             } catch (RuntimeException e) {
                 fail(e);
@@ -455,5 +458,10 @@ public final class CorruptedMainMenu extends Screen {
 
     float buttonsBottom() {
         return buttonsBottom;
+    }
+
+    /** Where the darker band behind the logo and the buttons fades out, as a fraction of the width. */
+    private float scrimRight() {
+        return Math.min(1.0F, Math.max(buttonsRight, logoRight() * 0.55F) + 0.16F);
     }
 }

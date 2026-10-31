@@ -8,8 +8,9 @@ import net.minecraft.nbt.CompoundTag;
  * DAY (the sun cracks) -> SHATTER (it breaks, the light dies) -> NIGHT (the countdown)
  *     -> HUNT (until IT stops hunting) -> DAWN (the light returns) -> DAY ...
  * </pre>
- * Every phase lasts its {@link FieldTuning} length, except the hunt, which ends when the caller says
- * so (or, failing that, after its length plus {@link FieldTuning#HUNT_WATCHDOG_TICKS}).
+ * Every phase lasts its {@link FieldTuning} length (day, countdown and hunt from the server config,
+ * read at use), except the hunt, which ends when the caller says so (or, failing that, after its
+ * length plus {@link FieldTuning#HUNT_WATCHDOG_TICKS}).
  */
 public final class FieldCycle {
     public enum Phase {
@@ -52,10 +53,10 @@ public final class FieldCycle {
     /** Nominal length of a phase in ticks (for the hunt, the hunt time IT is given). */
     public static int length(Phase phase) {
         return switch (phase) {
-            case DAY -> FieldTuning.DAY_TICKS;
+            case DAY -> FieldTuning.dayTicks();
             case SHATTER -> FieldTuning.SHATTER_TICKS;
-            case NIGHT -> FieldTuning.NIGHT_TICKS;
-            case HUNT -> FieldTuning.HUNT_TICKS;
+            case NIGHT -> FieldTuning.nightTicks();
+            case HUNT -> FieldTuning.huntTicks();
             case DAWN -> FieldTuning.DAWN_TICKS;
         };
     }
@@ -79,7 +80,7 @@ public final class FieldCycle {
         elapsed++;
         Phase next = switch (phase) {
             case DAY, SHATTER, NIGHT, DAWN -> elapsed >= length() ? following(phase) : null;
-            case HUNT -> huntOver || elapsed >= FieldTuning.HUNT_TICKS + FieldTuning.HUNT_WATCHDOG_TICKS ? Phase.DAWN : null;
+            case HUNT -> huntOver || elapsed >= FieldTuning.huntTicks() + FieldTuning.HUNT_WATCHDOG_TICKS ? Phase.DAWN : null;
         };
         if (next != null) {
             if (phase == Phase.DAWN) {

@@ -63,7 +63,8 @@ import net.neoforged.neoforge.event.level.BlockEvent;
  * of a house's door (their own respawn point stays theirs for later). Beds and respawn anchors do
  * nothing there, and the wheat cannot be trampled.</li>
  * </ul>
- * Stage 6 is recognised as {@code stage.number() >= 6}, so this works as soon as the stage exists.
+ * Nothing here decides when HARVEST begins: the core does ({@code CorruptionManager}), and this
+ * reacts to the stage change, to joining players and to respawns, once each.
  */
 public final class FieldManager implements CorruptionSystem {
     public static final FieldManager INSTANCE = new FieldManager();
@@ -118,9 +119,9 @@ public final class FieldManager implements CorruptionSystem {
         return NAME;
     }
 
-    /** True for Stage 6 (HARVEST) and anything after it. */
+    /** True for Stage 6 (HARVEST), the stage of the field. */
     public static boolean fieldStage(CorruptionStage stage) {
-        return stage.number() >= 6;
+        return stage == CorruptionStage.HARVEST;
     }
 
     // ================================================================== public API
@@ -181,7 +182,15 @@ public final class FieldManager implements CorruptionSystem {
      * summons IT at once; every player in the field is told.
      */
     public void skipTo(MinecraftServer server, FieldCycle.Phase phase) {
-        cycle.set(phase, 0);
+        skipTo(server, phase, 0);
+    }
+
+    /**
+     * Like {@link #skipTo(MinecraftServer, FieldCycle.Phase)}, but {@code elapsed} ticks into the
+     * phase (for example late in the day, when the sun is badly cracked).
+     */
+    public void skipTo(MinecraftServer server, FieldCycle.Phase phase, int elapsed) {
+        cycle.set(phase, Math.max(0, Math.min(elapsed, FieldCycle.length(phase) - 1)));
         if (phase != FieldCycle.Phase.HUNT) {
             // A hunt under way runs out on its own; the field stops waiting for it.
             hunter = null;
@@ -255,11 +264,17 @@ public final class FieldManager implements CorruptionSystem {
         if (cycle.phase() == FieldCycle.Phase.HUNT && (hunter == null || hunter.isRemoved())) {
             // IT is gone (the server restarted or everyone left): the countdown runs again, briefly.
             hunter = null;
-            cycle.set(FieldCycle.Phase.NIGHT, FieldTuning.NIGHT_TICKS - FieldTuning.REJOIN_MIN_COUNTDOWN);
-        } else if (cycle.phase() == FieldCycle.Phase.NIGHT && cycle.remaining() < FieldTuning.REJOIN_MIN_COUNTDOWN) {
-            cycle.set(FieldCycle.Phase.NIGHT, FieldTuning.NIGHT_TICKS - FieldTuning.REJOIN_MIN_COUNTDOWN);
+            cycle.set(FieldCycle.Phase.NIGHT, rejoinElapsed());
+        } else if (cycle.phase() == FieldCycle.Phase.NIGHT && cycle.remaining() < Math.min(FieldTuning.REJOIN_MIN_COUNTDOWN, FieldTuning.nightTicks())) {
+            cycle.set(FieldCycle.Phase.NIGHT, rejoinElapsed());
         }
         syncAll(level);
+    }
+
+    /** How far into the night someone coming back into an empty field starts: with at least the minimum countdown left. */
+    private static int rejoinElapsed() {
+        int night = FieldTuning.nightTicks();
+        return Math.max(0, night - Math.min(FieldTuning.REJOIN_MIN_COUNTDOWN, night));
     }
 
     private void onPhaseBegan(ServerLevel level, FieldCycle.Phase phase) {
@@ -319,7 +334,7 @@ public final class FieldManager implements CorruptionSystem {
             }
         }
         try {
-            hunter = ItEntity.summon(level, pos, target, FieldTuning.HUNT_TICKS);
+            hunter = ItEntity.summon(level, pos, target, FieldTuning.huntTicks());
         } catch (RuntimeException e) {
             hunter = null;
             if (!warnedSummon) {
@@ -345,7 +360,7 @@ public final class FieldManager implements CorruptionSystem {
      */
     private static Vec3 summonPosition(ServerLevel level, double cx, double cz) {
         int simulated = level.getServer().getPlayerList().getSimulationDistance() * 16 - 16;
-        int distance = Math.max(FieldTuning.IT_MIN_DISTANCE, Math.min(FieldTuning.IT_DISTANCE, simulated));
+        int distance = Math.max(FieldTuning.IT_MIN_DISTANCE, Math.min(FieldTuning.itDistance(), simulated));
         long seed = FieldChunkGenerator.seedOf(level);
         BlockPos chosen = null;
         for (; distance >= FieldTuning.IT_MIN_DISTANCE; distance -= 16) {
@@ -769,12 +784,17 @@ public final class FieldManager implements CorruptionSystem {
             }
         } else if (fieldStage(from) && !fieldStage(to)) {
             // Moved back by an administrator. For Stage 5 with the automatic transition on, the NULL
-            // dimension takes everyone in itself.
+            // dimension takes everyone in itself, straight from the field: one black screen.
             boolean nullTakesOver = to == CorruptionStage.NULL && NullConfig.get(NullConfig.AUTO_NULL_TRANSITION);
             for (ServerPlayer player : List.copyOf(server.getPlayerList().getPlayers())) {
                 Transition pending = transitions.get(player.getUUID());
                 if (pending != null && pending.kind == Kind.ENTER) {
-                    cancel(player, pending);
+                    if (nullTakesOver && NullDimensionManager.INSTANCE.inTransition(player)) {
+                        // The NULL dimension's move continues the dark screen this one began.
+                        transitions.remove(player.getUUID());
+                    } else {
+                        cancel(player, pending);
+                    }
                 }
                 if (FieldDimension.isField(player.level()) && !nullTakesOver) {
                     schedule(player, Kind.RETURN, 0);

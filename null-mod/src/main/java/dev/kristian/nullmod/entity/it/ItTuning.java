@@ -1,19 +1,14 @@
 package dev.kristian.nullmod.entity.it;
 
+import dev.kristian.nullmod.config.NullConfig;
+
 /**
- * Every number that decides how IT moves, hunts, kills and leaves. These are the candidates for
- * the server config; until they move there they live here, in one place.
+ * Every number that decides how IT moves, hunts, kills and leaves, in one place. The ones an
+ * administrator would change are in the server config (section {@code it}) and read through the
+ * methods below at use.
  */
 public final class ItTuning {
     // ------------------------------------------------------------------ movement
-
-    /** Ground speed while it runs at its target, blocks per tick (a sprinting player manages 0.28). */
-    public static final double CHASE_SPEED = 0.78;
-    /**
-     * It eases off as it closes in, but always runs at least this much faster than whoever it runs
-     * down (blocks per tick), so a player sprinting straight away is caught like one standing still.
-     */
-    public static final double CLOSING_SPEED = 0.15;
     /** How fast it gets up to speed, blocks per tick per tick. */
     public static final double ACCELERATION = 0.06;
     /** The slow lope while it circles a house. */
@@ -52,8 +47,6 @@ public final class ItTuning {
     public static final int RESPAWN_GRACE_TICKS = 20 * 10;
     /** A player who lived through being seized (a totem) is left alone this long. */
     public static final int RELEASE_GRACE_TICKS = 20 * 8;
-    /** Damage the blow through the chest does on its own (never lethal: the end of the kill is). */
-    public static final float PIERCE_DAMAGE = 6.0F;
 
     // ------------------------------------------------------------------ prowling a house
 
@@ -82,5 +75,27 @@ public final class ItTuning {
     public static final int SHELTER_MAX_CELLS = 2400;
 
     private ItTuning() {
+    }
+
+    /**
+     * Ground speed while it runs at its target, blocks per tick, from the server config
+     * ({@code it.chaseSpeed}, in blocks per second; a sprinting player manages 0.28 per tick).
+     */
+    public static double chaseSpeed() {
+        return NullConfig.get(NullConfig.IT_CHASE_SPEED) / 20.0;
+    }
+
+    /**
+     * It eases off as it closes in, but always runs at least this much faster than whoever it runs
+     * down (blocks per tick, from {@code it.closingSpeed}), so a player sprinting straight away is
+     * caught like one standing still.
+     */
+    public static double closingSpeed() {
+        return NullConfig.get(NullConfig.IT_CLOSING_SPEED) / 20.0;
+    }
+
+    /** Damage the blow through the chest does on its own ({@code it.pierceDamage}; never lethal: the end of the kill is). */
+    public static float pierceDamage() {
+        return (float) NullConfig.get(NullConfig.IT_PIERCE_DAMAGE);
     }
 }

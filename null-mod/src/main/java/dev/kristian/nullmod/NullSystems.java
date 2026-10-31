@@ -8,11 +8,13 @@ import dev.kristian.nullmod.dimension.DimensionModule;
 import dev.kristian.nullmod.entity.fakeplayer.FakePlayerModule;
 import dev.kristian.nullmod.entity.it.ItModule;
 import dev.kristian.nullmod.entity.nullroot.NullrootModule;
+import dev.kristian.nullmod.entity.variant.MobVariantModule;
 import dev.kristian.nullmod.entity.visitor.VisitorModule;
 import dev.kristian.nullmod.event.RandomEventManager;
 import dev.kristian.nullmod.field.FieldModule;
 import dev.kristian.nullmod.gametest.CoreGameTests;
 import dev.kristian.nullmod.moon.MoonModule;
+import dev.kristian.nullmod.showcase.ShowcaseModule;
 import dev.kristian.nullmod.visual.VisualModule;
 import dev.kristian.nullmod.world.BuildProtection;
 import dev.kristian.nullmod.world.WorldModule;
@@ -42,6 +44,8 @@ final class NullSystems {
         DimensionModule.init(modBus, gameBus);
         FieldModule.init(modBus, gameBus);
         ItModule.init(modBus, gameBus);
+        MobVariantModule.init(modBus, gameBus);
+        ShowcaseModule.init(modBus, gameBus);
 
         // Event-only modules (their effects run on the client).
         VisualModule.init(modBus, gameBus);

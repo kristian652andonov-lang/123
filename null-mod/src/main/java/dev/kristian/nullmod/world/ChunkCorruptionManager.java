@@ -6,6 +6,7 @@ import dev.kristian.nullmod.core.CorruptionData;
 import dev.kristian.nullmod.core.CorruptionManager;
 import dev.kristian.nullmod.core.CorruptionSystem;
 import dev.kristian.nullmod.core.WorldMemory;
+import dev.kristian.nullmod.event.EventPacing;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,10 +39,11 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * Background terrain corruption. Every few seconds each player gets a chance (from the stage,
  * how corrupted their region is and the world corruption setting) that a small patch of natural
- * ground 24-80 blocks away stops loading properly: black blocks, missing textures, error blocks
- * and corrupted versions of whatever was there. Stage 1 patches are extremely rare and only a
- * block or three; they grow with the stages. From Stage 3 corruption also spreads outward from
- * the places it took hold earlier (a bounded list kept in the world's NULL data).
+ * ground 24-80 blocks away, out of their sight, stops loading properly: black blocks, missing
+ * textures, error blocks and corrupted versions of whatever was there. Stage 1 patches are rare
+ * and only a block or three; they grow with the stages. From Stage 3 corruption also spreads
+ * outward from the places it took hold earlier (a bounded list kept in the world's NULL data).
+ * The checks come faster when corruption time is sped up ({@link EventPacing}).
  * <p>
  * Nothing is ever scanned chunk-wide: columns are sampled through the heightmaps of loaded
  * chunks, and every change goes through {@link SafeBlockPlacer}.
@@ -53,10 +55,14 @@ public final class ChunkCorruptionManager implements CorruptionSystem {
     private static final int PASS_PERIOD = 20;
     private static final int CHECK_MIN_TICKS = 80;
     private static final int CHECK_JITTER_TICKS = 60;
-    /** Chance per player check of a new patch, per stage, before region and config scaling. */
-    private static final float[] PATCH_CHANCE = {0.006F, 0.03F, 0.06F, 0.09F, 0.11F};
-    /** Chance per player check that known corruption grows (Stage 3 onwards). */
-    private static final float[] SPREAD_CHANCE = {0.0F, 0.0F, 0.12F, 0.18F, 0.24F};
+    /**
+     * Chance per player check of a new patch, per stage, before region and config scaling: about
+     * 2.5x (Stage 1) to 1.5x (Stage 5) what it was before the pacing was raised (0.006, 0.03,
+     * 0.06, 0.09, 0.11). A Stage 1 patch is still only one to three blocks.
+     */
+    private static final float[] PATCH_CHANCE = {0.015F, 0.07F, 0.125F, 0.18F, 0.165F};
+    /** Chance per player check that known corruption grows (Stage 3 onwards; was 0.12, 0.18, 0.24). */
+    private static final float[] SPREAD_CHANCE = {0.0F, 0.0F, 0.25F, 0.36F, 0.36F};
     private static final int[] SIZE_MIN = {1, 2, 4, 6, 8};
     private static final int[] SIZE_MAX = {3, 7, 12, 18, 24};
     /** How far one infection may grow from where it started, per stage. */
@@ -123,6 +129,7 @@ public final class ChunkCorruptionManager implements CorruptionSystem {
             return;
         }
         long now = server.getTickCount();
+        double speed = EventPacing.speedFactor(ctx);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (player.isSpectator()) {
                 continue;
@@ -133,15 +140,20 @@ public final class ChunkCorruptionManager implements CorruptionSystem {
             }
             Long next = nextCheck.get(player.getUUID());
             if (next == null) {
-                nextCheck.put(player.getUUID(), now + CHECK_MIN_TICKS + random.nextInt(CHECK_JITTER_TICKS * 2));
+                nextCheck.put(player.getUUID(), now + checkDelay(CHECK_MIN_TICKS + random.nextInt(CHECK_JITTER_TICKS * 2), speed));
                 continue;
             }
             if (now < next) {
                 continue;
             }
-            nextCheck.put(player.getUUID(), now + CHECK_MIN_TICKS + random.nextInt(CHECK_JITTER_TICKS));
+            nextCheck.put(player.getUUID(), now + checkDelay(CHECK_MIN_TICKS + random.nextInt(CHECK_JITTER_TICKS), speed));
             checkPlayer(ctx, level, player, setting);
         }
+    }
+
+    /** The wait until a player's next check, shorter at a higher corruption speed (never below one pass). */
+    private static long checkDelay(int ticks, double speedFactor) {
+        return EventPacing.scale(ticks, 1.0, speedFactor, PASS_PERIOD);
     }
 
     private void checkPlayer(CorruptionContext ctx, ServerLevel level, ServerPlayer player, double setting) {
@@ -194,11 +206,14 @@ public final class ChunkCorruptionManager implements CorruptionSystem {
         RandomSource rnd = req.random();
         int stage = req.stageNumber();
         int size = patchSize(stage, req.intensity(), rnd);
-        if (req.forced()) {
+        if (req.showcase()) {
+            // Big enough to be noticed from where the player stands.
+            size = Math.max(size, SIZE_MIN[stage - 1] + 4);
+        } else if (req.forced()) {
             size = Math.max(size, SIZE_MIN[stage - 1] + 2);
         }
         double min = req.minDistance(16.0, 6.0);
-        double max = req.forced() ? 48.0 : 64.0;
+        double max = req.maxDistance(req.forced() ? 48.0 : 64.0, min);
         LocationFinder.View view = req.view(LocationFinder.View.HIDDEN);
         int attempts = req.attempts(3);
         UUID who = req.player().getUUID();
@@ -229,11 +244,13 @@ public final class ChunkCorruptionManager implements CorruptionSystem {
         ensureLoaded(CorruptionManager.data(req.server()));
         int stage = req.stageNumber();
         int amount = growthAmount(stage, req.intensity(), req.random()) * 2;
-        Spot spot = nearestSpot(level, req.player().blockPosition(), req.forced() ? 160.0 : SPOT_REACH, stage);
+        Spot spot = req.showcase()
+                ? nearestSpotInView(level, req.player(), GenerationRequest.SHOWCASE_FAR + 16.0, stage)
+                : nearestSpot(level, req.player().blockPosition(), req.forced() ? 160.0 : SPOT_REACH, stage);
         if (spot != null && grow(level, spot, stage, amount, req.random(), null)) {
             return true;
         }
-        // Forced with nothing to grow from: corruption takes hold here instead.
+        // Forced with nothing to grow from (in the showcase: nothing in sight): corruption takes hold here instead.
         return req.forced() && corruptNear(req);
     }
 
@@ -490,6 +507,26 @@ public final class ChunkCorruptionManager implements CorruptionSystem {
                 continue;
             }
             double d = spot.center.distSqr(pos);
+            if (d <= bestDist) {
+                bestDist = d;
+                best = spot;
+            }
+        }
+        return best;
+    }
+
+    /** The nearest known spot that can still grow and whose centre lies in front of the player. */
+    @Nullable
+    private Spot nearestSpotInView(ServerLevel level, ServerPlayer player, double reach, int stage) {
+        int limit = SPOT_RADIUS_LIMIT[Mth.clamp(stage, 1, 5) - 1];
+        Spot best = null;
+        double bestDist = reach * reach;
+        for (Spot spot : spots) {
+            if (!spot.dimension.equals(level.dimension()) || spot.radius >= limit
+                    || !LocationFinder.inViewHorizontal(player, spot.center.getX() + 0.5, spot.center.getZ() + 0.5, 35.0)) {
+                continue;
+            }
+            double d = spot.center.distSqr(player.blockPosition());
             if (d <= bestDist) {
                 bestDist = d;
                 best = spot;

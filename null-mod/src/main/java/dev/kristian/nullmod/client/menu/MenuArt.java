@@ -18,13 +18,15 @@ import net.minecraft.util.GsonHelper;
 
 /**
  * The menu's art: texture locations plus the sprite regions, eye anchors and glyph metrics that
- * {@code tools/gen_menu.py} writes to {@code textures/gui/menu/art.json}.
+ * {@code tools/gen_menu.py} writes to {@code textures/gui/menu/art.json}, and the faces the user
+ * supplied, processed by {@code tools/gen_menu_faces.py} into {@code textures/gui/menu/faces.json}.
  * <p>
  * Every piece is optional. Whatever is missing or malformed is simply left out, so a broken
  * resource pack degrades the menu to a plain dark screen instead of crashing it.
  */
 final class MenuArt {
     static final ResourceLocation METADATA = NullMod.id("textures/gui/menu/art.json");
+    static final ResourceLocation PORTRAIT_METADATA = NullMod.id("textures/gui/menu/faces.json");
 
     /** A sprite inside a texture, with UVs already normalised. */
     static final class Sprite {
@@ -53,6 +55,82 @@ final class MenuArt {
         /** Width divided by height. */
         float aspect() {
             return height == 0 ? 1.0F : (float) width / height;
+        }
+    }
+
+    /**
+     * One eye of a {@link Portrait}. Pale eyes carry a "patch": the pupil, cut out of the face
+     * into its own soft-edged sprite (the hole in the face is filled in), which the menu draws on
+     * top, shifted a little towards the mouse cursor. Every eye also gets a moving glint.
+     */
+    static final class Eye {
+        /** Centre of the pupil as fractions of the face's width and height. */
+        final float x;
+        final float y;
+        /** How far the pupil may move, as a fraction of the face's width. */
+        final float travel;
+        /** Diameter of the glint, as a fraction of the face's width. */
+        final float glint;
+        /** The pupil cut out of the face; null for dark eyes that only get a glint. */
+        final Sprite patch;
+        /** The same pupil at half resolution, used with the half-size face. */
+        final Sprite halfPatch;
+        /** Width of the patch as a fraction of the face's width. */
+        final float patchSize;
+        /** Where the pupil's centre lies inside the patch, as fractions of the patch's size. */
+        final float patchX;
+        final float patchY;
+
+        Eye(float x, float y, float travel, float glint, Sprite patch, Sprite halfPatch, float patchSize, float patchX, float patchY) {
+            this.x = x;
+            this.y = y;
+            this.travel = travel;
+            this.glint = glint;
+            this.patch = patch;
+            this.halfPatch = halfPatch;
+            this.patchSize = patchSize;
+            this.patchX = patchX;
+            this.patchY = patchY;
+        }
+    }
+
+    /** One of the user's faces: the face at full and half resolution, and its eyes. */
+    static final class Portrait {
+        final Sprite full;
+        /** Half resolution, drawn whenever the face is shown much smaller than its full size (no mipmaps). */
+        final Sprite half;
+        final List<Eye> eyes;
+
+        Portrait(Sprite full, Sprite half, List<Eye> eyes) {
+            this.full = full;
+            this.half = half;
+            this.eyes = eyes;
+        }
+
+        float aspect() {
+            return full.aspect();
+        }
+    }
+
+    /** The user's faces and their texture. */
+    static final class Portraits {
+        final MenuTexture texture;
+        final List<Portrait> faces;
+        /** A soft white dot for the eye glints. */
+        final Sprite glint;
+
+        Portraits(MenuTexture texture, List<Portrait> faces, Sprite glint) {
+            this.texture = texture;
+            this.faces = faces;
+            this.glint = glint;
+        }
+
+        int size() {
+            return faces.size();
+        }
+
+        Portrait get(int index) {
+            return faces.get(Math.floorMod(index, faces.size()));
         }
     }
 
@@ -113,40 +191,46 @@ final class MenuArt {
         }
     }
 
-    static final MenuArt EMPTY = new MenuArt(null, null, null, null, List.of(), List.of(), List.of(), List.of(), List.of(), null);
+    static final MenuArt EMPTY = new MenuArt(null, null, null, null, List.of(), List.of(), List.of(), List.of(), null, null);
 
     private static MenuArt cached;
 
-    /** Apparition atlas (faces, eyes, glints, mouths, silhouettes); null when unavailable. */
+    /** Apparition atlas (eye pairs, glints, mouths, silhouettes); null when unavailable. */
     final MenuTexture atlas;
     final MenuTexture grain;
     final MenuTexture fog;
     final MenuTexture vignette;
-    final List<Sprite> faces;
     final List<Sprite> eyes;
     final List<Sprite> glints;
     final List<Sprite> mouths;
     final List<Sprite> silhouettes;
+    /** The user's faces; null when unavailable. */
+    final Portraits portraits;
     /** Null when the glyph sheet is unavailable; the logo then falls back to the vanilla font. */
     final Glyphs glyphs;
 
     private MenuArt(MenuTexture atlas, MenuTexture grain, MenuTexture fog, MenuTexture vignette,
-                    List<Sprite> faces, List<Sprite> eyes, List<Sprite> glints, List<Sprite> mouths, List<Sprite> silhouettes,
-                    Glyphs glyphs) {
+                    List<Sprite> eyes, List<Sprite> glints, List<Sprite> mouths, List<Sprite> silhouettes,
+                    Portraits portraits, Glyphs glyphs) {
         this.atlas = atlas;
         this.grain = grain;
         this.fog = fog;
         this.vignette = vignette;
-        this.faces = faces;
         this.eyes = eyes;
         this.glints = glints;
         this.mouths = mouths;
         this.silhouettes = silhouettes;
+        this.portraits = portraits;
         this.glyphs = glyphs;
     }
 
+    /** Something can appear in the dark: the user's faces and/or the generated eyes, mouths and silhouettes. */
     boolean hasApparitions() {
-        return atlas != null && !faces.isEmpty();
+        return hasPortraits() || atlas != null;
+    }
+
+    boolean hasPortraits() {
+        return portraits != null && portraits.size() > 0;
     }
 
     /** The current art, loaded on first use after start-up or a resource reload. Never null. */
@@ -170,7 +254,7 @@ final class MenuArt {
 
     /**
      * Frees the menu's textures from the GPU. Called when a world is joined; they load again
-     * the next time the menu is drawn.
+     * the next time they are drawn (menus inside a world only use the small grain and vignette).
      */
     static void releaseTextures() {
         MenuArt art = cached;
@@ -192,27 +276,32 @@ final class MenuArt {
         if (vignette != null) {
             action.accept(vignette);
         }
+        if (portraits != null) {
+            action.accept(portraits.texture);
+        }
         if (glyphs != null) {
             action.accept(glyphs.texture);
         }
     }
 
     private static MenuArt load(ResourceManager resources) {
+        Portraits portraits = portraits(resources);
         Optional<Resource> metadata = resources.getResource(METADATA);
         if (metadata.isEmpty()) {
             NullMod.LOGGER.warn("NULL menu art metadata {} is missing; the menu will be plain", METADATA);
-            return EMPTY;
+            return portraits == null ? EMPTY
+                    : new MenuArt(null, null, null, null, List.of(), List.of(), List.of(), List.of(), portraits, null);
         }
         JsonObject root;
         try (Reader reader = metadata.get().openAsReader()) {
             root = GsonHelper.parse(reader);
         } catch (IOException | RuntimeException e) {
             NullMod.LOGGER.warn("Could not read NULL menu art metadata {}", METADATA, e);
-            return EMPTY;
+            return portraits == null ? EMPTY
+                    : new MenuArt(null, null, null, null, List.of(), List.of(), List.of(), List.of(), portraits, null);
         }
 
         MenuTexture atlas = null;
-        List<Sprite> faces = List.of();
         List<Sprite> eyes = List.of();
         List<Sprite> glints = List.of();
         List<Sprite> mouths = List.of();
@@ -223,7 +312,7 @@ final class MenuArt {
             int width = GsonHelper.getAsInt(atlasJson, "width");
             int height = GsonHelper.getAsInt(atlasJson, "height");
             if (location != null && width > 0 && height > 0) {
-                faces = sprites(root, "faces", width, height);
+                // the atlas also holds the old generated faces; the user's faces replaced them
                 eyes = sprites(root, "eyes", width, height);
                 glints = sprites(root, "glints", width, height);
                 mouths = sprites(root, "mouths", width, height);
@@ -232,7 +321,7 @@ final class MenuArt {
             }
         } catch (RuntimeException e) {
             NullMod.LOGGER.warn("NULL menu atlas metadata is malformed; the menu background will be plain", e);
-            faces = eyes = glints = mouths = silhouettes = List.of();
+            eyes = glints = mouths = silhouettes = List.of();
             atlas = null;
         }
 
@@ -246,12 +335,12 @@ final class MenuArt {
         } catch (RuntimeException e) {
             NullMod.LOGGER.warn("NULL menu glyph metadata is malformed; the logo falls back to the default font", e);
         }
-        return new MenuArt(atlas, grain, fog, vignette, faces, eyes, glints, mouths, silhouettes, glyphs);
+        return new MenuArt(atlas, grain, fog, vignette, eyes, glints, mouths, silhouettes, portraits, glyphs);
     }
 
     private static MenuTexture optionalTexture(ResourceManager resources, JsonObject root, String key, boolean blur) {
         try {
-            if (!root.has(key)) {
+            if (!GsonHelper.isObjectNode(root, key)) {
                 return null;
             }
             ResourceLocation location = texture(resources, GsonHelper.getAsString(GsonHelper.getAsJsonObject(root, key), "texture"));
@@ -290,7 +379,7 @@ final class MenuArt {
             }
             float[] eyes = new float[0];
             float eyeSize = 0.0F;
-            if (json.has("eyes")) {
+            if (GsonHelper.isArrayNode(json, "eyes")) {
                 JsonArray anchors = GsonHelper.getAsJsonArray(json, "eyes");
                 eyes = new float[anchors.size() * 2];
                 for (int i = 0; i < anchors.size(); i++) {
@@ -304,6 +393,87 @@ final class MenuArt {
                     (float) (y + h) / atlasHeight, w, h, eyes, eyeSize));
         }
         return Collections.unmodifiableList(list);
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // the user's faces (faces.json)
+
+    private static Portraits portraits(ResourceManager resources) {
+        Optional<Resource> metadata = resources.getResource(PORTRAIT_METADATA);
+        if (metadata.isEmpty()) {
+            NullMod.LOGGER.warn("NULL menu faces {} are missing; the menu shows no faces", PORTRAIT_METADATA);
+            return null;
+        }
+        try (Reader reader = metadata.get().openAsReader()) {
+            JsonObject root = GsonHelper.parse(reader);
+            ResourceLocation location = texture(resources, GsonHelper.getAsString(root, "texture"));
+            int width = GsonHelper.getAsInt(root, "width");
+            int height = GsonHelper.getAsInt(root, "height");
+            if (location == null || width <= 0 || height <= 0) {
+                return null;
+            }
+            Sprite glint = region(GsonHelper.getAsJsonObject(root, "glint"), width, height);
+            JsonArray array = GsonHelper.getAsJsonArray(root, "faces");
+            List<Portrait> faces = new ArrayList<>(array.size());
+            for (int i = 0; i < array.size(); i++) {
+                faces.add(portrait(GsonHelper.convertToJsonObject(array.get(i), "faces"), width, height));
+            }
+            if (faces.isEmpty()) {
+                return null;
+            }
+            return new Portraits(new MenuTexture(location, true), Collections.unmodifiableList(faces), glint);
+        } catch (IOException | RuntimeException e) {
+            NullMod.LOGGER.warn("NULL menu faces {} are malformed; the menu shows no faces", PORTRAIT_METADATA, e);
+            return null;
+        }
+    }
+
+    private static Portrait portrait(JsonObject json, int atlasWidth, int atlasHeight) {
+        Sprite full = region(json, atlasWidth, atlasHeight);
+        Sprite half = GsonHelper.isObjectNode(json, "half") ? region(GsonHelper.getAsJsonObject(json, "half"), atlasWidth, atlasHeight) : full;
+        List<Eye> eyes = new ArrayList<>(2);
+        if (GsonHelper.isArrayNode(json, "eyes")) {
+            JsonArray array = GsonHelper.getAsJsonArray(json, "eyes");
+            for (int i = 0; i < array.size(); i++) {
+                JsonObject eye = GsonHelper.convertToJsonObject(array.get(i), "eyes");
+                float x = GsonHelper.getAsFloat(eye, "x") / full.width;
+                float y = GsonHelper.getAsFloat(eye, "y") / full.height;
+                if (x < 0.0F || x > 1.0F || y < 0.0F || y > 1.0F) {
+                    throw new IllegalArgumentException("eye outside its face");
+                }
+                float travel = Math.max(0.0F, GsonHelper.getAsFloat(eye, "travel", 0.0F)) / full.width;
+                float glint = Math.max(0.0F, GsonHelper.getAsFloat(eye, "glint", 0.0F)) / full.width;
+                Sprite patch = null;
+                Sprite halfPatch = null;
+                float patchSize = 0.0F;
+                float patchX = 0.5F;
+                float patchY = 0.5F;
+                if (GsonHelper.isObjectNode(eye, "patch")) {
+                    JsonObject patchJson = GsonHelper.getAsJsonObject(eye, "patch");
+                    patch = region(patchJson, atlasWidth, atlasHeight);
+                    halfPatch = GsonHelper.isObjectNode(eye, "half_patch")
+                            ? region(GsonHelper.getAsJsonObject(eye, "half_patch"), atlasWidth, atlasHeight) : patch;
+                    patchSize = (float) patch.width / full.width;
+                    patchX = GsonHelper.getAsFloat(patchJson, "cx", patch.width * 0.5F) / patch.width;
+                    patchY = GsonHelper.getAsFloat(patchJson, "cy", patch.height * 0.5F) / patch.height;
+                }
+                eyes.add(new Eye(x, y, travel, glint, patch, halfPatch, patchSize, patchX, patchY));
+            }
+        }
+        return new Portrait(full, half, Collections.unmodifiableList(eyes));
+    }
+
+    /** A plain region {x, y, w, h} of a texture. */
+    private static Sprite region(JsonObject json, int atlasWidth, int atlasHeight) {
+        int x = GsonHelper.getAsInt(json, "x");
+        int y = GsonHelper.getAsInt(json, "y");
+        int w = GsonHelper.getAsInt(json, "w");
+        int h = GsonHelper.getAsInt(json, "h");
+        if (w <= 0 || h <= 0 || x < 0 || y < 0 || x + w > atlasWidth || y + h > atlasHeight) {
+            throw new IllegalArgumentException("region outside its texture");
+        }
+        return new Sprite((float) x / atlasWidth, (float) y / atlasHeight, (float) (x + w) / atlasWidth,
+                (float) (y + h) / atlasHeight, w, h, new float[0], 0.0F);
     }
 
     private static Glyphs glyphs(ResourceManager resources, JsonObject json) {

@@ -82,8 +82,10 @@ public final class VisitorEvents {
                 .register();
     }
 
+    /** Spawns one Visitor; in the showcase it stands in plain view in front of the operator, whatever its usual place. */
     private static boolean spawn(EventContext ctx, VisitorPersonality personality, VisitorManager.Placement placement) {
-        return VisitorManager.INSTANCE.spawn(ctx.player(), personality, placement, ctx.forced(), ctx.corruption(), ctx.random())
+        VisitorManager.Placement where = ctx.showcase() ? VisitorManager.Placement.IN_VIEW : placement;
+        return VisitorManager.INSTANCE.spawn(ctx.player(), personality, where, ctx.forced(), ctx.corruption(), ctx.random())
                 .isPresent();
     }
 }

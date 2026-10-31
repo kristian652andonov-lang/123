@@ -11,6 +11,7 @@ import dev.kristian.nullmod.entity.PlayerLikeEntity;
 import dev.kristian.nullmod.entity.PlayerLikeSpawns;
 import dev.kristian.nullmod.entity.SkinSet;
 import dev.kristian.nullmod.entity.UsernameGenerator;
+import dev.kristian.nullmod.event.EventPacing;
 import dev.kristian.nullmod.network.FakePlayersPayload;
 import dev.kristian.nullmod.network.NullNetworking;
 import dev.kristian.nullmod.registry.NullDimensions;
@@ -56,6 +57,8 @@ public final class FakePlayerManager implements CorruptionSystem {
     private static final int FLAG_CORRUPTED = 1;
     private static final int FLAG_HIDDEN = 2;
     private static final int MIN_SEND_INTERVAL = 10;
+    /** How much faster the list and the bodies move than the original pace (see {@link #listDelay}). */
+    private static final double LIST_PACE = 1.5;
     /** Most bodies in the whole world at once, however many players are online. */
     private static final int MAX_TOTAL_BODIES = 160;
 
@@ -243,25 +246,35 @@ public final class FakePlayerManager implements CorruptionSystem {
         }
         expireHidden(now);
         if (!ctx.paused()) {
-            listTick(server, ctx, now);
+            double speed = EventPacing.speedFactor(ctx);
+            listTick(server, ctx, now, speed);
             if (server.getTickCount() % 20 == 13) {
-                bodyTick(server, ctx, now);
+                bodyTick(server, ctx, now, speed);
             }
         }
         flush(server, now);
     }
 
-    private void listTick(MinecraftServer server, CorruptionContext ctx, long now) {
+    /**
+     * The pace of the player list in seconds, about 1.5x faster than before the pacing was raised
+     * (joins 20-90 s apart near the target, churn every 1.5-6.5 minutes, flickers every 12-52 s),
+     * and faster again when corruption time is sped up ({@link EventPacing}).
+     */
+    private long listDelay(int seconds, double speedFactor) {
+        return EventPacing.scale(seconds * 20.0 / LIST_PACE, 1.0, speedFactor, 20L * 2L);
+    }
+
+    private void listTick(MinecraftServer server, CorruptionContext ctx, long now, double speed) {
         int max = Math.min(NullConfig.get(NullConfig.FAKE_PLAYER_COUNT), FakePlayersPayload.MAX_ENTRIES);
         int target = targetCount(ctx.stageProgress(), max);
         if (nextJoin < 0L) {
-            nextJoin = now + 20L * (10 + random.nextInt(30));
+            nextJoin = now + listDelay(10 + random.nextInt(30), speed);
         }
         if (now >= nextJoin) {
             if (sims.size() < target) {
                 addSimulated(server, random, true);
                 int missing = target - sims.size();
-                nextJoin = now + 20L * (missing > 5 ? 3 + random.nextInt(10) : 20 + random.nextInt(70));
+                nextJoin = now + listDelay(missing > 5 ? 3 + random.nextInt(10) : 20 + random.nextInt(70), speed);
             } else if (sims.size() > max) {
                 // The setting was lowered: people drift away.
                 removeSimulated(server, random, true);
@@ -271,17 +284,17 @@ public final class FakePlayerManager implements CorruptionSystem {
             }
         }
         if (nextChurn < 0L) {
-            nextChurn = now + 20L * (120 + random.nextInt(240));
+            nextChurn = now + listDelay(120 + random.nextInt(240), speed);
         }
         if (now >= nextChurn) {
             // Somebody leaves; somebody else will join to take their place.
             if (sims.size() > 3) {
                 removeSimulated(server, random, true);
             }
-            nextChurn = now + 20L * (90 + random.nextInt(300));
+            nextChurn = now + listDelay(90 + random.nextInt(300), speed);
         }
         if (nextFlicker < 0L) {
-            nextFlicker = now + 20L * (15 + random.nextInt(30));
+            nextFlicker = now + listDelay(15 + random.nextInt(30), speed);
         }
         if (now >= nextFlicker && !sims.isEmpty()) {
             // A few names drop out of the list for a moment, as if their connection hiccuped.
@@ -292,7 +305,7 @@ public final class FakePlayerManager implements CorruptionSystem {
             }
             dirty = true;
             float pace = 1.0F - 0.6F * ctx.stageProgress();
-            nextFlicker = now + (long) (20L * (12 + random.nextInt(40)) * pace);
+            nextFlicker = now + (long) (listDelay(12 + random.nextInt(40), speed) * pace);
         }
         if ((nextLatency < 0L || now >= nextLatency) && !sims.isEmpty()) {
             for (Sim sim : sims) {
@@ -332,7 +345,7 @@ public final class FakePlayerManager implements CorruptionSystem {
 
     // ------------------------------------------------------------------ bodies
 
-    private void bodyTick(MinecraftServer server, CorruptionContext ctx, long now) {
+    private void bodyTick(MinecraftServer server, CorruptionContext ctx, long now, double speed) {
         bodies.removeIf(PlayerLikeEntity::hasVanished);
         // Left behind in a chunk that stopped ticking: frozen in place, never running out its lifetime.
         removeBodies(body -> !body.inTickingChunk());
@@ -351,13 +364,15 @@ public final class FakePlayerManager implements CorruptionSystem {
             }
             Long next = nextBody.get(player.getUUID());
             if (next == null) {
-                nextBody.put(player.getUUID(), now + 20L * (8 + random.nextInt(20)));
+                nextBody.put(player.getUUID(), now + listDelay(8 + random.nextInt(20), speed));
                 continue;
             }
             if (now < next) {
                 continue;
             }
-            nextBody.put(player.getUUID(), now + 20L * (6 + random.nextInt(inNull ? 16 : 40)));
+            // Bodies stand around until the target count is reached; they come about 1.5x as
+            // quickly as before the pacing was raised (6-22 s apart in NULL, 6-46 s outside).
+            nextBody.put(player.getUUID(), now + listDelay(6 + random.nextInt(inNull ? 16 : 40), speed));
             spawnBackgroundBody(player, ctx);
         }
     }

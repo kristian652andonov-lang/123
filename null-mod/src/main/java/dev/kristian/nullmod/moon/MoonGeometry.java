@@ -37,6 +37,8 @@ public final class MoonGeometry {
 
     private static final long SALT = 0x4E554C4C4D4F4F4EL;
     private static final double VISIBLE_RADIUS = 0.485;
+    /** Shards with less of the round disc than this never break on their own (see {@link Shard#leader()}). */
+    private static final float MIN_PIECE_AREA = 0.0015F;
 
     private static MoonGeometry cached;
 
@@ -61,6 +63,7 @@ public final class MoonGeometry {
         private final float maxY;
         private final float visibleArea;
         private float breakAt = NEVER;
+        private int leader = -1;
         private final float driftX;
         private final float driftY;
         private final float driftDistance;
@@ -158,6 +161,16 @@ public final class MoonGeometry {
 
         public boolean brokenAt(float progress) {
             return progress >= breakAt;
+        }
+
+        /**
+         * The piece this shard belongs to, or -1 if it is a piece of its own. A shard that hardly
+         * touches the round disc (a corner of the square around it, which a moon drawn as a square
+         * shows) is part of the neighbouring piece it shares the longest border with: it breaks away
+         * at the same moment and moves with it. Such shards are never holes of their own.
+         */
+        public int leader() {
+            return leader;
         }
 
         /** Unit direction the fragment drifts in once it broke away. */
@@ -300,7 +313,8 @@ public final class MoonGeometry {
         Rng rng = new Rng(seed ^ SALT);
 
         double impactAngle = rng.next() * StrictMath.PI * 2.0;
-        double impactRadius = 0.06 + rng.next() * 0.22;
+        // Close to the centre, so the cracks visibly spread from the middle of the moon.
+        double impactRadius = 0.03 + rng.next() * 0.09;
         double ix = 0.5 + impactRadius * StrictMath.cos(impactAngle);
         double iy = 0.5 + impactRadius * StrictMath.sin(impactAngle);
         this.impactX = (float) ix;
@@ -495,6 +509,7 @@ public final class MoonGeometry {
 
         // ---- Which pieces break away, and when.
         assignBreaks(rng);
+        assignFollowers(borderLines, borderShards);
 
         // A piece is always outlined by cracks before it falls out.
         for (int k = 0; k < crackList.size(); k++) {
@@ -576,7 +591,7 @@ public final class MoonGeometry {
 
         List<Shard> breaking = new ArrayList<>();
         for (Shard shard : shards) {
-            if (shard.breakAt < NEVER) {
+            if (shard.breakAt < NEVER && shard.leader < 0) {
                 breaking.add(shard);
             }
         }
@@ -702,7 +717,7 @@ public final class MoonGeometry {
     private void assignBreaks(Rng rng) {
         List<Shard> candidates = new ArrayList<>();
         for (Shard shard : shards) {
-            if (shard.visibleArea >= 0.0015F) {
+            if (shard.visibleArea >= MIN_PIECE_AREA) {
                 candidates.add(shard);
             }
         }
@@ -748,6 +763,55 @@ public final class MoonGeometry {
         spread(phaseB, SECTIONS + 0.01F, DISTORTION - 0.01F, rng);
         spread(phaseC, DISTORTION + 0.01F, SHATTER - 0.01F, rng);
         spread(phaseD, SHATTER + 0.01F, 0.98F, rng);
+    }
+
+    /**
+     * Gives every shard that hardly touches the round disc a leader: the neighbour it shares the
+     * longest border with, among the shards already settled (pieces, the core pieces that never
+     * break, and followers settled in an earlier round). It then breaks exactly when its leader does.
+     */
+    private void assignFollowers(List<double[][]> lines, List<int[]> pairs) {
+        int n = shards.length;
+        double[][] shared = new double[n][n];
+        for (int k = 0; k < lines.size(); k++) {
+            double[] xs = lines.get(k)[0];
+            double[] ys = lines.get(k)[1];
+            double length = 0.0;
+            for (int p = 1; p < xs.length; p++) {
+                length += StrictMath.sqrt(dist2(xs[p - 1], ys[p - 1], xs[p], ys[p]));
+            }
+            int a = pairs.get(k)[0];
+            int b = pairs.get(k)[1];
+            shared[a][b] += length;
+            shared[b][a] += length;
+        }
+        boolean[] settled = new boolean[n];
+        for (int i = 0; i < n; i++) {
+            settled[i] = shards[i].visibleArea >= MIN_PIECE_AREA;
+        }
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < n; i++) {
+                if (settled[i]) {
+                    continue;
+                }
+                int best = -1;
+                for (int j = 0; j < n; j++) {
+                    if (settled[j] && shared[i][j] > 0.0 && (best < 0 || shared[i][j] > shared[i][best])) {
+                        best = j;
+                    }
+                }
+                if (best < 0) {
+                    continue;
+                }
+                Shard lead = shards[best].leader >= 0 ? shards[shards[best].leader] : shards[best];
+                shards[i].leader = lead.index;
+                shards[i].breakAt = lead.breakAt;
+                settled[i] = true;
+                changed = true;
+            }
+        }
     }
 
     private static List<Shard> take(List<Shard> from, int count, List<Shard> pool) {

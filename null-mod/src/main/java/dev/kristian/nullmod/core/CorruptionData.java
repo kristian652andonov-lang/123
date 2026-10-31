@@ -11,12 +11,24 @@ import net.minecraft.world.level.saveddata.SavedData;
  */
 public final class CorruptionData extends SavedData {
     public static final String NAME = "null_corruption";
-    private static final int FORMAT = 1;
+    /** 2: the clock counts in-game nights ({@link CorruptionStageManager}). 1: it counted minutes. */
+    private static final int FORMAT = 2;
+    private static final int FORMAT_MINUTES = 1;
+
+    /** The clock still has to be placed at the world's time of day (a world NULL has just begun in). */
+    private static final int CLOCK_NEW = 0;
+    /** The clock is a minute clock from an older build and has to be moved to nights. */
+    private static final int CLOCK_MINUTES = 1;
+    private static final int CLOCK_NIGHTS = 2;
 
     private int stage = 1;
     private int highestStage = 1;
-    /** Scaled corruption clock in ticks; this is what the stage thresholds are measured against. */
+    /**
+     * The corruption clock in clock ticks (24000 per in-game night, see {@link CorruptionStageManager});
+     * this is what the stage thresholds are measured against.
+     */
     private double corruptionTicks;
+    private int clock = CLOCK_NEW;
     /** Real ticks that passed while NULL was counting. */
     private long activeTicks;
     private boolean paused;
@@ -42,6 +54,9 @@ public final class CorruptionData extends SavedData {
         data.stage = Math.max(1, Math.min(last, tag.getInt("stage")));
         data.highestStage = Math.max(data.stage, Math.min(last, tag.getInt("highest_stage")));
         data.corruptionTicks = Math.max(0.0, tag.getDouble("corruption_ticks"));
+        // Every save has carried a format; one without is older still, and also counted minutes.
+        int format = tag.contains("format", Tag.TAG_INT) ? tag.getInt("format") : FORMAT_MINUTES;
+        data.clock = format >= FORMAT ? CLOCK_NIGHTS : CLOCK_MINUTES;
         data.activeTicks = Math.max(0L, tag.getLong("active_ticks"));
         data.paused = tag.getBoolean("paused");
         data.speed = tag.contains("speed", Tag.TAG_DOUBLE) ? tag.getDouble("speed") : 1.0;
@@ -55,7 +70,8 @@ public final class CorruptionData extends SavedData {
 
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
-        tag.putInt("format", FORMAT);
+        // A minute clock that has not been moved to nights yet stays marked as one.
+        tag.putInt("format", clock == CLOCK_MINUTES ? FORMAT_MINUTES : FORMAT);
         tag.putInt("stage", stage);
         tag.putInt("highest_stage", highestStage);
         tag.putDouble("corruption_ticks", corruptionTicks);
@@ -94,9 +110,32 @@ public final class CorruptionData extends SavedData {
         setDirty();
     }
 
-    void advance(double scaledTicks) {
+    /**
+     * Moves the clock on by {@code scaledTicks} (never back); {@code realTick} also counts one tick of
+     * time NULL has been running.
+     */
+    void advance(double scaledTicks, boolean realTick) {
         this.corruptionTicks += Math.max(0.0, scaledTicks);
-        this.activeTicks++;
+        if (realTick) {
+            this.activeTicks++;
+        }
+        setDirty();
+    }
+
+    /** True until the clock has been placed at the world's time of day, or moved from minutes to nights. */
+    boolean clockNeedsSetup() {
+        return clock != CLOCK_NIGHTS;
+    }
+
+    /** True for a clock saved by an older build, which counted minutes. */
+    boolean minuteClock() {
+        return clock == CLOCK_MINUTES;
+    }
+
+    /** The clock now counts nights, starting from {@code ticks}. */
+    void setUpClock(double ticks) {
+        this.corruptionTicks = Math.max(0.0, ticks);
+        this.clock = CLOCK_NIGHTS;
         setDirty();
     }
 
@@ -180,6 +219,7 @@ public final class CorruptionData extends SavedData {
         stage = 1;
         highestStage = 1;
         corruptionTicks = 0.0;
+        clock = CLOCK_NIGHTS;
         activeTicks = 0L;
         paused = false;
         speed = 1.0;

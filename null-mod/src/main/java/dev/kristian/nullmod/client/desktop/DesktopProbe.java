@@ -13,8 +13,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Finds out once whether desktop windows can work on this computer. Runs on its own daemon
- * thread (never the render thread) and only after the player turned desktop interference on,
- * so players who never use the feature never get AWT initialised at all.
+ * thread (never the render thread) and only while desktop interference is on (the default), so
+ * players who switch the feature off before it ever ran never get AWT initialised at all.
  * <ul>
  *   <li>macOS: unsupported (AWT and GLFW both want the main thread there).</li>
  *   <li>No display (no {@code DISPLAY} on Linux/BSD, or AWT reports headless): unsupported.</li>

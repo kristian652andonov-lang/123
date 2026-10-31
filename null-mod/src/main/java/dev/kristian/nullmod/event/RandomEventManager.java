@@ -26,15 +26,25 @@ import net.minecraft.world.level.Level;
 
 /**
  * Picks and runs random events. Each player gets their own schedule: after a randomised wait
- * (shorter in later stages, scaled by the frequency setting) one eligible event is chosen by
- * weight, skipping events on cooldown, events the config forbids and events that ran very
- * recently for that player.
+ * (shorter in later stages, scaled by the frequency setting and by the speed settings through
+ * {@link EventPacing}) one eligible event is chosen by weight, skipping events on cooldown, events
+ * the config forbids and events that ran very recently for that player.
  */
 public final class RandomEventManager implements CorruptionSystem {
     public static final RandomEventManager INSTANCE = new RandomEventManager();
 
-    /** Average seconds between events per stage, before the frequency multiplier. */
-    private static final float[] BASE_INTERVAL_SECONDS = {150.0F, 80.0F, 50.0F, 32.0F, 15.0F};
+    /**
+     * Average seconds between events for one player in Stages 1-6, before the frequency and speed
+     * multipliers. In HARVEST (the field) only a few subtle events can run, and only by day.
+     */
+    private static final float[] BASE_INTERVAL_SECONDS = {60.0F, 35.0F, 24.0F, 16.0F, 10.0F, 30.0F};
+    /** Each wait is the average times a random factor in [JITTER_MIN, JITTER_MIN + JITTER_SPAN] (mean 1). */
+    private static final float JITTER_MIN = 0.45F;
+    private static final float JITTER_SPAN = 1.1F;
+    /** Two events for one player are never closer than this, whatever the settings (2 s). */
+    public static final long MIN_GAP_TICKS = 40L;
+    /** The first roll for a player who just joined (or whose schedule was cleared) comes this much later. */
+    private static final long FIRST_ROLL_GRACE_TICKS = 20L * 20L;
     private static final int RECENT_MEMORY = 6;
     private static final int ATTEMPTS = 4;
     /** After a quiet spell ends, the next event waits at least this long. */
@@ -69,6 +79,7 @@ public final class RandomEventManager implements CorruptionSystem {
             return;
         }
         long now = server.overworld().getGameTime();
+        double speed = EventPacing.speedFactor(ctx);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             // Nothing happens to spectators or to someone lying on the death screen.
             if (player.isSpectator() || !player.isAlive()) {
@@ -85,13 +96,13 @@ public final class RandomEventManager implements CorruptionSystem {
             PlayerSchedule schedule = schedules.computeIfAbsent(player.getUUID(), id -> new PlayerSchedule());
             if (schedule.nextRoll < 0L) {
                 // First roll after joining comes a little later than usual.
-                schedule.nextRoll = now + nextDelay(ctx.stage(), frequency) + 20L * 20L;
+                schedule.nextRoll = now + nextDelay(ctx.stage(), frequency, speed) + FIRST_ROLL_GRACE_TICKS;
                 continue;
             }
             if (now < schedule.nextRoll) {
                 continue;
             }
-            schedule.nextRoll = now + nextDelay(ctx.stage(), frequency);
+            schedule.nextRoll = now + nextDelay(ctx.stage(), frequency, speed);
             rollFor(server, player, ctx, schedule, now);
         }
     }
@@ -113,10 +124,29 @@ public final class RandomEventManager implements CorruptionSystem {
         return false;
     }
 
-    private long nextDelay(CorruptionStage stage, double frequency) {
-        float base = BASE_INTERVAL_SECONDS[stage.tableIndex()];
-        float jitter = 0.45F + random.nextFloat() * 1.1F;
-        return Math.max(40L, (long) (base * jitter * 20.0F / frequency));
+    private long nextDelay(CorruptionStage stage, double frequency, double speedFactor) {
+        float jitter = JITTER_MIN + random.nextFloat() * JITTER_SPAN;
+        return EventPacing.scale(baseIntervalSeconds(stage) * jitter * 20.0, frequency, speedFactor, MIN_GAP_TICKS);
+    }
+
+    /** Average seconds between two random events for one player at a stage, before any multiplier. */
+    public static float baseIntervalSeconds(CorruptionStage stage) {
+        return BASE_INTERVAL_SECONDS[Math.min(stage.number(), BASE_INTERVAL_SECONDS.length) - 1];
+    }
+
+    /**
+     * The average wait in ticks between two random events for one player, for a frequency setting
+     * and a speed factor ({@link EventPacing#speedFactor}); the shortest possible wait is
+     * {@link #shortestDelayTicks}.
+     */
+    public static long averageDelayTicks(CorruptionStage stage, double frequency, double speedFactor) {
+        float meanJitter = JITTER_MIN + JITTER_SPAN / 2.0F;
+        return EventPacing.scale(baseIntervalSeconds(stage) * meanJitter * 20.0, frequency, speedFactor, MIN_GAP_TICKS);
+    }
+
+    /** The shortest wait in ticks the jitter can produce for these settings (never below {@link #MIN_GAP_TICKS}). */
+    public static long shortestDelayTicks(CorruptionStage stage, double frequency, double speedFactor) {
+        return EventPacing.scale(baseIntervalSeconds(stage) * JITTER_MIN * 20.0, frequency, speedFactor, MIN_GAP_TICKS);
     }
 
     private void rollFor(MinecraftServer server, ServerPlayer player, CorruptionContext ctx, PlayerSchedule schedule, long now) {
@@ -214,6 +244,16 @@ public final class RandomEventManager implements CorruptionSystem {
      * disabled list never runs.
      */
     public boolean execute(MinecraftServer server, ServerPlayer player, CorruptionContext ctx, NullEventDefinition event, boolean forced) {
+        return execute(server, player, ctx, event, forced, false);
+    }
+
+    /**
+     * Runs one event for one player right now; with {@code showcase} (always forced as well) it
+     * carries the showcase hint ({@link EventContext#showcase()}, {@link ShowcaseHint}), so what
+     * it places or shows appears in front of the player.
+     */
+    public boolean execute(MinecraftServer server, ServerPlayer player, CorruptionContext ctx, NullEventDefinition event,
+                           boolean forced, boolean showcase) {
         if (NullConfig.eventDisabled(event.id())) {
             return false;
         }
@@ -230,10 +270,14 @@ public final class RandomEventManager implements CorruptionSystem {
         intensity = Mth.clamp(intensity, 0.05F, 1.0F);
         long seed = random.nextLong();
         EventContext context = new EventContext(server, player, ctx, RandomSource.create(seed), intensity,
-                event.duration(), seed, event, forced);
+                event.duration(), seed, event, forced, showcase);
         try {
-            if (event.action() != null && !event.action().run(context)) {
-                return false;
+            EventAction action = event.action();
+            if (action != null) {
+                boolean happened = showcase ? ShowcaseHint.run(player, () -> action.run(context)) : action.run(context);
+                if (!happened) {
+                    return false;
+                }
             }
         } catch (RuntimeException e) {
             NullMod.LOGGER.error("NULL event '{}' failed", event.id(), e);
@@ -251,12 +295,29 @@ public final class RandomEventManager implements CorruptionSystem {
 
     /** Runs an event for a player from a command, recording it like a natural one. */
     public boolean force(ServerPlayer player, NullEventDefinition event, CorruptionContext ctx) {
-        boolean ran = execute(player.server, player, ctx, event, true);
+        return forceRecorded(player, event, ctx, false);
+    }
+
+    /**
+     * Runs an event for a player in {@code /null showcase}: forced, with the showcase hint, and
+     * recorded like a natural one (so it does not come straight back once the tour is over).
+     */
+    public boolean showcase(ServerPlayer player, NullEventDefinition event, CorruptionContext ctx) {
+        return forceRecorded(player, event, ctx, true);
+    }
+
+    private boolean forceRecorded(ServerPlayer player, NullEventDefinition event, CorruptionContext ctx, boolean showcase) {
+        boolean ran = execute(player.server, player, ctx, event, true, showcase);
         if (ran) {
             PlayerSchedule schedule = schedules.computeIfAbsent(player.getUUID(), id -> new PlayerSchedule());
             markRan(player, schedule, event, player.server.overworld().getGameTime());
         }
         return ran;
+    }
+
+    /** True if the event may happen where the player is now (its {@link EventPlace}). */
+    public static boolean canHappenAt(NullEventDefinition event, Level level) {
+        return placeMatches(event.place(), level);
     }
 
     /** Ids of the events that most recently ran for a player, newest first. */
@@ -267,9 +328,20 @@ public final class RandomEventManager implements CorruptionSystem {
 
     @Override
     public void onStageChanged(MinecraftServer server, CorruptionStage from, CorruptionStage to, CorruptionContext context) {
-        // Reschedule everyone so a new stage starts on its own rhythm.
+        // A new stage only ever brings the next event closer (to its own pace), never pushes it
+        // back. Starting every schedule again here (as earlier versions did, with the grace of a
+        // first roll) meant that while the stages followed each other faster than one wait, as
+        // at a high /null speed, no random event ever ran until NULL.
+        double frequency = NullConfig.get(NullConfig.EVENT_FREQUENCY);
+        if (frequency <= 0.0) {
+            return;
+        }
+        long now = server.overworld().getGameTime();
+        double speed = EventPacing.speedFactor(context);
         for (PlayerSchedule schedule : schedules.values()) {
-            schedule.nextRoll = -1L;
+            if (schedule.nextRoll >= 0L) {
+                schedule.nextRoll = Math.min(schedule.nextRoll, now + nextDelay(to, frequency, speed));
+            }
         }
     }
 

@@ -6,8 +6,12 @@ import dev.kristian.nullmod.core.CorruptionContext;
 import dev.kristian.nullmod.core.CorruptionData;
 import dev.kristian.nullmod.core.CorruptionManager;
 import dev.kristian.nullmod.core.CorruptionStage;
+import dev.kristian.nullmod.core.CorruptionStageManager;
 import dev.kristian.nullmod.core.CorruptionSystem;
+import dev.kristian.nullmod.core.HarvestTimer;
+import dev.kristian.nullmod.core.Ticks;
 import dev.kristian.nullmod.core.WorldMemory;
+import dev.kristian.nullmod.field.FieldDimension;
 import dev.kristian.nullmod.network.NullNetworking;
 import dev.kristian.nullmod.network.TransitionPayload;
 import dev.kristian.nullmod.registry.NullDimensions;
@@ -53,6 +57,12 @@ import net.neoforged.neoforge.event.entity.player.PlayerRespawnPositionEvent;
  * stays their respawn point for later). When an administrator moves the stage below 5, everyone in
  * NULL is sent back to their respawn point (or the world spawn) with
  * {@link TransitionPayload#PHASE_RETURN}. The original world is never touched.</li>
+ * <li><b>HARVEST.</b> During Stage 5 every player's time in NULL is measured ({@link HarvestTimer}):
+ * alive, not being moved, past the arrival, and only while the corruption clock counts (at its
+ * speed). Dying, leaving NULL or logging out starts it again; it is not saved. When someone has
+ * survived {@code progression.harvestSurvivalMinutes}, Stage 6 (HARVEST) begins and the field takes
+ * everyone straight from where they are: this manager never sends anyone back to the world first,
+ * and a move of its own that is under way ends so the field's move continues the dark screen.</li>
  * <li><b>Decay.</b> While NULL is active, regions of the structure 24-96 blocks from players vanish
  * now and then and come back a few minutes later, exactly as generated (see {@link NullDecay}).
  * The {@code section_vanish} and {@code corridor_shift} events use the same machinery.</li>
@@ -104,6 +114,10 @@ public final class NullDimensionManager implements CorruptionSystem {
 
     private final Map<UUID, Transition> transitions = new HashMap<>();
     private final Set<UUID> arriveAfterRespawn = new HashSet<>();
+    /** Stage 5: how long each player has survived in NULL without a break. */
+    private final HarvestTimer survival = new HarvestTimer();
+    /** Server tick at which a player's arrival sequence has faded in; their time in NULL starts then. */
+    private final Map<UUID, Long> settling = new HashMap<>();
     private final NullDecay decay = new NullDecay();
     private final RandomSource random = RandomSource.create();
     private int arrivals;
@@ -111,6 +125,7 @@ public final class NullDimensionManager implements CorruptionSystem {
     @Nullable
     private MinecraftServer loadedFor;
     private boolean warnedMissing;
+    private boolean warnedNoField;
 
     private NullDimensionManager() {
     }
@@ -136,6 +151,12 @@ public final class NullDimensionManager implements CorruptionSystem {
         ServerLevel level = server.getLevel(NullDimensions.NULL_LEVEL);
         if (level == null) {
             return;
+        }
+        if (ctx.stage() == CorruptionStage.NULL) {
+            tickSurvival(server, level, now);
+        } else if (survival.size() > 0 || !settling.isEmpty()) {
+            survival.clear();
+            settling.clear();
         }
         long seed = NullChunkGenerator.seedOf(level);
         decay.tick(level, seed, now);
@@ -192,6 +213,79 @@ public final class NullDimensionManager implements CorruptionSystem {
                 t.execute = now + RETRY_DELAY;
             }
         }
+    }
+
+    // ================================================================== surviving NULL (Stage 5 -> HARVEST)
+
+    /**
+     * Stage 5: HARVEST begins once a player has survived {@link CorruptionStageManager#harvestSurvivalTicks()}
+     * in NULL without a break. The time runs while they are alive here, not being moved and past their
+     * arrival, and only while the corruption clock counts (at its speed); spectators only watch.
+     */
+    private void tickSurvival(MinecraftServer server, ServerLevel level, long now) {
+        // Whoever died, left NULL or logged out starts again.
+        if (survival.size() > 0) {
+            survival.retain(id -> aliveInNull(server, id));
+        }
+        if (!settling.isEmpty()) {
+            settling.keySet().removeIf(id -> !aliveInNull(server, id));
+        }
+        if (level.players().isEmpty()) {
+            return;
+        }
+        double step = CorruptionManager.counting(server) ? CorruptionManager.effectiveSpeed(server) : 0.0;
+        double required = CorruptionStageManager.harvestSurvivalTicks();
+        for (ServerPlayer player : level.players()) {
+            UUID id = player.getUUID();
+            HarvestTimer.State state;
+            if (!player.isAlive()) {
+                state = HarvestTimer.State.GONE;
+            } else if (step <= 0.0 || player.isSpectator() || transitions.containsKey(id) || settling(id, now)) {
+                state = HarvestTimer.State.HELD;
+            } else {
+                state = HarvestTimer.State.SURVIVING;
+            }
+            if (survival.tick(id, state, step, required)) {
+                survival.clear();
+                if (server.getLevel(FieldDimension.FIELD_LEVEL) == null) {
+                    // Without the field there is nowhere to go: NULL stays the last stage.
+                    if (!warnedNoField) {
+                        warnedNoField = true;
+                        NullMod.LOGGER.error("{} survived the NULL dimension, but the field ({}) does not exist; is NULL's data pack disabled? HARVEST cannot begin",
+                                player.getGameProfile().getName(), FieldDimension.FIELD_ID);
+                    }
+                    return;
+                }
+                NullMod.LOGGER.info("{} survived {} in the NULL dimension: HARVEST begins", player.getGameProfile().getName(),
+                        Ticks.format(required));
+                WorldMemory.remember(server, "dimension:survived", id, "");
+                CorruptionManager.requestHarvest(server);
+                return;
+            }
+        }
+    }
+
+    private static boolean aliveInNull(MinecraftServer server, UUID id) {
+        ServerPlayer player = server.getPlayerList().getPlayer(id);
+        return player != null && player.isAlive() && NullDimensions.isNull(player.level());
+    }
+
+    /** True while the player's arrival sequence is still dark: their time in NULL starts after it. */
+    private boolean settling(UUID id, long now) {
+        Long until = settling.get(id);
+        if (until == null) {
+            return false;
+        }
+        if (now < until) {
+            return true;
+        }
+        settling.remove(id);
+        return false;
+    }
+
+    /** Ticks this player has survived in NULL without a break (Stage 5; 0 for anyone else). */
+    public double survivalTime(ServerPlayer player) {
+        return survival.time(player.getUUID());
     }
 
     // ================================================================== transitions
@@ -263,6 +357,7 @@ public final class NullDimensionManager implements CorruptionSystem {
     private boolean enter(MinecraftServer server, ServerPlayer player, Transition t) {
         if (NullDimensions.isNull(player.level())) {
             sendPhase(player, TransitionPayload.PHASE_ARRIVE, ARRIVE_TICKS);
+            settling.put(player.getUUID(), (long) server.getTickCount() + ARRIVE_TICKS);
             return true;
         }
         ServerLevel level = server.getLevel(NullDimensions.NULL_LEVEL);
@@ -283,6 +378,7 @@ public final class NullDimensionManager implements CorruptionSystem {
         player.resetFallDistance();
         player.setDeltaMovement(Vec3.ZERO);
         sendPhase(player, TransitionPayload.PHASE_ARRIVE, ARRIVE_TICKS);
+        settling.put(player.getUUID(), (long) server.getTickCount() + ARRIVE_TICKS);
         WorldMemory.remember(server, "dimension:arrived", player.getUUID(), "");
         return true;
     }
@@ -439,11 +535,19 @@ public final class NullDimensionManager implements CorruptionSystem {
         }
     }
 
-    /** A player who respawned into NULL from somewhere else gets the arrival sequence. */
+    /**
+     * A player who respawned into NULL from somewhere else gets the arrival sequence. Whoever died
+     * has to survive NULL from the beginning again.
+     */
     static void onRespawn(PlayerEvent.PlayerRespawnEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player && INSTANCE.arriveAfterRespawn.remove(player.getUUID())
-                && NullDimensions.isNull(player.level())) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+        INSTANCE.survival.forget(player.getUUID());
+        INSTANCE.settling.remove(player.getUUID());
+        if (INSTANCE.arriveAfterRespawn.remove(player.getUUID()) && NullDimensions.isNull(player.level())) {
             sendPhase(player, TransitionPayload.PHASE_ARRIVE, ARRIVE_TICKS);
+            INSTANCE.settling.put(player.getUUID(), (long) player.server.getTickCount() + ARRIVE_TICKS);
         }
     }
 
@@ -638,7 +742,16 @@ public final class NullDimensionManager implements CorruptionSystem {
                 }
             }
             nextDecay = -1L;
-        } else if (from == CorruptionStage.NULL) {
+        } else if (to == CorruptionStage.HARVEST) {
+            // The field takes everyone, straight from here (FieldManager): nobody is sent back to the
+            // world first. One black screen, not two.
+            handOverToField(server);
+            arriveAfterRespawn.clear();
+            survival.clear();
+            settling.clear();
+            decay.restoreAllSoon(server.getTickCount());
+        } else {
+            // Below Stage 5 nobody stays in NULL (also coming down from HARVEST).
             for (ServerPlayer player : List.copyOf(server.getPlayerList().getPlayers())) {
                 Transition pending = transitions.get(player.getUUID());
                 if (pending != null && pending.kind == Kind.ENTER) {
@@ -649,9 +762,32 @@ public final class NullDimensionManager implements CorruptionSystem {
                 }
             }
             arriveAfterRespawn.clear();
-            // Nobody should find holes if they ever come back.
-            decay.restoreAllSoon(server.getTickCount());
+            survival.clear();
+            settling.clear();
+            if (from.atLeast(CorruptionStage.NULL)) {
+                // Nobody should find holes if they ever come back.
+                decay.restoreAllSoon(server.getTickCount());
+            }
         }
+    }
+
+    /**
+     * HARVEST began: every move of this dimension that is under way ends here without giving the
+     * screen back, because the field's own move (scheduled for everyone not in the field) continues
+     * the dark screen. Only when the field does not exist is the screen given back.
+     */
+    private void handOverToField(MinecraftServer server) {
+        if (transitions.isEmpty()) {
+            return;
+        }
+        boolean fieldExists = server.getLevel(FieldDimension.FIELD_LEVEL) != null;
+        for (Map.Entry<UUID, Transition> entry : transitions.entrySet()) {
+            ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
+            if (player != null && entry.getValue().announced && !fieldExists) {
+                sendPhase(player, TransitionPayload.PHASE_CLEAR, 0);
+            }
+        }
+        transitions.clear();
     }
 
     @Override
@@ -661,7 +797,8 @@ public final class NullDimensionManager implements CorruptionSystem {
             if (!inNull && NullConfig.get(NullConfig.AUTO_NULL_TRANSITION)) {
                 schedule(player, Kind.ENTER, JOIN_DELAY);
             }
-        } else if (inNull) {
+        } else if (inNull && context.stage() != CorruptionStage.HARVEST) {
+            // Below Stage 5 nobody stays in NULL. In HARVEST the field takes them, straight from here.
             schedule(player, Kind.RETURN, JOIN_DELAY);
         }
     }
@@ -670,6 +807,8 @@ public final class NullDimensionManager implements CorruptionSystem {
     public void onPlayerLeave(ServerPlayer player) {
         transitions.remove(player.getUUID());
         arriveAfterRespawn.remove(player.getUUID());
+        survival.forget(player.getUUID());
+        settling.remove(player.getUUID());
     }
 
     @Override
@@ -692,6 +831,8 @@ public final class NullDimensionManager implements CorruptionSystem {
             }
         }
         arriveAfterRespawn.clear();
+        survival.clear();
+        settling.clear();
         ServerLevel level = server.getLevel(NullDimensions.NULL_LEVEL);
         if (level != null) {
             decay.restoreAllNow(level, NullChunkGenerator.seedOf(level));
@@ -715,6 +856,8 @@ public final class NullDimensionManager implements CorruptionSystem {
         decay.clear();
         transitions.clear();
         arriveAfterRespawn.clear();
+        survival.clear();
+        settling.clear();
         loadedFor = null;
         nextDecay = -1L;
         arrivals = 0;

@@ -7,20 +7,20 @@ import dev.kristian.nullmod.config.NullClientSettings;
 import dev.kristian.nullmod.core.CorruptionStage;
 import dev.kristian.nullmod.network.ClientEffectPayload;
 import dev.kristian.nullmod.registry.NullSounds;
-import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Random;
-import java.util.UUID;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 
 /**
  * Desktop interference: small NULL windows outside the game window.
  * <p>
- * Safety first. Nothing is ever shown unless {@link NullClientSettings#desktopAllowed()} (the
- * player switched it on <em>and</em> accepted the explanation on NULL's consent screen). Every
- * window says it comes from the NULL Minecraft mod, closes on a click, on Esc in the game, and by
- * itself after a few seconds; it never takes focus, never grabs input, never covers the screen.
+ * Safety first. Nothing is ever shown while {@link NullClientSettings#desktopAllowed()} is false:
+ * the feature is on by default and the player can switch it off in NULL's settings at any time,
+ * which closes every window at once. Every window says it comes from the NULL Minecraft mod,
+ * closes on a click, on Esc in the game, and by itself after a few seconds; it never takes focus,
+ * never grabs input, never covers the screen. Never on macOS, on dedicated servers (client code)
+ * or without a desktop display.
  * Nothing on the computer is changed and nothing is collected or sent. All windows close when the
  * player leaves the world, switches the feature off, or the game shuts down.
  * <p>
@@ -38,7 +38,7 @@ import net.minecraft.client.Minecraft;
 public final class DesktopInterferenceManager {
     /** Whether desktop windows can work on this computer. */
     public enum Availability {
-        /** Not checked yet (checked once, when the feature is first switched on). */
+        /** Not checked yet (checked once, as soon as the feature is on: at start-up unless switched off). */
         UNKNOWN,
         /** The check is running. */
         CHECKING,
@@ -80,7 +80,6 @@ public final class DesktopInterferenceManager {
     private static int testCount;
     private static boolean pendingTest;
     private static boolean loggedBroken;
-    private static String accountCode;
     /** The game is closing: nothing opens any more, even if the availability check finishes now. */
     private static volatile boolean shuttingDown;
 
@@ -89,28 +88,6 @@ public final class DesktopInterferenceManager {
 
     static String effectId() {
         return EFFECT_ID;
-    }
-
-    /**
-     * An anonymous code for the signed-in Minecraft account (a name-based UUID made from its profile
-     * id): the consent is stored with it, so only the account that accepted the explanation gets
-     * desktop windows. It stays in the local config file and is never sent anywhere.
-     */
-    static String accountCode() {
-        String code = accountCode;
-        if (code == null) {
-            try {
-                UUID profile = Minecraft.getInstance().getUser().getProfileId();
-                if (profile == null) {
-                    return "";
-                }
-                code = UUID.nameUUIDFromBytes(("NULL desktop consent " + profile).getBytes(StandardCharsets.UTF_8)).toString();
-            } catch (RuntimeException e) {
-                return "";
-            }
-            accountCode = code;
-        }
-        return code;
     }
 
     // ------------------------------------------------------------------------------------------
@@ -415,8 +392,8 @@ public final class DesktopInterferenceManager {
 
     /**
      * Shows one window right away (each press shows the next allowed kind), from the settings
-     * screen, even outside a world. Still requires the switch, the consent and a working
-     * desktop; never in exclusive fullscreen.
+     * screen, even outside a world. Still requires the switch and a working desktop; never in
+     * exclusive fullscreen.
      */
     public static TestResult showTestMessage() {
         if (!NullClientSettings.desktopAllowed()) {

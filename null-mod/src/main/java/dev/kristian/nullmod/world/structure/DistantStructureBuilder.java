@@ -36,8 +36,9 @@ final class DistantStructureBuilder {
         RandomSource random = req.random();
         int attempts = req.attempts(4);
         for (int i = 0; i < attempts; i++) {
-            BlockPos ground = LocationFinder.findGround(level, req.player(), random, req.minDistance(80.0, 30.0),
-                    req.forced() ? 90.0 : 120.0, req.view(LocationFinder.View.EDGE), 4, pos -> true);
+            double min = req.minDistance(80.0, 30.0);
+            BlockPos ground = LocationFinder.findGround(level, req.player(), random, min,
+                    req.maxDistance(req.forced() ? 90.0 : 120.0, min), req.view(LocationFinder.View.EDGE), 4, pos -> true);
             if (ground == null) {
                 continue;
             }

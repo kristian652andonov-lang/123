@@ -17,6 +17,9 @@ import net.minecraft.world.level.block.state.BlockState;
  * The random events of the audio corruption. Each one only starts a client effect for the
  * player it was rolled for; the client decides where the sound comes from, so it can sit
  * anywhere around them (or right behind them) and honours their audio settings.
+ * <p>
+ * In Stage 6 (HARVEST, the wheat field, which has its own soundscape) only three quiet ones
+ * remain, by day: footsteps somewhere in the wheat, a whisper behind, a low hum.
  */
 public final class AudioEvents {
     private AudioEvents() {
@@ -25,14 +28,15 @@ public final class AudioEvents {
     public static void register() {
         audio("static_whisper", CorruptionStage.START, CorruptionStage.NULL, NullEventDefinition.COMMON, 40, 50, "audio.static")
                 .stageWeights(60, 100, 100, 100, 100).register();
-        audio("distant_footsteps", CorruptionStage.START, CorruptionStage.ABOVE_MIDDLE, NullEventDefinition.UNCOMMON, 180, 160, "audio.footsteps_distant")
-                .register();
+        // Not in NULL; back in the field, someone walking through the wheat.
+        audio("distant_footsteps", CorruptionStage.START, CorruptionStage.HARVEST, NullEventDefinition.UNCOMMON, 180, 160, "audio.footsteps_distant")
+                .stageWeights(100, 100, 100, 100, 0, 120).register();
         audio("underground_noise", CorruptionStage.START, CorruptionStage.ABOVE_MIDDLE, NullEventDefinition.UNCOMMON, 180, 80, "audio.underground")
                 .register();
         audio("digital_interference", CorruptionStage.START, CorruptionStage.NULL, NullEventDefinition.UNCOMMON, 120, 40, "audio.interference")
                 .register();
-        audio("low_hum", CorruptionStage.START, CorruptionStage.NULL, NullEventDefinition.UNCOMMON, 240, 300, "audio.hum")
-                .register();
+        audio("low_hum", CorruptionStage.START, CorruptionStage.HARVEST, NullEventDefinition.UNCOMMON, 240, 300, "audio.hum")
+                .stageWeights(100, 100, 100, 100, 100, 70).register();
         audio("reversed_ambience", CorruptionStage.UNDER_MIDDLE, CorruptionStage.NULL, NullEventDefinition.UNCOMMON, 180, 80, "audio.reversed")
                 .register();
         audio("fake_explosion", CorruptionStage.UNDER_MIDDLE, CorruptionStage.NULL, NullEventDefinition.RARE, 600, 60, "audio.explosion")
@@ -43,8 +47,8 @@ public final class AudioEvents {
                 .register();
         audio("corrupted_music", CorruptionStage.MIDDLE, CorruptionStage.NULL, NullEventDefinition.RARE, 900, 100, "audio.corrupted_music")
                 .register();
-        audio("whisper_behind", CorruptionStage.ABOVE_MIDDLE, CorruptionStage.NULL, NullEventDefinition.UNCOMMON, 240, 60, "audio.whisper_behind")
-                .register();
+        audio("whisper_behind", CorruptionStage.ABOVE_MIDDLE, CorruptionStage.HARVEST, NullEventDefinition.UNCOMMON, 240, 60, "audio.whisper_behind")
+                .stageWeights(100, 100, 100, 100, 100, 80).register();
         audio("footsteps_behind", CorruptionStage.ABOVE_MIDDLE, CorruptionStage.NULL, NullEventDefinition.UNCOMMON, 300, 80, "audio.footsteps_behind")
                 .register();
         audio("distant_voices", CorruptionStage.ABOVE_MIDDLE, CorruptionStage.NULL, NullEventDefinition.UNCOMMON, 240, 100, "audio.voices")

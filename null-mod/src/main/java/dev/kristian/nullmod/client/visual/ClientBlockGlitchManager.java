@@ -1,6 +1,7 @@
 package dev.kristian.nullmod.client.visual;
 
 import dev.kristian.nullmod.client.ClientLimits;
+import dev.kristian.nullmod.event.EventContext;
 import dev.kristian.nullmod.network.ClientEffectPayload;
 import dev.kristian.nullmod.world.BuildProtection;
 import java.util.ArrayDeque;
@@ -40,12 +41,25 @@ import net.neoforged.neoforge.event.level.ChunkEvent;
  * the client still shows exactly what we put there, so a real change from the server always
  * wins. Everything is restored or forgotten on logout, dimension change and chunk unload, and a
  * swap near the player is undone before they could touch it.
+ * <p>
+ * Effects sent by {@code /null showcase} ({@code data} = {@link EventContext#SHOWCASE_BLOCK_DATA})
+ * pick their blocks close in front of the player instead ({@value #SHOWCASE_MIN_DISTANCE}-{@value
+ * #SHOWCASE_MAX_DISTANCE} blocks, near the middle of the view, more rays) and stay a little longer,
+ * so an operator who was told where to look really sees them.
  */
 public final class ClientBlockGlitchManager {
     static final int MAX_SWAPS = 64;
     private static final int FLAGS = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE;
     private static final double MIN_PLAYER_DISTANCE_SQ = 4.0 * 4.0;
     private static final double RELEASE_DISTANCE_SQ = 5.5 * 5.5;
+    /** Showcase picks: just beyond the release distance... */
+    static final double SHOWCASE_MIN_DISTANCE = 6.0;
+    /** ...and no further than this. */
+    static final double SHOWCASE_MAX_DISTANCE = 16.0;
+    /** Showcase rays stay this much nearer the middle of the view. */
+    private static final float SHOWCASE_CONE = 0.6F;
+    /** Shortest time a showcase glitch stays (4 s). */
+    private static final int SHOWCASE_MIN_DURATION = 80;
 
     private static final class Swap {
         final long pos;
@@ -531,6 +545,8 @@ public final class ClientBlockGlitchManager {
         final RandomSource random;
         final boolean strobe;
         final Vec3 eye;
+        /** Sent by the showcase: pick blocks close in front of the player. */
+        final boolean showcase;
 
         Scene(Minecraft mc, ClientLevel level, LocalPlayer player, ClientEffectPayload payload) {
             this.mc = mc;
@@ -540,6 +556,7 @@ public final class ClientBlockGlitchManager {
             this.random = RandomSource.create(payload.seed());
             this.strobe = ClientLimits.intenseAllowed() && ClientLimits.flashing() >= 0.6F;
             this.eye = player.getEyePosition();
+            this.showcase = (payload.data() & EventContext.SHOWCASE_BLOCK_DATA) != 0;
         }
 
         int capacity() {
@@ -548,7 +565,8 @@ public final class ClientBlockGlitchManager {
 
         int duration(float min, float max) {
             float base = Math.max(20, payload.duration());
-            return Math.max(10, Math.round(base * (min + random.nextFloat() * (max - min))));
+            int ticks = Math.max(10, Math.round(base * (min + random.nextFloat() * (max - min))));
+            return showcase ? Math.max(SHOWCASE_MIN_DURATION, ticks) : ticks;
         }
 
         /** The common rules every swapped block obeys. */
@@ -569,11 +587,19 @@ public final class ClientBlockGlitchManager {
             return level.getEntities((Entity) null, box).isEmpty();
         }
 
-        /** Distinct blocks hit by rays cast through the view, between the two distances. */
+        /**
+         * Distinct blocks hit by rays cast through the view, between the two distances (for the
+         * showcase: close in front, see {@link #SHOWCASE_MIN_DISTANCE}).
+         */
         List<BlockPos> sample(int wanted, int rays, double minDistance, double maxDistance, BiPredicate<BlockPos, BlockState> filter) {
             List<BlockPos> out = new ArrayList<>();
             if (wanted <= 0) {
                 return out;
+            }
+            if (showcase) {
+                minDistance = SHOWCASE_MIN_DISTANCE;
+                maxDistance = Math.min(maxDistance, SHOWCASE_MAX_DISTANCE);
+                rays *= 2;
             }
             payload.pos().ifPresent(hint -> {
                 if (level.isLoaded(hint)) {
@@ -585,7 +611,7 @@ public final class ClientBlockGlitchManager {
             });
             float fov = mc.options.fov().get().floatValue();
             float aspect = (float) mc.getWindow().getWidth() / Math.max(1, mc.getWindow().getHeight());
-            float halfV = fov * 0.4F;
+            float halfV = fov * 0.4F * (showcase ? SHOWCASE_CONE : 1.0F);
             float halfH = Math.min(70.0F, halfV * aspect);
             for (int i = 0; i < rays && out.size() < Math.min(wanted, capacity()); i++) {
                 float yaw = player.getYRot() + (random.nextFloat() * 2.0F - 1.0F) * halfH;

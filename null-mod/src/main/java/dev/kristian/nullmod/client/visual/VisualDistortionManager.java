@@ -471,8 +471,9 @@ public final class VisualDistortionManager {
         }
         CorruptionStage stage = ClientCorruptionState.stage();
         if (stage == CorruptionStage.MIDDLE || stage == CorruptionStage.ABOVE_MIDDLE) {
-            // Rare, tiny ambient warps: the picture breathes once and is still again.
-            float chance = stage == CorruptionStage.MIDDLE ? 1.0F / (20.0F * 95.0F) : 1.0F / (20.0F * 55.0F);
+            // Rare, tiny ambient warps: the picture breathes once and is still again (on average
+            // every 40 s in Stage 3 and 26 s in Stage 4; it was 95 s and 55 s before the pacing was raised).
+            float chance = stage == CorruptionStage.MIDDLE ? 1.0F / (20.0F * 40.0F) : 1.0F / (20.0F * 26.0F);
             if (RANDOM.nextFloat() < chance) {
                 float strength = 0.06F + RANDOM.nextFloat() * (stage == CorruptionStage.MIDDLE ? 0.08F : 0.12F);
                 addEffect(WARP, strength, 40 + RANDOM.nextInt(50), RANDOM.nextLong(), STYLE_SMOOTH, 16.0F, 24.0F, 0.0F);

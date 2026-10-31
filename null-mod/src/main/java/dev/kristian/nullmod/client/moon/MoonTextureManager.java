@@ -3,6 +3,7 @@ package dev.kristian.nullmod.client.moon;
 import com.mojang.blaze3d.platform.NativeImage;
 import dev.kristian.nullmod.NullMod;
 import dev.kristian.nullmod.client.ClientCorruptionState;
+import dev.kristian.nullmod.moon.MoonArt;
 import dev.kristian.nullmod.moon.MoonGeometry;
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,22 +21,22 @@ import net.minecraft.world.level.Level;
 
 /**
  * Owns the damaged moon. Once the moon has started to break, the active resource pack's moon
- * phase sheet is read through the resource manager, the damage for the current progress is
- * drawn into a copy, and that copy is registered as a {@link DynamicTexture} under vanilla's
- * own moon location, so the sky renders it exactly like the real moon (with any resource pack
- * and most shader packs). Redrawn only when the damage visibly changes; the original texture
- * is put back when the progress returns to zero, outside the overworld and on logout, and
- * everything is rebuilt from the new pack after a resource reload.
+ * phase sheet is read through the resource manager, {@link MoonArt} finds the moon's body in every
+ * phase cell and draws the damage for the current progress onto it, and that copy is registered as
+ * a {@link DynamicTexture} under vanilla's own moon location, so the sky renders it exactly like
+ * the real moon (same quad, same phase UVs, same additive blending; with any resource pack and most
+ * shader packs). Everything outside the moon's body keeps the pack's own pixels, so nothing can
+ * appear beside the moon. Redrawn only when the damage visibly changes; the original texture is
+ * put back when the progress returns to zero, outside the overworld and on logout, and everything
+ * is rebuilt from the new pack after a resource reload.
  * <p>
- * Besides the moon itself it keeps three private textures (bound by id, never registered):
- * an untouched copy for the drifting fragments, a damaged copy for warp effects while the real
- * moon is hidden, and a glow overlay for crack flashes. Render thread only.
+ * Besides the moon itself it keeps three private textures (bound by id, never registered): the
+ * moon's body alone (the pieces that break off are cut from it), a damaged copy for warp effects
+ * while the real moon is hidden, and a glow overlay for crack flashes. Render thread only.
  */
 public final class MoonTextureManager {
     /** Vanilla's moon phase sheet (LevelRenderer.MOON_LOCATION is private). */
     public static final ResourceLocation MOON = ResourceLocation.withDefaultNamespace("textures/environment/moon_phases.png");
-    /** Larger moon sheets are scaled down to this width first; the moon covers few pixels on screen. */
-    private static final int MAX_WIDTH = 1024;
 
     static final ResourceManagerReloadListener RELOAD_LISTENER = manager -> onResourcesReloaded();
 
@@ -49,16 +50,16 @@ public final class MoonTextureManager {
     private static DynamicTexture pristine;
     @Nullable
     private static DynamicTexture glow;
-    private static int[] work = new int[0];
     private static int[] glowPixels = new int[0];
-    private static int pristineWidth;
-    private static int pristineHeight;
     private static boolean registered;
     private static boolean baseDirty = true;
     private static boolean loadFailed;
     private static long artSeed;
     private static long lastKey = Long.MIN_VALUE;
     private static boolean hiddenUploaded;
+    /** True while a texture holds something else than the canvas outside the bodies (blank or hidden). */
+    private static boolean moonStale = true;
+    private static boolean copyStale = true;
 
     private MoonTextureManager() {
     }
@@ -75,7 +76,7 @@ public final class MoonTextureManager {
         return art;
     }
 
-    /** Texture id of the untouched moon sheet, or -1. */
+    /** Texture id of the moon's body alone (the sheet with everything else transparent), or -1. */
     static int pristineId() {
         return pristine == null ? -1 : pristine.getId();
     }
@@ -95,7 +96,7 @@ public final class MoonTextureManager {
         return ClientCorruptionState.moonGone();
     }
 
-    /** True while the real moon texture is blacked out so an effect can draw the moon itself. */
+    /** True while the real moon texture is blanked out so an effect can draw the moon itself. */
     static boolean moonHidden() {
         return registered && hiddenUploaded;
     }
@@ -173,22 +174,27 @@ public final class MoonTextureManager {
         }
         boolean changed = key != lastKey;
         lastKey = key;
+        boolean full = false;
         if (changed) {
             if (gone) {
-                current.renderGone(work);
+                current.renderGone();
+                full = true;
             } else {
-                current.render(progress, work);
+                full = current.render(progress);
             }
             if (copy != null) {
-                upload(copy, work, current.width(), current.height());
+                upload(copy, current, full || copyStale);
+                copyStale = false;
             }
         }
         if (hide) {
             if (!hiddenUploaded || changed) {
-                fillBlack(target);
+                clear(target);
+                moonStale = true;
             }
-        } else {
-            upload(target, work, current.width(), current.height());
+        } else if (changed || hiddenUploaded) {
+            upload(target, current, full || moonStale);
+            moonStale = false;
         }
         hiddenUploaded = hide;
     }
@@ -240,53 +246,44 @@ public final class MoonTextureManager {
     private static boolean rebuild(Minecraft mc, long seed) {
         baseDirty = false;
         artSeed = seed;
-        int[] base;
-        int width;
-        int height;
+        MoonArt.Sheet sheet;
         ResourceManager resources = mc.getResourceManager();
         Optional<Resource> resource = resources.getResource(MOON);
         if (resource.isEmpty()) {
-            loadFailed = true;
-            return false;
+            return fail();
         }
         try (InputStream in = resource.get().open(); NativeImage image = NativeImage.read(in)) {
             int w = image.getWidth();
             int h = image.getHeight();
-            if (w < 8 || h < 4) {
-                loadFailed = true;
-                return false;
-            }
-            int step = 1;
-            while (w / step > MAX_WIDTH) {
-                step++;
-            }
-            width = w / step;
-            height = h / step;
-            width -= width % MoonArt.COLUMNS;
-            height -= height % MoonArt.ROWS;
-            base = new int[width * height];
-            for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    base[y * width + x] = image.getPixelRGBA(x * step, y * step);
+            int[] pixels = new int[w * h];
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    pixels[y * w + x] = image.getPixelRGBA(x, y);
                 }
             }
+            sheet = MoonArt.fit(pixels, w, h, MoonArt.MAX_SHEET_WIDTH);
         } catch (IOException | RuntimeException e) {
             NullMod.LOGGER.warn("NULL could not read the moon texture; the moon stays intact", e);
-            loadFailed = true;
-            return false;
+            return fail();
         }
-
-        MoonArt built = new MoonArt(base, width, height, MoonGeometry.forSeed(seed));
+        if (sheet == null) {
+            return fail();
+        }
+        MoonArt built = new MoonArt(sheet.pixels(), sheet.width(), sheet.height(), MoonGeometry.forSeed(seed));
+        if (!built.found()) {
+            // The pack draws no moon to break: leave its sky alone.
+            if (registered) {
+                restore();
+            }
+            return fail();
+        }
         TextureManager textures = mc.getTextureManager();
         closePrivate();
         DynamicTexture main = blank(built.width(), built.height());
         copy = blank(built.width(), built.height());
         glow = blank(built.cellWidth(), built.cellHeight());
-        pristine = blank(width, height);
-        upload(pristine, base, width, height);
-        pristineWidth = width;
-        pristineHeight = height;
-        work = new int[built.width() * built.height()];
+        pristine = blank(built.sheetWidth(), built.sheetHeight());
+        upload(pristine, built.bodyOnly(), built.sheetWidth(), built.sheetHeight());
         glowPixels = new int[built.cellWidth() * built.cellHeight()];
         // Registering replaces (and closes) the texture that was there, including our previous one.
         textures.register(MOON, main);
@@ -295,12 +292,37 @@ public final class MoonTextureManager {
         art = built;
         lastKey = Long.MIN_VALUE;
         hiddenUploaded = false;
+        moonStale = true;
+        copyStale = true;
         loadFailed = false;
         return true;
     }
 
+    private static boolean fail() {
+        loadFailed = true;
+        return false;
+    }
+
     private static DynamicTexture blank(int width, int height) {
         return new DynamicTexture(new NativeImage(width, height, true));
+    }
+
+    /** Uploads the art's canvas: all of it, or only the bodies' boxes (nothing else ever changes). */
+    private static void upload(DynamicTexture texture, MoonArt source, boolean full) {
+        NativeImage image = texture.getPixels();
+        int width = source.width();
+        if (image == null || image.getWidth() != width || image.getHeight() != source.height()) {
+            return;
+        }
+        int[] canvas = source.canvas();
+        if (full) {
+            copyRect(image, canvas, width, 0, 0, width, source.height());
+        } else {
+            for (int phase = 0; phase < MoonArt.CELLS; phase++) {
+                copyRect(image, canvas, width, source.boxX(phase), source.boxY(phase), source.boxWidth(), source.boxHeight());
+            }
+        }
+        texture.upload();
     }
 
     private static void upload(DynamicTexture texture, int[] pixels, int width, int height) {
@@ -308,21 +330,26 @@ public final class MoonTextureManager {
         if (image == null || image.getWidth() != width || image.getHeight() != height) {
             return;
         }
-        for (int y = 0; y < height; y++) {
-            int row = y * width;
-            for (int x = 0; x < width; x++) {
-                image.setPixelRGBA(x, y, pixels[row + x]);
-            }
-        }
+        copyRect(image, pixels, width, 0, 0, width, height);
         texture.upload();
     }
 
-    private static void fillBlack(DynamicTexture texture) {
+    private static void copyRect(NativeImage image, int[] pixels, int stride, int x0, int y0, int w, int h) {
+        for (int y = y0; y < y0 + h; y++) {
+            int row = y * stride;
+            for (int x = x0; x < x0 + w; x++) {
+                image.setPixelRGBA(x, y, pixels[row + x]);
+            }
+        }
+    }
+
+    /** Transparent everywhere: the sky draws no moon at all (additive or not). */
+    private static void clear(DynamicTexture texture) {
         NativeImage image = texture.getPixels();
         if (image == null) {
             return;
         }
-        image.fillRect(0, 0, image.getWidth(), image.getHeight(), 0xFF000000);
+        image.fillRect(0, 0, image.getWidth(), image.getHeight(), 0);
         texture.upload();
     }
 
@@ -339,15 +366,6 @@ public final class MoonTextureManager {
             glow.close();
             glow = null;
         }
-        work = new int[0];
         glowPixels = new int[0];
-    }
-
-    static int pristineWidth() {
-        return pristineWidth;
-    }
-
-    static int pristineHeight() {
-        return pristineHeight;
     }
 }

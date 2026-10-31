@@ -12,8 +12,11 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.event.GameShuttingDownEvent;
 
 /**
- * Client entry point of desktop interference (see {@link DesktopInterferenceManager}).
+ * Client entry point of desktop interference (see {@link DesktopInterferenceManager}). It is on
+ * by default; the player can switch it off in NULL's settings at any time.
  * <ul>
+ *   <li>first client tick: settings saved while it was still off by default get it switched on
+ *       once ({@link NullClientSettings#applyDesktopDefaults()});</li>
  *   <li>client tick: scheduling, availability, closing windows when the feature is switched off
  *       or the game goes fullscreen;</li>
  *   <li>stage changes: a window shortly after the stage advances (Stage 3 and later);</li>
@@ -27,13 +30,13 @@ import net.neoforged.neoforge.event.GameShuttingDownEvent;
  * (see {@link DesktopProbe#prepareEarly()}).
  */
 public final class DesktopClientModule {
+    private static boolean defaultsApplied;
+
     private DesktopClientModule() {
     }
 
     public static void init(IEventBus modBus, IEventBus gameBus) {
         DesktopProbe.prepareEarly();
-        // the consent only counts for the account that accepted it
-        NullClientSettings.setAccountCode(DesktopInterferenceManager::accountCode);
         gameBus.addListener(DesktopClientModule::onClientTick);
         gameBus.addListener(DesktopClientModule::onLoggingOut);
         gameBus.addListener(DesktopClientModule::onGameShuttingDown);
@@ -44,6 +47,10 @@ public final class DesktopClientModule {
     }
 
     private static void onClientTick(ClientTickEvent.Post event) {
+        if (!defaultsApplied) {
+            defaultsApplied = true;
+            NullClientSettings.applyDesktopDefaults();
+        }
         DesktopInterferenceManager.tick();
     }
 

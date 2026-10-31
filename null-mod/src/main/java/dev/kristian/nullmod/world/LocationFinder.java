@@ -1,5 +1,7 @@
 package dev.kristian.nullmod.world;
 
+import dev.kristian.nullmod.event.ShowcaseHint;
+import dev.kristian.nullmod.field.FieldDimension;
 import dev.kristian.nullmod.registry.NullDimensions;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
@@ -9,14 +11,21 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
  * Finds places for corruption around a player. Everything here reads only chunks that are
  * already loaded (heightmaps, never a chunk load), so asking is always cheap and never changes
  * what the server keeps in memory.
+ * <p>
+ * While an event runs for {@code /null showcase} ({@link ShowcaseHint}), every column picked
+ * around the watching player comes from straight in front of them ({@link View#FRONT}), whatever
+ * view the caller asked for, and {@link #findGround} prefers ground the player can actually see.
  */
 public final class LocationFinder {
     /** Marker for "no such column / not loaded". */
@@ -33,7 +42,9 @@ public final class LocationFinder {
         /** Outside the view cone. */
         HIDDEN,
         /** Behind the player. */
-        BEHIND
+        BEHIND,
+        /** Straight ahead, well inside the view (the showcase). */
+        FRONT
     }
 
     /** A block column. */
@@ -45,9 +56,12 @@ public final class LocationFinder {
 
     // ------------------------------------------------------------------ loading
 
-    /** Dimensions with an open sky and a real surface (not the Nether roof, not NULL). */
+    /**
+     * Dimensions with an open sky and a real surface (not the Nether roof, not NULL, not the field
+     * of Stage 6, which nothing may ever change).
+     */
     public static boolean canHaveSurface(ServerLevel level) {
-        return !NullDimensions.isNull(level) && !level.dimensionType().hasCeiling();
+        return !NullDimensions.isNull(level) && !FieldDimension.isField(level) && !level.dimensionType().hasCeiling();
     }
 
     /**
@@ -167,17 +181,25 @@ public final class LocationFinder {
         return (f.x * dx + f.z * dz) / length >= Math.cos(Math.toRadians(halfAngleDegrees));
     }
 
-    /** A random column between the two distances, in the part of the circle the view mode allows. */
+    /** Half angle of {@link View#FRONT}, in degrees. */
+    public static final double FRONT_HALF_ANGLE = 25.0;
+
+    /**
+     * A random column between the two distances, in the part of the circle the view mode allows
+     * (always {@link View#FRONT} while a showcase event runs for this player).
+     */
     public static Column column(ServerPlayer player, RandomSource random, double minDist, double maxDist, View view) {
+        View mode = ShowcaseHint.active(player) ? View.FRONT : view;
         Vec3 f = forward(player);
         double base = Math.atan2(f.z, f.x);
         double sign = random.nextBoolean() ? 1.0 : -1.0;
-        double offset = switch (view) {
+        double offset = switch (mode) {
             case ANY -> random.nextDouble() * Math.PI * 2.0;
             case VISIBLE -> (random.nextDouble() * 2.0 - 1.0) * Math.toRadians(35.0);
             case EDGE -> sign * Math.toRadians(48.0 + random.nextDouble() * 32.0);
             case HIDDEN -> sign * Math.toRadians(80.0 + random.nextDouble() * 100.0);
             case BEHIND -> Math.PI + (random.nextDouble() * 2.0 - 1.0) * Math.toRadians(50.0);
+            case FRONT -> (random.nextDouble() * 2.0 - 1.0) * Math.toRadians(FRONT_HALF_ANGLE);
         };
         double angle = base + offset;
         double lo = Math.min(minDist, maxDist);
@@ -188,7 +210,9 @@ public final class LocationFinder {
 
     /**
      * Natural ground at a random spot around the player. Tries {@code attempts} columns and
-     * returns the first one that is natural, dry, open above and passes {@code accept}.
+     * returns the first one that is natural, dry, open above and passes {@code accept}. While a
+     * showcase event runs for the player, ground the player can see from where they stand wins
+     * over ground hidden behind a hill (twice as many columns are tried for it).
      */
     @Nullable
     public static BlockPos findGround(ServerLevel level, ServerPlayer player, RandomSource random, double minDist, double maxDist,
@@ -196,14 +220,39 @@ public final class LocationFinder {
         if (!canHaveSurface(level)) {
             return null;
         }
-        for (int i = 0; i < attempts; i++) {
+        boolean showcase = ShowcaseHint.active(player);
+        BlockPos fallback = null;
+        int tries = showcase ? attempts * 2 : attempts;
+        for (int i = 0; i < tries; i++) {
             Column c = column(player, random, minDist, maxDist, view);
             BlockPos ground = naturalGround(level, c.x(), c.z());
-            if (ground != null && accept.test(ground)) {
+            if (ground == null || !accept.test(ground)) {
+                continue;
+            }
+            if (!showcase || canSee(player, ground.above())) {
                 return ground;
             }
+            if (fallback == null) {
+                fallback = ground;
+            }
         }
-        return null;
+        return fallback;
+    }
+
+    /**
+     * True if nothing solid stands between the player's eyes and the block (the block itself does
+     * not count). Never loads a chunk: false when part of the line is not loaded.
+     */
+    public static boolean canSee(ServerPlayer player, BlockPos target) {
+        ServerLevel level = player.serverLevel();
+        Vec3 eye = player.getEyePosition();
+        Vec3 to = Vec3.atCenterOf(target);
+        if (!areaLoaded(level, Mth.floor(Math.min(eye.x, to.x)), Mth.floor(Math.min(eye.z, to.z)),
+                Mth.floor(Math.max(eye.x, to.x)), Mth.floor(Math.max(eye.z, to.z)))) {
+            return false;
+        }
+        BlockHitResult hit = level.clip(new ClipContext(eye, to, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, player));
+        return hit.getType() == HitResult.Type.MISS || hit.getBlockPos().equals(target);
     }
 
     // ------------------------------------------------------------------ areas

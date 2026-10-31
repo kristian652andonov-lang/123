@@ -1,6 +1,5 @@
 package dev.kristian.nullmod.config;
 
-import java.util.function.Supplier;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
@@ -36,10 +35,9 @@ public final class NullClientSettings {
     public static final ModConfigSpec.DoubleValue MENU_GLITCH_INTENSITY;
     public static final ModConfigSpec.BooleanValue MENU_SOUNDS;
 
-    // Desktop interference (off until the player explicitly agrees)
+    // Desktop interference (on by default; the player can switch it off at any time)
     public static final ModConfigSpec.BooleanValue DESKTOP_INTERFERENCE;
-    public static final ModConfigSpec.BooleanValue DESKTOP_CONSENT;
-    public static final ModConfigSpec.ConfigValue<String> DESKTOP_CONSENT_ACCOUNT;
+    public static final ModConfigSpec.IntValue DESKTOP_DEFAULTS_VERSION;
     public static final ModConfigSpec.BooleanValue DESKTOP_NOTIFICATIONS;
     public static final ModConfigSpec.BooleanValue DESKTOP_ERROR_WINDOWS;
     public static final ModConfigSpec.DoubleValue DESKTOP_FREQUENCY;
@@ -119,18 +117,16 @@ public final class NullClientSettings {
                 .define("menuSounds", true);
         b.pop();
 
-        b.comment("Desktop interference: small windows NULL may show outside the game window.",
-                "Nothing is shown unless you enable it AND accept the explanation in NULL's settings screen.").push("desktop");
+        b.comment("Desktop interference: small windows, clearly labelled as NULL's, that NULL shows outside the game window",
+                "while you play (never in fullscreen, never after the game has closed). On by default; set desktopInterference",
+                "to false (or switch it off in NULL's settings) to turn it off and close every window at once.").push("desktop");
         DESKTOP_INTERFERENCE = b.comment("Master switch for desktop interference.")
                 .translation("null.settings.desktop_interference")
                 .define("desktopInterference", true);
-        DESKTOP_CONSENT = b.comment("Set when you accept the desktop interference explanation in the settings screen.")
-                .translation("null.settings.desktop_consent")
-                .define("desktopConsent", false);
-        DESKTOP_CONSENT_ACCOUNT = b.comment("Set together with desktopConsent: an anonymous code for the Minecraft account that accepted.",
-                        "Desktop interference stays off for any other account, so a copied or pre-made config file never switches it on.")
-                .translation("null.settings.desktop_consent_account")
-                .define("desktopConsentAccount", "");
+        DESKTOP_DEFAULTS_VERSION = b.comment("Used by NULL to switch desktop interference on once in settings saved before it was on by default.",
+                        "Do not change it.")
+                .translation("null.settings.desktop_defaults_version")
+                .defineInRange("defaultsVersion", 0, 0, 100);
         DESKTOP_NOTIFICATIONS = b.comment("Allow small corner notifications.")
                 .translation("null.settings.desktop_notifications")
                 .define("desktopNotifications", true);
@@ -190,22 +186,25 @@ public final class NullClientSettings {
         value.save();
     }
 
-    /** Client only: the anonymous code of the signed-in account (see {@link #DESKTOP_CONSENT_ACCOUNT}). */
-    private static volatile Supplier<String> accountCode = () -> "";
-
-    /** Installed by the client; on a server no account code exists and desktop interference is never allowed. */
-    public static void setAccountCode(Supplier<String> code) {
-        accountCode = code;
-    }
-
-    /** The signed-in account's anonymous code, or "" when there is none. */
-    public static String accountCode() {
-        String code = accountCode.get();
-        return code == null ? "" : code;
-    }
-
     /** Desktop interference may run: it is on by default and stays on until the player switches it off. */
     public static boolean desktopAllowed() {
         return get(DESKTOP_INTERFERENCE);
+    }
+
+    /** {@link #DESKTOP_DEFAULTS_VERSION} once desktop interference is on by default. */
+    private static final int DESKTOP_ON_BY_DEFAULT = 1;
+
+    /**
+     * Once per settings file: settings saved by a version in which desktop interference was off by
+     * default (it only came on after an explanation screen) get it switched on, since it is on by
+     * default now. Switching it off afterwards sticks. Does nothing until the settings are loaded.
+     */
+    public static void applyDesktopDefaults() {
+        if (!SPEC.isLoaded() || DESKTOP_DEFAULTS_VERSION.getAsInt() >= DESKTOP_ON_BY_DEFAULT) {
+            return;
+        }
+        DESKTOP_INTERFERENCE.set(true);
+        DESKTOP_DEFAULTS_VERSION.set(DESKTOP_ON_BY_DEFAULT);
+        DESKTOP_DEFAULTS_VERSION.save();
     }
 }

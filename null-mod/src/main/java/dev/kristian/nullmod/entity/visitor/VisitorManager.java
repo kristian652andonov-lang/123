@@ -9,6 +9,8 @@ import dev.kristian.nullmod.entity.PlayerLikeSpawns;
 import dev.kristian.nullmod.entity.SkinSet;
 import dev.kristian.nullmod.entity.UsernameGenerator;
 import dev.kristian.nullmod.entity.fakeplayer.FakePlayerManager;
+import dev.kristian.nullmod.event.EventPacing;
+import dev.kristian.nullmod.field.FieldDimension;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -50,11 +52,15 @@ public final class VisitorManager implements CorruptionSystem {
         /** Inside something old and abandoned. */
         STRUCTURE,
         /** Tree tops, the surface of water, bedrock floating in the sky. */
-        UNUSUAL
+        UNUSUAL,
+        /** Plain view straight ahead, 14-28 blocks away ({@code /null showcase}). */
+        IN_VIEW
     }
 
     /** Most Visitors in the whole world at once, however many players are online (commands excepted). */
     private static final int MAX_TOTAL = 48;
+    /** Background Visitors for one player are never closer together than this (30 s). */
+    private static final long MIN_SPAWN_GAP_TICKS = 20L * 30L;
 
     private final RandomSource random = RandomSource.create();
     private final List<VisitorEntity> visitors = new ArrayList<>();
@@ -77,8 +83,9 @@ public final class VisitorManager implements CorruptionSystem {
         // One left in a chunk that stopped ticking stands frozen, never runs out its lifetime and
         // keeps counting against its player's limit.
         removeIf(visitor -> !visitor.inTickingChunk());
-        if (!ctx.atLeast(CorruptionStage.ABOVE_MIDDLE)) {
-            // Only Visitors forced by an administrator may exist before Stage 4.
+        if (!ctx.stage().isBetween(CorruptionStage.ABOVE_MIDDLE, CorruptionStage.NULL)) {
+            // Only Visitors forced by an administrator may exist before Stage 4, and in Stage 6
+            // (the wheat field) the Visitors are gone.
             removeIf(visitor -> !visitor.isForced());
             nextSpawn.clear();
             return;
@@ -89,30 +96,35 @@ public final class VisitorManager implements CorruptionSystem {
             return;
         }
         long now = server.overworld().getGameTime();
+        double speed = EventPacing.speedFactor(ctx);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (player.isSpectator() || !player.isAlive()) {
+            if (player.isSpectator() || !player.isAlive() || FieldDimension.isField(player.level())) {
                 continue;
             }
             Long next = nextSpawn.get(player.getUUID());
             if (next == null) {
-                nextSpawn.put(player.getUUID(), now + nextDelay(ctx, frequency));
+                nextSpawn.put(player.getUUID(), now + nextDelay(ctx, frequency, speed));
                 continue;
             }
             if (now < next) {
                 continue;
             }
-            nextSpawn.put(player.getUUID(), now + nextDelay(ctx, frequency));
+            nextSpawn.put(player.getUUID(), now + nextDelay(ctx, frequency, speed));
             if (count(player) < max) {
                 spawnBackground(player, ctx);
             }
         }
     }
 
-    /** Average wait between background Visitors: about 4-5 minutes early in Stage 4, ~2.5 later. */
-    private long nextDelay(CorruptionContext ctx, double frequency) {
-        float seconds = ctx.stage() == CorruptionStage.NULL ? 150.0F : Mth.lerp(ctx.stageProgress(), 330.0F, 170.0F);
+    /**
+     * Average wait between background Visitors: about 2.7 minutes early in Stage 4 and 1.4 late
+     * in it, 100 s in NULL (before the pacing was raised: 5.5, 2.8 and 2.5 minutes); shorter when
+     * corruption time is sped up, never under 30 s. The per-player cap still holds.
+     */
+    private long nextDelay(CorruptionContext ctx, double frequency, double speedFactor) {
+        float seconds = ctx.stage() == CorruptionStage.NULL ? 100.0F : Mth.lerp(ctx.stageProgress(), 165.0F, 85.0F);
         seconds *= 0.5F + random.nextFloat();
-        return Math.max(20L * 30L, (long) (seconds * 20.0F / frequency));
+        return EventPacing.scale(seconds * 20.0, frequency, speedFactor, MIN_SPAWN_GAP_TICKS);
     }
 
     private void spawnBackground(ServerPlayer player, CorruptionContext ctx) {
@@ -220,6 +232,8 @@ public final class VisitorManager implements CorruptionSystem {
             case FOREST -> PlayerLikeSpawns.forest(player, rnd, relaxed);
             case STRUCTURE -> PlayerLikeSpawns.abandonedStructure(player, rnd, relaxed);
             case UNUSUAL -> PlayerLikeSpawns.unusual(player, rnd, relaxed);
+            case IN_VIEW -> PlayerLikeSpawns.inFront(player, rnd, 14.0, 28.0, true)
+                    .or(() -> PlayerLikeSpawns.edgeOfView(player, rnd, 14.0, 32.0, true));
         };
     }
 

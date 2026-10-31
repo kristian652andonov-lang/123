@@ -21,15 +21,17 @@ Processing per face:
      glint instead.
 
 Usage: python3 tools/gen_menu_faces.py [--preview DIR]
-  --preview DIR  also writes contact sheets and full main-menu mock-ups (854x480 at GUI scale 2,
-                 1920x1080 at GUI scale 4) for every stage, composed the way the menu code draws.
+  --preview DIR  also writes contact sheets and mock-ups for every stage, composed the way the menu
+                 code draws them: the main menu (854x480 at GUI scale 2, 1920x1080 at GUI scale 4,
+                 still composition, close-ups), the Select World screen on NULL's backdrop and a
+                 pause menu inside a world.
 """
 import argparse
 import json
 import pathlib
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SOURCE_DIR = ROOT / "assets-src" / "menu-faces"
@@ -323,23 +325,52 @@ def build():
 
 
 # --------------------------------------------------------------------------------------------
-# preview: contact sheets and main-menu mock-ups composed like MainMenuBackgroundRenderer
+# preview: contact sheets and mock-ups composed like the menu code draws them
 # --------------------------------------------------------------------------------------------
 
 # Mirrors of the Java tables (MenuMood, index = stage - 1); keep them in step with the code.
-FACE_ALPHA = [0.17, 0.24, 0.32, 0.40, 0.48, 0.56]
-DOMINANT_ALPHA = [0.0, 0.0, 0.0, 0.0, 0.24, 0.32]
-CLOSE_UP_ALPHA = [0.0, 0.0, 0.42, 0.50, 0.58, 0.66]
+FACE_ALPHA = [0.15, 0.22, 0.30, 0.38, 0.46, 0.54]
+DOMINANT_ALPHA = [0.0, 0.0, 0.0, 0.0, 0.22, 0.30]
+DOMINANT_SIZE = [0.0, 0.0, 0.0, 0.0, 1.30, 1.42]
+CLOSE_UP_ALPHA = [0.0, 0.0, 0.40, 0.48, 0.56, 0.64]
+FOLLOW = [0.0, 0.45, 0.65, 0.80, 1.0, 1.0]
+GLINT = [0.55, 0.65, 0.75, 0.85, 0.95, 1.0]
+SCRIM = [0.50, 0.52, 0.55, 0.60, 0.66, 0.70]
+BACKDROP_FACES = [1, 1, 1, 2, 2, 2]
+BACKDROP_EYES = [0, 1, 2, 3, 4, 4]
+EYES = [1, 3, 5, 7, 8, 8]
+MOUTHS = [0, 1, 2, 3, 4, 4]
+SILHOUETTES = [0, 0, 1, 3, 4, 4]
+EYE_ALPHA = [0.45, 0.60, 0.72, 0.85, 0.95, 1.0]
+MOUTH_ALPHA = [0.0, 0.16, 0.28, 0.36, 0.45, 0.50]
+SILHOUETTE_ALPHA = [0.30, 0.38, 0.50, 0.65, 0.80, 0.88]
 GRAIN = [0.045, 0.050, 0.060, 0.070, 0.085, 0.100]
 FOG = [0.060, 0.065, 0.070, 0.075, 0.060, 0.055]
 BASE = [0x07, 0x06, 0x06, 0x05, 0x03, 0x02]
 VIGNETTE = [0.80, 0.84, 0.88, 0.93, 1.0, 1.0]
-SCRIM = [0.50, 0.52, 0.55, 0.60, 0.66, 0.70]
-EYE_ALPHA = [0.35, 0.50, 0.62, 0.75, 0.85, 0.95]
-SILHOUETTE_ALPHA = [0.30, 0.38, 0.50, 0.65, 0.80, 0.88]
-FOLLOW = [0.0, 0.45, 0.65, 0.80, 1.0, 1.0]
-GLINT = [0.55, 0.65, 0.75, 0.85, 0.95, 1.0]
-PATCH_K = 3.5
+# the default settings (BACKGROUND_ANIMATION_INTENSITY, MENU_GLITCH_INTENSITY)
+MOTION = 0.8
+GLITCH = 0.7
+# MainMenuAnimationManager: the still composition (portrait, x, y, size, alpha factor)
+STILL_FACES = [
+    [(2, 0.76, 0.50, 0.50, 1.0)],
+    [(0, 0.66, 0.46, 0.56, 1.0), (1, 0.90, 0.62, 0.50, 0.85)],
+    [(2, 0.62, 0.42, 0.62, 1.0), (1, 0.88, 0.60, 0.58, 0.9)],
+    [(0, 0.60, 0.50, 0.74, 1.0), (2, 0.86, 0.36, 0.64, 0.95), (1, 0.94, 0.80, 0.40, 0.7)],
+    [(2, 0.66, 0.38, 0.80, 1.0), (1, 0.90, 0.64, 0.72, 0.95), (0, 0.48, 0.84, 0.46, 0.7)],
+    [(3, 0.70, 0.40, 0.92, 1.0), (2, 0.92, 0.66, 0.80, 0.95), (1, 0.50, 0.80, 0.52, 0.7)],
+]
+STILL_DOMINANT = [(3, 0.52, 0.52), (0, 0.56, 0.52)]
+STILL_BACKDROP = [(2, 0.93, 0.52, 0.60, 1.0), (0, 0.06, 0.58, 0.56, 0.9)]
+STILL_EYES = [(0.86, 0.18, 0.035), (0.56, 0.56, 0.03), (0.95, 0.48, 0.028)]
+STILL_BACKDROP_EYES = [(0.95, 0.16, 0.03), (0.05, 0.86, 0.028)]
+BACKDROP_ALPHA = 0.62
+PATCH_K = 3.5          # MainMenuBackgroundRenderer.PATCH_OPACITY
+HALF_SIZE_BELOW = 0.62
+# NullScreenLook: menus inside a world
+IN_WORLD_DARKEN = [0.08, 0.12, 0.16, 0.20, 0.24, 0.28]
+IN_WORLD_VIGNETTE = [0.45, 0.55, 0.65, 0.75, 0.85, 0.95]
+IN_WORLD_GRAIN = [0.030, 0.035, 0.040, 0.050, 0.060, 0.070]
 
 
 def load_rgba(path):
@@ -374,21 +405,21 @@ def sub(atlas, r):
     return l[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]], a[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]]
 
 
-def draw_face(scr, atlas, meta, index, cx, cy, size, alpha, stage, gaze, mirror=False):
-    """One face like MainMenuBackgroundRenderer.drawFace: sprite, eye patches (towards the gaze), glints."""
+def draw_face(scr, atlas, meta, index, cx, cy, size, alpha, follow, glint, gaze, mirror=False, glints=None):
+    """One face like MainMenuBackgroundRenderer.drawPortrait: sprite, then the eye patches shifted
+    towards the gaze; its glints are collected (drawn later, additive, like drawGlints)."""
     H, W = scr.shape
-    f = meta["faces"][index]
+    f = meta["faces"][index % len(meta["faces"])]
     h = size * H
     w = h * f["w"] / f["h"]
-    use_half = h < f["h"] * 0.62
+    use_half = h < f["h"] * HALF_SIZE_BELOW
     region = f["half"] if use_half else f
     l, a = sub(atlas, region)
     if mirror:
         l, a = l[:, ::-1], a[:, ::-1]
     x0, y0 = cx * W - w / 2, cy * H - h / 2
     blit(scr, l, a, x0, y0, w, h, alpha)
-    follow = FOLLOW[stage - 1]
-    glints = []
+    vis = min(1.0, alpha * PATCH_K)
     for eye in f["eyes"]:
         ex = eye["x"] / f["w"]
         if mirror:
@@ -398,7 +429,7 @@ def draw_face(scr, atlas, meta, index, cx, cy, size, alpha, stage, gaze, mirror=
         dist = max(1e-3, np.hypot(dx, dy))
         reach = eye["travel"] / f["w"] * w * follow * min(1.0, dist / (0.3 * H))
         ox, oy = dx / dist * reach, dy / dist * reach
-        if "patch" in eye:
+        if "patch" in eye and vis > 0.003:
             p = eye["half_patch"] if use_half else eye["patch"]
             pl, pa = sub(atlas, p)
             if mirror:
@@ -408,65 +439,95 @@ def draw_face(scr, atlas, meta, index, cx, cy, size, alpha, stage, gaze, mirror=
             pcy = eye["patch"]["cy"] / eye["patch"]["h"]
             if mirror:
                 pcx = 1.0 - pcx
-            vis = min(1.0, alpha * PATCH_K)
             blit(scr, pl, pa, px + ox - pcx * ps, py + oy - pcy * ps, ps, ps, vis, color=alpha / max(vis, 1e-3))
-        glints.append((px + ox * 1.15, py + oy * 1.15, eye["glint"] / f["w"] * w))
+        if glints is not None:
+            gs = max(1.5, eye["glint"] / f["w"] * w)
+            glints.append((px + ox * 1.15, py + oy * 1.15, gs, min(1.0, alpha * glint * 1.6)))
+
+
+def draw_glints(scr, atlas, meta, glints):
     gl, ga = sub(atlas, meta["glint"])
-    for gx, gy, gs in glints:
-        gs = max(1.5, gs)
-        blit(scr, gl, ga, gx - gs * 0.62, gy - gs * 0.62, gs, gs, alpha * GLINT[stage - 1] * 1.6, additive=True)
+    for gx, gy, gs, strength in glints:
+        blit(scr, gl, ga, gx - gs * 0.62, gy - gs * 0.62, gs, gs, strength, additive=True)
 
 
-def mock(stage, W, H, scale, atlas, meta, art, closeup=False):
-    """A still of the main menu at this stage: what the menu shows at a typical moment."""
-    gw, gh = W / scale, H / scale
-    scr = np.full((H, W), BASE[stage - 1] / 255.0, np.float32)
+def apparition(scr, art, kind, index, cx, cy, size, alpha, additive=False):
+    """A generated apparition (eye pair, mouth, silhouette) from the old atlas."""
+    H, W = scr.shape
+    al, aa = art["atlas"]
+    s = art["meta"][kind][index % len(art["meta"][kind])]
+    l, a = al[s["y"]:s["y"] + s["h"], s["x"]:s["x"] + s["w"]], aa[s["y"]:s["y"] + s["h"], s["x"]:s["x"] + s["w"]]
+    h = size * H
+    w = h * s["w"] / s["h"]
+    blit(scr, l, a, cx * W - w / 2, cy * H - h / 2, w, h, alpha, additive=additive)
+
+
+def fog_layer(scr, art, stage, gw, gh):
+    H, W = scr.shape
     fog_l, fog_a = art["fog"]
-    for (u, v, tile, rgb, k) in ((0.0, 0.0, 0.9, 0xA8, 1.0), (0.37, 0.21, 1.6, 0x8C, 0.8)):
+    for (tile, rgb, k) in ((0.9, 0xA8, 1.0), (1.6, 0x8C, 0.8)):
         reps_x, reps_y = gw / (gh * tile), 1.0 / tile
         fy = np.tile(fog_a, (int(np.ceil(reps_y)) + 1, int(np.ceil(reps_x)) + 1))
         fh, fw = fog_a.shape
-        crop = fy[:int(fh * reps_y), :int(fw * reps_x)]
+        crop = fy[:max(1, int(fh * reps_y)), :max(1, int(fw * reps_x))]
         big = np.asarray(Image.fromarray(crop.astype(np.float32), mode="F").resize((W, H), Image.BILINEAR))
         a = big * FOG[stage - 1] * k
-        scr = scr * (1 - a) + (rgb / 255.0) * a
-    # apparitions of the old atlas: a silhouette from stage 3, a few eye pairs
-    al, aa = art["atlas"]
-    ameta = art["meta"]
-    if stage >= 3:
-        s = ameta["silhouettes"][2]
-        l, a = al[s["y"]:s["y"] + s["h"], s["x"]:s["x"] + s["w"]], aa[s["y"]:s["y"] + s["h"], s["x"]:s["x"] + s["w"]]
-        sh = 0.8 * H
-        blit(scr, l, a, 0.86 * W - sh * s["w"] / s["h"] / 2, H - sh * 0.95, sh * s["w"] / s["h"], sh, SILHOUETTE_ALPHA[stage - 1] * 0.8)
-    gaze = (0.22, 0.45)  # the cursor near the buttons
-    if stage >= 5:
-        dom = 0.52 if stage == 5 else 0.56
-        draw_face(scr, atlas, meta, 3 if stage == 5 else 0, dom, 0.52, 1.30 if stage == 5 else 1.42,
-                  DOMINANT_ALPHA[stage - 1], stage, gaze)
-    placements = {
-        1: [(2, 0.76, 0.50, 0.50, 1.0)],
-        2: [(0, 0.66, 0.46, 0.56, 1.0), (1, 0.90, 0.62, 0.50, 0.85)],
-        3: [(2, 0.62, 0.42, 0.62, 1.0), (1, 0.88, 0.60, 0.58, 0.9)],
-        4: [(0, 0.60, 0.50, 0.74, 1.0), (2, 0.86, 0.36, 0.64, 0.95), (1, 0.94, 0.80, 0.40, 0.7)],
-        5: [(2, 0.66, 0.38, 0.80, 1.0), (1, 0.90, 0.64, 0.72, 0.95), (0, 0.48, 0.84, 0.46, 0.7)],
-        6: [(3, 0.70, 0.40, 0.92, 1.0), (2, 0.92, 0.66, 0.80, 0.95), (1, 0.50, 0.80, 0.52, 0.7)],
-    }[stage]
-    for index, cx, cy, size, k in placements:
-        draw_face(scr, atlas, meta, index, cx, cy, size, FACE_ALPHA[stage - 1] * k, stage, gaze, mirror=(index == 1 and stage % 2 == 0))
-    if closeup:
-        draw_face(scr, atlas, meta, 2, 0.58, 0.52, 1.55, CLOSE_UP_ALPHA[stage - 1], stage, gaze)
-    # generated eye pairs, additive
-    for k in range(min(stage, 4)):
-        e = ameta["eyes"][k]
-        l, a = al[e["y"]:e["y"] + e["h"], e["x"]:e["x"] + e["w"]], aa[e["y"]:e["y"] + e["h"], e["x"]:e["x"] + e["w"]]
-        eh = 0.04 * H
-        px, py = [(0.95, 0.14), (0.47, 0.90), (0.98, 0.42), (0.40, 0.08)][k]
-        blit(scr, l, a, px * W - eh * e["w"] / e["h"] / 2, py * H - eh / 2, eh * e["w"] / e["h"], eh,
-             EYE_ALPHA[stage - 1] * 0.8, additive=True)
-    # vignette
+        scr[:] = scr * (1 - a) + (rgb / 255.0) * a
+
+
+def vignette_layer(scr, art, strength):
+    H, W = scr.shape
     vl, va = art["vignette"]
-    vig = np.asarray(Image.fromarray(va.astype(np.float32), mode="F").resize((W, H), Image.BILINEAR)) * VIGNETTE[stage - 1]
-    scr = scr * (1 - vig)
+    vig = np.asarray(Image.fromarray(va.astype(np.float32), mode="F").resize((W, H), Image.BILINEAR)) * strength
+    scr[:] = scr * (1 - vig)
+
+
+def grain_layer(img_rgb, art, alpha):
+    H, W = img_rgb.shape[:2]
+    gl, ga = art["grain"]
+    reps = (int(np.ceil(H / (256 * 1.5))) + 1, int(np.ceil(W / (256 * 1.5))) + 1)
+    gt = np.tile(gl, reps)
+    gt = np.asarray(Image.fromarray(gt.astype(np.float32), mode="F").resize(
+        (int(gt.shape[1] * 1.5), int(gt.shape[0] * 1.5)), Image.BILINEAR))[:H, :W]
+    return img_rgb * (1 - alpha) + gt[..., None] * alpha
+
+
+def ui_font(scale):
+    try:
+        return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", int(8 * scale))
+    except OSError:
+        return ImageFont.load_default()
+
+
+def mock(stage, W, H, scale, atlas, meta, art, closeup=False, still=False):
+    """The main menu at this stage. still=True: exactly the still composition (animation off);
+    otherwise a typical moment of the animation at the same places (full alpha, eyes on the cursor)."""
+    i = stage - 1
+    gw, gh = W / scale, H / scale
+    scr = np.full((H, W), BASE[i] / 255.0, np.float32)
+    fog_layer(scr, art, stage, gw, gh)
+    gaze = (0.22, 0.45)  # the cursor near the buttons
+    follow = 0.0 if still else FOLLOW[i] * (0.4 + 0.6 * MOTION)
+    k_alpha = 0.85 if still else 1.0
+    # silhouettes, then the faces (dominant first), then mouths - like MainMenuBackgroundRenderer.render
+    if SILHOUETTES[i] > 0:
+        apparition(scr, art, "silhouettes", 2, 0.86, 0.62, 0.80, SILHOUETTE_ALPHA[i] * 0.7)
+    glints = []
+    if DOMINANT_ALPHA[i] > 0:
+        p = STILL_DOMINANT[1 if stage >= 6 else 0]
+        draw_face(scr, atlas, meta, p[0], p[1], p[2], DOMINANT_SIZE[i], DOMINANT_ALPHA[i] * k_alpha, follow, GLINT[i],
+                  gaze, glints=glints)
+    for n, (index, cx, cy, size, k) in enumerate(STILL_FACES[i]):
+        draw_face(scr, atlas, meta, index, cx, cy, size, FACE_ALPHA[i] * k_alpha * k, follow, GLINT[i], gaze,
+                  mirror=(n == 1 and stage % 2 == 0), glints=glints)
+    if closeup:
+        draw_face(scr, atlas, meta, 2, 0.64, 0.51, 1.55, CLOSE_UP_ALPHA[i], follow, GLINT[i], gaze, glints=glints)
+    if MOUTHS[i] > 0:
+        apparition(scr, art, "mouths", 1, 0.74, 0.86, 0.09, MOUTH_ALPHA[i] * 0.75)
+    for n in range(min(3, EYES[i])):
+        ex, ey, es = STILL_EYES[n]
+        apparition(scr, art, "eyes", n, ex, ey, es, EYE_ALPHA[i] * 0.7, additive=True)
+    draw_glints(scr, atlas, meta, glints)
 
     # layout of CorruptedMainMenu.buildLayout (GUI units -> pixels)
     margin_x = min(64, max(6, round(gw * 0.065)))
@@ -481,41 +542,122 @@ def mock(stage, W, H, scale, atlas, meta, art, closeup=False):
     logo_w = min(gw * 0.62, gw - margin_x * 2 - 80)
     glyphs = art["glyphs"]
     cap = glyphs["meta"]["baseline"] - glyphs["meta"]["cap_top"]
-    s_logo = min(logo_w / max(1.0, run_width(glyphs, "CORRUPTED", cap * 0.035)), logo_h / (cap * (0.38 + 0.18 + 1.0 + 0.22 + 0.40)))
+    run = run_width(glyphs, "CORRUPTED", cap * 0.035)
+    s_logo = min(logo_w / max(1.0, run), logo_h / (cap * (0.38 + 0.18 + 1.0 + 0.22 + 0.40)))
     buttons_y = margin_top + cap * s_logo * (0.38 + 0.18 + 1.0 + 0.22 + 0.40) + logo_gap
-    buttons_bottom = buttons_y + 3 * (20 + gap) + 20
-    # scrim behind the logo and the buttons (left side)
-    scrim_right = min(gw, margin_x + button_w + gw * 0.16)
+    # CorruptedMainMenu.scrimRight: max(buttons right, 0.55 x logo right) + 0.16 of the width
+    logo_right = (margin_x + run * s_logo) / gw
+    scrim_right = min(1.0, max((margin_x + button_w) / gw, logo_right * 0.55) + 0.16) * gw
     xs = (np.arange(W) + 0.5) / scale
-    ramp = SCRIM[stage - 1] * (1 - smoothstep(scrim_right * 0.35, scrim_right, xs))
+    ramp = SCRIM[i] * (1 - smoothstep(scrim_right * 0.35, scrim_right, xs))
     scr = scr * (1 - ramp[None, :])
+    vignette_layer(scr, art, VIGNETTE[i])
 
-    # logo
     draw_logo(scr, glyphs, margin_x * scale, margin_top * scale, s_logo * scale, cap)
-    # buttons
     img = Image.fromarray((np.clip(scr, 0, 1) * 255).astype(np.uint8)).convert("RGB")
     d = ImageDraw.Draw(img)
-    try:
-        ui = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", int(8 * scale))
-    except OSError:
-        ui = ImageFont.load_default()
+    ui = ui_font(scale)
     for k, label in enumerate(["Singleplayer", "Multiplayer", "Options...", "Quit Game"]):
         y0 = (buttons_y + k * (20 + gap)) * scale
         x0 = margin_x * scale
         d.rectangle([x0, y0, x0 + button_w * scale, y0 + 20 * scale], outline=(140, 140, 140), width=max(1, scale // 2),
-                    fill=None)
+                    fill=(9, 9, 9))
         d.text((x0 + 8 * scale, y0 + 6 * scale), label, fill=(196, 196, 196), font=ui)
     d.text((W - 60 * scale, 4 * scale), "Mods  NULL", fill=(112, 112, 112), font=ui)
     d.text((2 * scale, H - 20 * scale), "Minecraft 1.21.1\nNeoForge 21.1.265", fill=(80, 80, 80), font=ui)
-    out = np.asarray(img).astype(np.float32) / 255.0
-    # grain over everything
-    gl, ga = art["grain"]
-    reps = (int(np.ceil(H / (256 * 1.5))) + 1, int(np.ceil(W / (256 * 1.5))) + 1)
-    gt = np.tile(gl, reps)
-    gt = np.asarray(Image.fromarray(gt.astype(np.float32), mode="F").resize((int(gt.shape[1] * 1.5), int(gt.shape[0] * 1.5)), Image.BILINEAR))[:H, :W]
-    g = GRAIN[stage - 1]
-    out = out * (1 - g) + gt[..., None] * g
-    return Image.fromarray((np.clip(out, 0, 1) * 255).astype(np.uint8)), buttons_bottom
+    out = grain_layer(np.asarray(img).astype(np.float32) / 255.0, art, GRAIN[i] * (0.55 + 0.45 * GLITCH))
+    return Image.fromarray((np.clip(out, 0, 1) * 255).astype(np.uint8))
+
+
+def mock_select_world(stage, W, H, scale, atlas, meta, art):
+    """The Select World screen on NULL's backdrop (MenuBackdrop, still composition at its edges),
+    with the list's own translucent dark background and the vanilla widgets drawn on top."""
+    i = stage - 1
+    gw, gh = W / scale, H / scale
+    scr = np.full((H, W), BASE[i] / 255.0, np.float32)
+    fog_layer(scr, art, stage, gw, gh)
+    glints = []
+    for n in range(BACKDROP_FACES[i]):
+        index, cx, cy, size, k = STILL_BACKDROP[n]
+        draw_face(scr, atlas, meta, index, cx, cy, size, FACE_ALPHA[i] * BACKDROP_ALPHA * k, FOLLOW[i] * 0.88,
+                  GLINT[i], (0.5, 0.3), mirror=(n == 1), glints=glints)
+    for n in range(min(len(STILL_BACKDROP_EYES), BACKDROP_EYES[i])):
+        ex, ey, es = STILL_BACKDROP_EYES[n]
+        apparition(scr, art, "eyes", n + 2, ex, ey, es, EYE_ALPHA[i] * 0.6, additive=True)
+    draw_glints(scr, atlas, meta, glints)
+    vignette_layer(scr, art, VIGNETTE[i])
+    img = Image.fromarray((np.clip(scr, 0, 1) * 255).astype(np.uint8)).convert("RGBA")
+    # vanilla widgets: title, search box, list (menu_list_background is ~44% black), buttons
+    over = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(over)
+    ui = ui_font(scale)
+    d.text((W / 2 - 34 * scale, 8 * scale), "Select World", fill=(255, 255, 255, 255), font=ui)
+    d.rectangle([W / 2 - 100 * scale, 22 * scale, W / 2 + 100 * scale, 42 * scale], fill=(0, 0, 0, 255),
+                outline=(160, 160, 160, 255))
+    top, bottom = 48 * scale, H - 64 * scale
+    d.rectangle([0, top, W, bottom], fill=(0, 0, 0, 112))
+    d.line([0, top, W, top], fill=(70, 70, 70, 255))
+    d.line([0, bottom, W, bottom], fill=(70, 70, 70, 255))
+    for n, (name, info) in enumerate((("New World", "null-autotest (10/31/26 12:00)"),
+                                       ("My House", "Survival Mode, Version: 1.21.1"),
+                                       ("Test", "Creative Mode, Cheats"))):
+        y = top + (4 + n * 36) * scale
+        x = W / 2 - 110 * scale
+        if n == 0:
+            d.rectangle([x - 2 * scale, y - 2 * scale, x + 222 * scale, y + 34 * scale], outline=(255, 255, 255, 255))
+        d.rectangle([x, y, x + 32 * scale, y + 32 * scale], fill=(60, 90, 50, 255))
+        d.text((x + 36 * scale, y + 2 * scale), name, fill=(255, 255, 255, 255), font=ui)
+        d.text((x + 36 * scale, y + 13 * scale), info, fill=(128, 128, 128, 255), font=ui)
+    for row, labels in enumerate((("Play Selected World", "Create New World"), ("Edit", "Delete", "Re-Create", "Back"))):
+        y = H - (54 - row * 24) * scale
+        widths = 150 if len(labels) == 2 else 72
+        total = len(labels) * widths + (len(labels) - 1) * 4
+        x = W / 2 - total * scale / 2
+        for label in labels:
+            d.rectangle([x, y, x + widths * scale, y + 20 * scale], fill=(110, 110, 110, 255), outline=(0, 0, 0, 255))
+            d.text((x + 6 * scale, y + 6 * scale), label, fill=(255, 255, 255, 255), font=ui)
+            x += (widths + 4) * scale
+    img.alpha_composite(over)
+    out = grain_layer(np.asarray(img.convert("RGB")).astype(np.float32) / 255.0, art,
+                      GRAIN[i] * (0.55 + 0.45 * GLITCH) * 0.8)
+    return Image.fromarray((np.clip(out, 0, 1) * 255).astype(np.uint8))
+
+
+def mock_pause(stage, W, H, scale, art):
+    """A pause menu inside a world: the blurred game stays, NULL adds darkening, vignette and grain."""
+    i = stage - 1
+    rng = np.random.default_rng(3)
+    ys = np.linspace(0, 1, H)[:, None]
+    sky = np.concatenate([np.broadcast_to(0.45 + 0.25 * (1 - ys), (H, W))[..., None] * c for c in (0.55, 0.70, 0.95)], axis=2)
+    ground = ys > 0.55
+    sky[np.broadcast_to(ground, (H, W))] = np.array([0.25, 0.40, 0.18])
+    for _ in range(14):  # trees
+        x = rng.integers(0, W)
+        w = rng.integers(20, 60) * scale // 2
+        y = int(0.55 * H)
+        sky[max(0, y - 3 * w):y, max(0, x - w // 2):x + w // 2] = np.array([0.12, 0.25, 0.10])
+    world = Image.fromarray((sky * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(6 * scale))
+    scr = np.asarray(world).astype(np.float32) / 255.0
+    scr = scr * 0.75  # vanilla in-world menu background
+    scr = scr * (1 - IN_WORLD_DARKEN[i])
+    vl, va = art["vignette"]
+    vig = np.asarray(Image.fromarray(va.astype(np.float32), mode="F").resize((W, H), Image.BILINEAR)) * IN_WORLD_VIGNETTE[i]
+    scr = scr * (1 - vig[..., None])
+    img = Image.fromarray((np.clip(scr, 0, 1) * 255).astype(np.uint8)).convert("RGB")
+    d = ImageDraw.Draw(img)
+    ui = ui_font(scale)
+    d.text((W / 2 - 30 * scale, 40 * scale), "Game Menu", fill=(255, 255, 255), font=ui)
+    for row, labels in enumerate((("Back to Game",), ("Advancements", "Statistics"), ("Give Feedback", "Report Bugs"),
+                                  ("Options...", "Open to LAN"), ("Mods",), ("Save and Quit to Title",))):
+        y = (64 + row * 24) * scale
+        widths = 204 if len(labels) == 1 else 100
+        x = W / 2 - (len(labels) * widths + (len(labels) - 1) * 4) * scale / 2
+        for label in labels:
+            d.rectangle([x, y, x + widths * scale, y + 20 * scale], fill=(110, 110, 110), outline=(0, 0, 0))
+            d.text((x + 6 * scale, y + 6 * scale), label, fill=(255, 255, 255), font=ui)
+            x += (widths + 4) * scale
+    out = grain_layer(np.asarray(img).astype(np.float32) / 255.0, art, IN_WORLD_GRAIN[i] * (0.55 + 0.45 * GLITCH))
+    return Image.fromarray((np.clip(out, 0, 1) * 255).astype(np.uint8))
 
 
 def run_width(glyphs, text, tracking):
@@ -591,17 +733,24 @@ def preview(out_dir, lum, alpha, meta, faces):
     art = load_menu_art()
     for stage in range(1, 7):
         for (W, H, scale) in ((854, 480, 2), (1920, 1080, 4)):
-            img, _ = mock(stage, W, H, scale, atlas, meta, art)
-            img.save(out_dir / f"menu_stage{stage}_{W}x{H}.png")
+            mock(stage, W, H, scale, atlas, meta, art).save(out_dir / f"menu_stage{stage}_{W}x{H}.png")
+        mock(stage, 854, 480, 2, atlas, meta, art, still=True).save(out_dir / f"menu_stage{stage}_still_854x480.png")
         if CLOSE_UP_ALPHA[stage - 1] > 0:
-            img, _ = mock(stage, 854, 480, 2, atlas, meta, art, closeup=True)
-            img.save(out_dir / f"menu_stage{stage}_closeup_854x480.png")
+            mock(stage, 854, 480, 2, atlas, meta, art, closeup=True).save(out_dir / f"menu_stage{stage}_closeup_854x480.png")
+        mock_select_world(stage, 854, 480, 2, atlas, meta, art).save(out_dir / f"select_world_stage{stage}_854x480.png")
+        mock_pause(stage, 854, 480, 2, art).save(out_dir / f"pause_stage{stage}_854x480.png")
+    mock_select_world(6, 1920, 1080, 4, atlas, meta, art).save(out_dir / "select_world_stage6_1920x1080.png")
+    # small and odd windows: GUI scale 1 and a 4:3 window
+    mock(5, 640, 480, 1, atlas, meta, art).save(out_dir / "menu_stage5_640x480_gui1.png")
+    mock(6, 1024, 768, 2, atlas, meta, art).save(out_dir / "menu_stage6_1024x768.png")
     # gaze test: the same face with the cursor in four places
     tiles = []
     for gaze in ((0.05, 0.5), (0.95, 0.5), (0.5, 0.02), (0.5, 0.98)):
         for index in (0, 2, 1, 3):
             scr = np.full((300, 300), 0.02, np.float32)
-            draw_face(scr, atlas, meta, index, 0.5, 0.5, 0.95, 0.9, 6, gaze)
+            glints = []
+            draw_face(scr, atlas, meta, index, 0.5, 0.5, 0.95, 0.9, 1.0, 1.0, gaze, glints=glints)
+            draw_glints(scr, atlas, meta, glints)
             tiles.append(Image.fromarray((np.clip(scr, 0, 1) * 255).astype(np.uint8)))
     board = Image.new("L", (4 * 300, 4 * 300))
     for k, t in enumerate(tiles):

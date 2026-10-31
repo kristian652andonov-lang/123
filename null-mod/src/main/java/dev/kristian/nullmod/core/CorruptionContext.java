@@ -35,4 +35,9 @@ public record CorruptionContext(
     public float continuousStage() {
         return Math.min(1.0F, ((stage.number() - 1) + stageProgress) / 5.0F);
     }
+
+    /** In-game nights the corruption clock has counted since NULL began (fractional). */
+    public double nights() {
+        return corruptionTicks / CorruptionStageManager.TICKS_PER_NIGHT;
+    }
 }

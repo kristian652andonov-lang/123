@@ -4,6 +4,7 @@ import dev.kristian.nullmod.NullMod;
 import dev.kristian.nullmod.config.NullConfig;
 import dev.kristian.nullmod.core.CorruptionContext;
 import dev.kristian.nullmod.core.CorruptionSystem;
+import dev.kristian.nullmod.field.FieldDimension;
 import dev.kristian.nullmod.registry.NullDimensions;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -33,7 +34,8 @@ import net.minecraft.world.phys.AABB;
  * {@link #CHANGES_PER_TICK} block changes per server tick over all jobs) and checks every change
  * again right before making it:
  * <ul>
- * <li>never in the NULL dimension, never in an unloaded chunk (nothing is ever loaded for it);</li>
+ * <li>never in the NULL dimension or the field of Stage 6, never in an unloaded chunk (nothing is
+ * ever loaded for it);</li>
  * <li>never near anything a player built ({@link BuildProtection}); the expensive scan runs once
  * per job (atomic jobs) or once per chunk (other jobs) when the job is accepted, and only the
  * cheap per-chunk "player placed blocks here" counter is re-read while the job runs;</li>
@@ -195,7 +197,7 @@ public final class SafeBlockPlacer implements CorruptionSystem {
                     continue;
                 }
                 ServerLevel level = server.getLevel(job.dimension());
-                if (level == null || NullDimensions.isNull(level) || tick - job.queuedAt > MAX_JOB_AGE_TICKS) {
+                if (level == null || offLimits(level) || tick - job.queuedAt > MAX_JOB_AGE_TICKS) {
                     job.aborted = true;
                     continue;
                 }
@@ -249,9 +251,14 @@ public final class SafeBlockPlacer implements CorruptionSystem {
 
     // ------------------------------------------------------------------ internals
 
+    /** NULL's own dimension and the field (Stage 6) are never changed through the placer. */
+    private static boolean offLimits(Level level) {
+        return NullDimensions.isNull(level) || FieldDimension.isField(level);
+    }
+
     /** Decides whether a job may run, and caches its protection result. */
     private static boolean accept(ServerLevel level, PlacementJob job) {
-        if (job.isEmpty() || NullDimensions.isNull(level) || !NullConfig.get(NullConfig.WORLD_MODIFICATION)) {
+        if (job.isEmpty() || offLimits(level) || !NullConfig.get(NullConfig.WORLD_MODIFICATION)) {
             return false;
         }
         int radius = NullConfig.get(NullConfig.BUILD_PROTECTION_RADIUS);

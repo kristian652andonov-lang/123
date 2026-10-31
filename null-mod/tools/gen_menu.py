@@ -7,6 +7,8 @@ Outputs (under src/main/resources/assets/null/):
   textures/font/horror.png                  distressed serif glyph sheet (A-Z, 0-9, punctuation)
   font/horror.json                          bitmap font "null:horror" built on that sheet
   textures/gui/menu/apparitions.png         atlas: faces, eye pairs, eye glints, mouths, silhouettes
+                                            (the generated faces are no longer drawn: the menu shows
+                                            the user's faces, see tools/gen_menu_faces.py)
   textures/gui/menu/grain.png               tileable film grain / static
   textures/gui/menu/fog.png                 tileable drifting darkness
   textures/gui/menu/vignette.png            edge darkening

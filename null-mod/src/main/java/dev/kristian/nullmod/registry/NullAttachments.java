@@ -2,6 +2,7 @@ package dev.kristian.nullmod.registry;
 
 import com.mojang.serialization.Codec;
 import dev.kristian.nullmod.NullMod;
+import dev.kristian.nullmod.entity.variant.VariantData;
 import java.util.function.Supplier;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -18,6 +19,14 @@ public final class NullAttachments {
      */
     public static final Supplier<AttachmentType<Integer>> PLAYER_BLOCKS = ATTACHMENT_TYPES.register("player_blocks",
             () -> AttachmentType.builder(() -> 0).serialize(Codec.INT, count -> count > 0).build());
+
+    /**
+     * Whether a mob is a corrupted or parasite variant, with its look seed, growth and timers
+     * ({@code entity.variant}). Saved with the mob; ordinary mobs carry none. Not copied on
+     * conversions by NeoForge: {@code MobVariantManager} carries it over itself.
+     */
+    public static final Supplier<AttachmentType<VariantData>> MOB_VARIANT = ATTACHMENT_TYPES.register("mob_variant",
+            () -> AttachmentType.builder(() -> new VariantData()).serialize(VariantData.SERIALIZER).build());
 
     private NullAttachments() {
     }

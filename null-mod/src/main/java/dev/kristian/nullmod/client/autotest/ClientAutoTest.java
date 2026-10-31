@@ -5,6 +5,7 @@ import dev.kristian.nullmod.client.ClientCorruptionState;
 import dev.kristian.nullmod.core.CorruptionStage;
 import dev.kristian.nullmod.event.NullEventDefinition;
 import dev.kristian.nullmod.event.NullEventRegistry;
+import dev.kristian.nullmod.field.FieldDimension;
 import dev.kristian.nullmod.registry.NullDimensions;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -13,10 +14,14 @@ import java.util.List;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.client.gui.screens.GenericMessageScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.level.GameRules;
@@ -30,17 +35,18 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 
 /**
  * A scripted client session used by CI to prove the client actually works: it waits for the
- * main menu, opens the settings, creates a world, walks it through all five stages, forces
- * every random event, visits the NULL dimension, comes back, and quits — taking screenshots
- * along the way. Only active when the JVM is started with {@code -Dnull.autotest=<anything>};
- * it does nothing in normal play.
+ * main menu, opens the settings, creates a world, walks it through the stages, forces every
+ * random event, opens the inventory (blood graffiti), visits the NULL dimension, comes back,
+ * leaves the world for the main menu (now at its most corrupted) and the world list, and quits —
+ * taking screenshots along the way. Only active when the JVM is started with
+ * {@code -Dnull.autotest=<anything>}; it does nothing in normal play.
  */
 public final class ClientAutoTest {
     private static final String PROPERTY = "null.autotest";
     private static final String TAG = "NULL-AUTOTEST: ";
     private static final String WORLD = "null-autotest";
 
-    private enum Phase { WAIT_MENU, RUN, WAIT_WORLD, WAIT_SERVER, DONE }
+    private enum Phase { WAIT_MENU, RUN, WAIT_WORLD, WAIT_SERVER, WAIT_TITLE, DONE }
 
     private record Step(String name, int waitAfter, Runnable action) {
     }
@@ -51,6 +57,7 @@ public final class ClientAutoTest {
     private static int stableTicks;
     private static int failures;
     private static int totalTicks;
+    private static int waitTicks;
 
     private ClientAutoTest() {
     }
@@ -120,6 +127,22 @@ public final class ClientAutoTest {
                     stableTicks = 0;
                 }
             }
+            case WAIT_TITLE -> {
+                // back on the main menu after leaving the world; give its faces time to come
+                if (mc.level == null && mc.getOverlay() == null && mc.screen != null && isMainMenu(mc.screen)) {
+                    if (++stableTicks >= 120) {
+                        stableTicks = 0;
+                        log("back on the main menu: " + mc.screen.getClass().getName());
+                        phase = Phase.RUN;
+                    }
+                } else {
+                    stableTicks = 0;
+                    if (++waitTicks > 20 * 90) {
+                        fail("never got back to the main menu after leaving the world");
+                        finish(mc);
+                    }
+                }
+            }
             case RUN -> runSteps(mc);
             case DONE -> {
             }
@@ -184,6 +207,9 @@ public final class ClientAutoTest {
             }
             int number = stage.number();
             STEPS.add(new Step("set stage " + number, 60, () -> command("null stage " + number)));
+            if (number == 2) {
+                queueInventorySteps();
+            }
             STEPS.add(new Step("night", 40, () -> command("time set 18000")));
             for (NullEventDefinition event : eventsStartingAt(stage)) {
                 STEPS.add(new Step("event " + event.id(), 30, () -> command("null event " + event.id())));
@@ -193,6 +219,24 @@ public final class ClientAutoTest {
             STEPS.add(new Step("look ahead", 60, () -> look(10.0F)));
             STEPS.add(new Step("screenshot stage " + number, 10, () -> screenshot("05_stage" + number)));
         }
+        // Stage 4: a corrupted cow and a parasite host in front of the player.
+        STEPS.add(new Step("day for the mobs", 20, () -> {
+            command("time set 6000");
+            look(0.0F);
+        }));
+        STEPS.add(new Step("summon mobs", 20, () -> {
+            command("summon minecraft:cow ^-2 ^ ^6 {NoAI:1b}");
+            command("summon minecraft:husk ^2 ^ ^6 {NoAI:1b}");
+        }));
+        STEPS.add(new Step("make them variants", 100, () -> {
+            command("null mob corrupted @e[type=minecraft:cow,sort=nearest,limit=1]");
+            command("null mob parasite @e[type=minecraft:husk,sort=nearest,limit=1]");
+        }));
+        STEPS.add(new Step("screenshot variant mobs", 10, () -> screenshot("05c_variant_mobs")));
+        STEPS.add(new Step("remove the mobs", 10, () -> {
+            command("kill @e[type=minecraft:cow]");
+            command("kill @e[type=minecraft:husk]");
+        }));
         STEPS.add(new Step("set stage 5", 20 * 20, () -> command("null stage 5")));
         STEPS.add(new Step("check NULL dimension", 20, () -> {
             Minecraft mc = Minecraft.getInstance();
@@ -218,6 +262,7 @@ public final class ClientAutoTest {
         STEPS.add(new Step("hold tab", 4, () -> Minecraft.getInstance().options.keyPlayerList.setDown(true)));
         STEPS.add(new Step("screenshot player list", 4, () -> screenshot("08_player_list")));
         STEPS.add(new Step("release tab", 20, () -> Minecraft.getInstance().options.keyPlayerList.setDown(false)));
+        queueHarvestSteps();
         STEPS.add(new Step("back to stage 1", 20 * 15, () -> command("null stage 1")));
         STEPS.add(new Step("check return", 20, () -> {
             Minecraft mc = Minecraft.getInstance();
@@ -233,6 +278,105 @@ public final class ClientAutoTest {
             command("null reset");
         }));
         STEPS.add(new Step("final status", 40, () -> command("null status")));
+        queueMainMenuAfterSteps();
+    }
+
+    /** Stage 6: the field by day, the cracking sun, the night countdown and IT's hunt (logged, never failed). */
+    private static void queueHarvestSteps() {
+        STEPS.add(new Step("set stage 6", 20 * 20, () -> command("null stage 6")));
+        STEPS.add(new Step("check field", 10, () -> {
+            Minecraft mc = Minecraft.getInstance();
+            log("stage 6: now in " + (mc.level == null ? "no level" : mc.level.dimension().location())
+                    + (mc.level != null && FieldDimension.isField(mc.level) ? " (the field)" : " (NOT the field)"));
+        }));
+        STEPS.add(new Step("look at the sun", 20, () -> look(-8.0F)));
+        STEPS.add(new Step("screenshot field", 10, () -> screenshot("13_field_day")));
+        STEPS.add(new Step("sun cracking", 60, () -> command("null field cracking")));
+        STEPS.add(new Step("screenshot sun cracking", 10, () -> screenshot("14_field_sun_cracking")));
+        STEPS.add(new Step("night", 100, () -> command("null field night")));
+        STEPS.add(new Step("look ahead in the dark", 10, () -> look(0.0F)));
+        STEPS.add(new Step("screenshot countdown", 10, () -> screenshot("15_field_countdown")));
+        STEPS.add(new Step("survival for IT", 10, () -> command("gamemode survival")));
+        STEPS.add(new Step("hunt", 60, () -> command("null field hunt")));
+        STEPS.add(new Step("screenshot IT coming", 60, () -> screenshot("16_it_coming")));
+        STEPS.add(new Step("screenshot IT close", 60, () -> screenshot("17_it_close")));
+        STEPS.add(new Step("screenshot IT kill", 120, () -> screenshot("18_it_kill")));
+        STEPS.add(new Step("respawn", 60, () -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.player != null && mc.player.isDeadOrDying()) {
+                log("IT killed the player");
+                mc.player.respawn();
+                mc.setScreen(null);
+            } else {
+                log("the player survived the hunt");
+            }
+        }));
+        STEPS.add(new Step("creative after the hunt", 40, () -> command("gamemode creative")));
+        STEPS.add(new Step("screenshot field after", 10, () -> screenshot("19_field_after")));
+    }
+
+    /** The player's own inventory (survival, a few items) with the blood graffiti on its panel. */
+    private static void queueInventorySteps() {
+        STEPS.add(new Step("survival for the inventory", 20, () -> command("gamemode survival")));
+        STEPS.add(new Step("a few items", 20, () -> {
+            command("give @s minecraft:bread 12");
+            command("give @s minecraft:torch 40");
+            command("give @s minecraft:iron_pickaxe");
+            command("give @s minecraft:oak_log 23");
+        }));
+        STEPS.add(new Step("open inventory", 30, () -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.player != null) {
+                mc.setScreen(new InventoryScreen(mc.player));
+            }
+        }));
+        STEPS.add(new Step("screenshot inventory", 10, () -> screenshot("05b_inventory")));
+        STEPS.add(new Step("close inventory", 10, () -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.screen != null) {
+                mc.screen.onClose();
+            }
+        }));
+        STEPS.add(new Step("creative again", 20, () -> {
+            command("clear @s");
+            command("gamemode creative");
+        }));
+    }
+
+    /** Back to the title screen (the menu now remembers Stage 5 or more), then the world list. */
+    private static void queueMainMenuAfterSteps() {
+        STEPS.add(new Step("leave the world", 0, ClientAutoTest::leaveWorld));
+        STEPS.add(new Step("screenshot main menu after", 60, () -> screenshot("10_main_menu_after")));
+        STEPS.add(new Step("screenshot main menu after 2", 10, () -> screenshot("11_main_menu_after_2")));
+        STEPS.add(new Step("open select world", 60, () -> {
+            Minecraft mc = Minecraft.getInstance();
+            mc.setScreen(new SelectWorldScreen(mc.screen));
+        }));
+        STEPS.add(new Step("screenshot select world", 10, () -> screenshot("12_select_world")));
+    }
+
+    /**
+     * Leaves the world the way the pause menu's "Save and Quit to Title" does. It runs as a task
+     * of the client's main loop, outside the tick that runs the steps; the WAIT_TITLE phase then
+     * waits until the main menu has been showing for about six seconds.
+     */
+    private static void leaveWorld() {
+        Minecraft mc = Minecraft.getInstance();
+        phase = Phase.WAIT_TITLE;
+        stableTicks = 0;
+        waitTicks = 0;
+        mc.tell(() -> {
+            if (mc.level != null) {
+                boolean local = mc.isLocalServer();
+                mc.level.disconnect();
+                if (local) {
+                    mc.disconnect(new GenericMessageScreen(Component.translatable("menu.savingLevel")));
+                } else {
+                    mc.disconnect();
+                }
+            }
+            mc.setScreen(new TitleScreen());
+        });
     }
 
     private static void queueMultiplayerSteps() {

@@ -3,13 +3,22 @@ package dev.kristian.nullmod.client.menu;
 import java.util.Random;
 
 /**
- * The things in the dark behind the menu: faces, pairs of eyes, mouths and silhouettes.
+ * The things in the dark behind the menus: the user's faces, pairs of eyes, mouths and silhouettes.
  * <p>
  * A fixed pool of {@link Apparition}s is allocated once; each one cycles through
- * hidden → fading in → visible → fading out, drifting slowly, flickering, blinking, sometimes
- * only peeking for a moment or cutting out completely. How many may be visible, how bright they
- * get and how fast they come back follows the {@link MenuMood}. With the animated background
- * switched off the pool is arranged once into a still composition.
+ * hidden → fading in → visible → fading out, drifting slowly, flickering, tearing, sometimes
+ * only peeking for a moment or cutting out completely. How many may be visible, how large and
+ * bright they get and how fast they come back follows the {@link MenuMood}:
+ * <ul>
+ *   <li>Stage 1: one face, barely there, deep in the dark, slowly fading in and out.</li>
+ *   <li>Higher stages: more faces (never more than three at once, never the same face twice),
+ *       closer and larger, drifting, torn by glitches, their eyes following the mouse cursor, and
+ *       rare sudden close-ups that hold for a moment.</li>
+ *   <li>Stages 5 and 6: a dominant face slowly fills much of the screen behind the buttons.</li>
+ * </ul>
+ * With the animated background switched off the pool is arranged once into a still composition.
+ * The {@link Layout#BACKDROP} layout (every other screen outside a world) keeps to the edges of
+ * the screen and shows fewer, dimmer faces and no mouths, silhouettes or close-ups.
  * <p>
  * Positions are stored as fractions of the screen (x of the width, y of the height) and sizes
  * as a fraction of the screen height, so resizing the window never disturbs them.
@@ -25,6 +34,33 @@ final class MainMenuAnimationManager {
     private static final int HOLD = 2;
     private static final int OUT = 3;
 
+    /** Where things may appear. */
+    enum Layout {
+        /** The corrupted main menu: the left column belongs to the logo and the buttons. */
+        MAIN,
+        /** Behind every other screen outside a world: only at the edges; the middle belongs to lists and text. */
+        BACKDROP
+    }
+
+    /**
+     * The still composition per stage: portrait, x, y, size, alpha factor. Mirrored in
+     * {@code tools/gen_menu_faces.py} (preview mock-ups); keep them in step.
+     */
+    private static final float[][][] STILL_FACES = {
+            {{2, 0.76F, 0.50F, 0.50F, 1.0F}},
+            {{0, 0.66F, 0.46F, 0.56F, 1.0F}, {1, 0.90F, 0.62F, 0.50F, 0.85F}},
+            {{2, 0.62F, 0.42F, 0.62F, 1.0F}, {1, 0.88F, 0.60F, 0.58F, 0.9F}},
+            {{0, 0.60F, 0.50F, 0.74F, 1.0F}, {2, 0.86F, 0.36F, 0.64F, 0.95F}, {1, 0.94F, 0.80F, 0.40F, 0.7F}},
+            {{2, 0.66F, 0.38F, 0.80F, 1.0F}, {1, 0.90F, 0.64F, 0.72F, 0.95F}, {0, 0.48F, 0.84F, 0.46F, 0.7F}},
+            {{3, 0.70F, 0.40F, 0.92F, 1.0F}, {2, 0.92F, 0.66F, 0.80F, 0.95F}, {1, 0.50F, 0.80F, 0.52F, 0.7F}},
+    };
+    /** The still dominant face of stages 5 and 6: portrait, x, y. */
+    private static final float[][] STILL_DOMINANT = {{3, 0.52F, 0.52F}, {0, 0.56F, 0.52F}};
+    /** The still composition behind other screens: portrait, x, y, size, alpha factor (one or two faces). */
+    private static final float[][] STILL_BACKDROP = {{2, 0.93F, 0.52F, 0.60F, 1.0F}, {0, 0.06F, 0.58F, 0.56F, 0.9F}};
+    /** Faces drawn at a third of the face alpha behind other screens than the main menu. */
+    private static final float BACKDROP_ALPHA = 0.62F;
+
     /** One thing in the dark. All fields are package-visible for the background renderer. */
     static final class Apparition {
         int kind;
@@ -33,7 +69,7 @@ final class MainMenuAnimationManager {
         /** Centre, as fractions of the screen width / height. */
         float x;
         float y;
-        /** On-screen height as a fraction of the screen height. */
+        /** On-screen height as a fraction of the screen height (before {@link #scale}). */
         float size;
         float vx;
         float vy;
@@ -48,11 +84,11 @@ final class MainMenuAnimationManager {
         float alpha;
         float flicker;
         long flickerSeed;
-        /** 0..1 eyelid / jaw opening. */
+        /** 0..1 eyelid / jaw opening; for faces it dims the glints in their eyes. */
         float open = 1.0F;
         float blink = -1.0F;
         float nextBlink;
-        /** Brightness of glowing pupils (faces, silhouettes); 0 = empty sockets. */
+        /** Brightness of glowing pupils and glints; 0 = dead eyes. */
         float glow;
         /** 0..1 horizontal tearing, decays quickly. */
         float tear;
@@ -61,13 +97,24 @@ final class MainMenuAnimationManager {
         boolean opening;
         boolean eventSpawned;
         boolean still;
+        /** Faces: how much larger it gets over its whole life (it comes closer). */
+        float growth;
+        /** Faces: current size multiplier from {@link #growth}, updated every frame. */
+        float scale = 1.0F;
+        /** Faces: a sudden close-up, drawn above the other faces. */
+        boolean closeUp;
+        /** Seconds since it started to appear. */
+        float age;
 
         boolean visible() {
             return phase != HIDDEN && alpha > 0.002F;
         }
     }
 
-    private final Apparition[] faces = pool(6, FACE);
+    private final Layout layout;
+    private final Apparition[] faces = pool(3, FACE);
+    /** Stages 5 and 6 only: the face that slowly fills the screen behind the buttons. */
+    private final Apparition dominant = pool(1, FACE)[0];
     private final Apparition[] eyes = pool(8, EYES);
     private final Apparition[] mouths = pool(4, MOUTH);
     private final Apparition[] silhouettes = pool(4, SILHOUETTE);
@@ -80,9 +127,15 @@ final class MainMenuAnimationManager {
     private MenuArt art = MenuArt.EMPTY;
     private float time;
     private float aspect = 16.0F / 9.0F;
+    private int lastPortrait = -1;
+    private float gazeX = 0.5F;
+    private float gazeY = 0.45F;
+    private float targetX = 0.5F;
+    private float targetY = 0.45F;
 
-    MainMenuAnimationManager(Random random) {
+    MainMenuAnimationManager(Random random, Layout layout) {
         this.random = random;
+        this.layout = layout;
     }
 
     private static Apparition[] pool(int size, int kind) {
@@ -96,6 +149,10 @@ final class MainMenuAnimationManager {
 
     Apparition[] faces() {
         return faces;
+    }
+
+    Apparition dominant() {
+        return dominant;
     }
 
     Apparition[] eyes() {
@@ -114,6 +171,19 @@ final class MainMenuAnimationManager {
         return extras;
     }
 
+    MenuMood mood() {
+        return mood;
+    }
+
+    /** Where the faces look, as fractions of the screen (follows the mouse cursor with a little lag). */
+    float gazeX() {
+        return gazeX;
+    }
+
+    float gazeY() {
+        return gazeY;
+    }
+
     /** Swaps in freshly loaded art (after a resource reload); sprites that no longer exist are skipped. */
     void setArt(MenuArt art) {
         this.art = art;
@@ -123,11 +193,30 @@ final class MainMenuAnimationManager {
         aspect = height <= 0 ? 1.0F : (float) width / height;
     }
 
-    /** Called each time the menu is shown. */
+    /** The mouse cursor, as fractions of the screen. */
+    void lookAt(float x, float y) {
+        targetX = MenuMath.clamp(x, -0.25F, 1.25F);
+        targetY = MenuMath.clamp(y, -0.25F, 1.25F);
+    }
+
+    /**
+     * The menu is shown again: carries on with what is in the dark when the stage and the kind of
+     * animation are unchanged (coming back from a sub-screen), starts afresh otherwise.
+     */
+    void resume(MenuMood mood, MenuArt art) {
+        if (art == this.art && mood.sameComposition(this.mood)) {
+            this.mood = mood;
+            return;
+        }
+        reset(mood, art);
+    }
+
+    /** Starts afresh. */
     void reset(MenuMood mood, MenuArt art) {
         this.mood = mood;
         this.art = art;
         this.time = 0.0F;
+        this.lastPortrait = -1;
         for (Apparition[] group : regular) {
             for (Apparition a : group) {
                 clear(a);
@@ -136,6 +225,7 @@ final class MainMenuAnimationManager {
         for (Apparition a : extras) {
             clear(a);
         }
+        clear(dominant);
         if (!art.hasApparitions()) {
             return;
         }
@@ -143,10 +233,11 @@ final class MainMenuAnimationManager {
             arrangeStill();
             return;
         }
-        // stagger the first appearances; a couple of faces start fading in straight away
+        // stagger the first appearances; the first face starts fading in almost straight away
         for (int i = 0; i < faces.length; i++) {
-            faces[i].wait = i < Math.min(2, mood.faces) ? random.nextFloat() * 1.5F : random.nextFloat() * mood.spawnDelay * 1.4F;
+            faces[i].wait = i == 0 ? 0.3F + random.nextFloat() * 1.2F : MenuMath.range(random, 1.5F, 1.5F + mood.faceDelay * 1.4F);
         }
+        dominant.wait = MenuMath.range(random, 2.0F, 6.0F);
         for (Apparition a : eyes) {
             a.wait = 0.8F + random.nextFloat() * mood.spawnDelay;
         }
@@ -156,20 +247,41 @@ final class MainMenuAnimationManager {
         for (Apparition a : silhouettes) {
             a.wait = 3.0F + random.nextFloat() * mood.spawnDelay * 1.8F;
         }
+        if (layout == Layout.BACKDROP) {
+            // another screen: the dark is already occupied when it opens
+            spawnRegular(faces[0]);
+            faces[0].t = faces[0].inTime * 0.6F;
+            faces[0].age = faces[0].t;
+        }
     }
 
     private static void clear(Apparition a) {
         a.phase = HIDDEN;
         a.alpha = 0.0F;
         a.t = 0.0F;
+        a.age = 0.0F;
         a.wait = 0.0F;
         a.flicker = 0.0F;
         a.tear = 0.0F;
         a.opening = false;
         a.eventSpawned = false;
         a.still = false;
+        a.closeUp = false;
+        a.growth = 0.0F;
+        a.scale = 1.0F;
         a.open = 1.0F;
         a.blink = -1.0F;
+    }
+
+    private int faceLimit() {
+        if (!art.hasPortraits()) {
+            return 0;
+        }
+        return layout == Layout.MAIN ? mood.faces : mood.backdropFaces;
+    }
+
+    private int eyeLimit() {
+        return layout == Layout.MAIN ? mood.eyes : mood.backdropEyes;
     }
 
     // ---------------------------------------------------------------------------------------
@@ -177,10 +289,30 @@ final class MainMenuAnimationManager {
 
     private void arrangeStill() {
         Random fixed = new Random(0x4E554C4CL + mood.stage);
-        int faceCount = Math.min(3, mood.faces);
-        float[][] facePlaces = {{0.70F, 0.36F, 0.62F}, {0.90F, 0.70F, 0.48F}, {0.48F, 0.78F, 0.40F}};
-        for (int i = 0; i < faceCount; i++) {
-            placeStill(faces[i], FACE, fixed, facePlaces[i][0], facePlaces[i][1], facePlaces[i][2], mood.faceAlpha * 0.75F);
+        if (art.hasPortraits()) {
+            if (layout == Layout.MAIN) {
+                float[][] places = STILL_FACES[mood.stage - 1];
+                for (int i = 0; i < Math.min(places.length, faces.length); i++) {
+                    float[] p = places[i];
+                    placeStillFace(faces[i], (int) p[0], p[1], p[2], p[3], mood.faceAlpha * 0.85F * p[4], i == 1 && mood.stage % 2 == 0);
+                }
+                if (mood.dominantAlpha > 0.0F) {
+                    float[] p = STILL_DOMINANT[mood.stage >= 6 ? 1 : 0];
+                    placeStillFace(dominant, (int) p[0], p[1], p[2], mood.dominantSize, mood.dominantAlpha * 0.85F, false);
+                }
+            } else {
+                for (int i = 0; i < Math.min(mood.backdropFaces, STILL_BACKDROP.length); i++) {
+                    float[] p = STILL_BACKDROP[i];
+                    placeStillFace(faces[i], (int) p[0], p[1], p[2], p[3], mood.faceAlpha * BACKDROP_ALPHA * 0.85F * p[4], i == 1);
+                }
+            }
+        }
+        if (layout == Layout.BACKDROP) {
+            float[][] eyePlaces = {{0.95F, 0.16F, 0.03F}, {0.05F, 0.86F, 0.028F}};
+            for (int i = 0; i < Math.min(eyePlaces.length, eyeLimit()); i++) {
+                placeStill(eyes[i], EYES, fixed, eyePlaces[i][0], eyePlaces[i][1], eyePlaces[i][2], mood.eyeAlpha * 0.6F);
+            }
+            return;
         }
         float[][] eyePlaces = {{0.86F, 0.18F, 0.035F}, {0.56F, 0.56F, 0.03F}, {0.95F, 0.48F, 0.028F}};
         for (int i = 0; i < Math.min(3, mood.eyes); i++) {
@@ -190,8 +322,26 @@ final class MainMenuAnimationManager {
             placeStill(mouths[0], MOUTH, fixed, 0.74F, 0.86F, 0.09F, mood.mouthAlpha * 0.75F);
         }
         if (mood.silhouettes > 0) {
-            placeStill(silhouettes[0], SILHOUETTE, fixed, 0.58F, 0.62F, 0.80F, mood.silhouetteAlpha * 0.7F);
+            placeStill(silhouettes[0], SILHOUETTE, fixed, 0.86F, 0.62F, 0.80F, mood.silhouetteAlpha * 0.7F);
         }
+    }
+
+    private void placeStillFace(Apparition a, int portrait, float x, float y, float size, float alpha, boolean mirror) {
+        a.kind = FACE;
+        a.sprite = Math.floorMod(portrait, art.portraits.size());
+        a.mirror = mirror;
+        a.x = x;
+        a.y = y;
+        a.size = size;
+        a.vx = 0.0F;
+        a.vy = 0.0F;
+        a.phase = HOLD;
+        a.still = true;
+        a.maxAlpha = alpha;
+        a.alpha = alpha;
+        a.glow = 1.0F;
+        a.open = 1.0F;
+        a.scale = 1.0F;
     }
 
     private void placeStill(Apparition a, int kind, Random fixed, float x, float y, float size, float alpha) {
@@ -223,11 +373,17 @@ final class MainMenuAnimationManager {
             return;
         }
         time += dt;
+        float k = 1.0F - (float) Math.exp(-dt * 2.5F);
+        gazeX += (targetX - gazeX) * k;
+        gazeY += (targetY - gazeY) * k;
         boolean animated = mood.animated;
-        updateGroup(faces, mood.faces, dt, animated);
-        updateGroup(eyes, mood.eyes, dt, animated);
-        updateGroup(mouths, mood.mouths, dt, animated);
-        updateGroup(silhouettes, mood.silhouettes, dt, animated);
+        updateGroup(faces, faceLimit(), dt, animated);
+        if (layout == Layout.MAIN) {
+            updateDominant(dt, animated);
+            updateGroup(mouths, mood.mouths, dt, animated);
+            updateGroup(silhouettes, mood.silhouettes, dt, animated);
+        }
+        updateGroup(eyes, eyeLimit(), dt, animated);
         for (Apparition a : extras) {
             if (a.phase != HIDDEN) {
                 step(a, dt, animated);
@@ -255,8 +411,30 @@ final class MainMenuAnimationManager {
         }
     }
 
+    private void updateDominant(float dt, boolean animated) {
+        Apparition a = dominant;
+        if (a.still) {
+            return;
+        }
+        if (a.phase == HIDDEN) {
+            if (!animated || mood.dominantAlpha <= 0.0F || !art.hasPortraits()) {
+                return;
+            }
+            a.wait -= dt;
+            if (a.wait <= 0.0F) {
+                spawnDominant(a);
+            }
+            return;
+        }
+        step(a, dt, animated);
+        if (a.phase == HIDDEN) {
+            a.wait = MenuMath.range(random, 5.0F, 12.0F);
+        }
+    }
+
     private void step(Apparition a, float dt, boolean animated) {
         a.t += dt;
+        a.age += dt;
         float visibility;
         switch (a.phase) {
             case IN -> {
@@ -271,7 +449,7 @@ final class MainMenuAnimationManager {
                 if (a.t >= a.holdTime) {
                     a.phase = OUT;
                     a.t = 0.0F;
-                } else if (animated && !a.eventSpawned && a.kind != SILHOUETTE
+                } else if (animated && !a.eventSpawned && a.kind != SILHOUETTE && a != dominant && !mood.gentleFaces
                         && random.nextFloat() < dt * 0.02F * mood.motion) {
                     // it was somewhere else a moment ago
                     jump(a);
@@ -282,9 +460,10 @@ final class MainMenuAnimationManager {
                 if (a.t >= a.outTime) {
                     a.phase = HIDDEN;
                     a.alpha = 0.0F;
-                    a.wait = mood.spawnDelay * MenuMath.range(random, 0.5F, 1.5F);
+                    a.wait = (a.kind == FACE ? mood.faceDelay : mood.spawnDelay) * MenuMath.range(random, 0.5F, 1.5F);
                     a.eventSpawned = false;
                     a.opening = false;
+                    a.closeUp = false;
                     return;
                 }
             }
@@ -310,7 +489,12 @@ final class MainMenuAnimationManager {
                 a.tearSeed = random.nextLong();
             }
         }
-        // eyes blink; event eyes and mouths open slowly as they appear and half close as they go
+        if (a.kind == FACE) {
+            float life = Math.max(0.001F, a.inTime + a.holdTime + a.outTime);
+            a.scale = 1.0F + a.growth * MenuMath.smooth(a.age / life);
+        }
+        // eyes blink (a face's eyes lose their shine for a moment); event eyes and mouths open
+        // slowly as they appear and half close as they go
         float blinkFactor = 1.0F;
         if (animated && (a.kind == EYES || a.kind == FACE)) {
             a.nextBlink -= dt;
@@ -347,7 +531,12 @@ final class MainMenuAnimationManager {
     }
 
     private void jump(Apparition a) {
-        a.x = MenuMath.clamp(a.x + MenuMath.range(random, -0.12F, 0.12F), 0.30F, 1.0F);
+        if (layout == Layout.MAIN) {
+            a.x = MenuMath.clamp(a.x + MenuMath.range(random, -0.12F, 0.12F), 0.30F, 1.0F);
+        } else {
+            a.x = a.x < 0.5F ? MenuMath.clamp(a.x + MenuMath.range(random, -0.05F, 0.05F), -0.04F, 0.18F)
+                    : MenuMath.clamp(a.x + MenuMath.range(random, -0.05F, 0.05F), 0.82F, 1.04F);
+        }
         a.y = MenuMath.clamp(a.y + MenuMath.range(random, -0.10F, 0.10F), 0.08F, 0.95F);
         a.tear = 1.0F;
         a.tearSeed = random.nextLong();
@@ -355,11 +544,59 @@ final class MainMenuAnimationManager {
 
     private int spriteCount(int kind) {
         return switch (kind) {
-            case FACE -> art.faces.size();
+            case FACE -> art.hasPortraits() ? art.portraits.size() : 0;
             case EYES -> art.eyes.size();
             case MOUTH -> art.mouths.size();
             default -> art.silhouettes.size();
         };
+    }
+
+    /**
+     * One of the user's faces that is not on screen right now (the same face twice at once would
+     * give the trick away); when all of them are showing, any but the one picked last.
+     */
+    private int pickPortrait(Apparition self) {
+        int count = art.portraits.size();
+        int bits = Math.min(count, 30);
+        int used = 0;
+        used |= usedBy(faces, self);
+        used |= usedBy(extras, self);
+        if (dominant != self && dominant.phase != HIDDEN) {
+            used |= 1 << (dominant.sprite % 30);
+        }
+        int free = 0;
+        for (int i = 0; i < bits; i++) {
+            if ((used & (1 << i)) == 0) {
+                free++;
+            }
+        }
+        int pick;
+        if (free > 0) {
+            int n = random.nextInt(free);
+            pick = 0;
+            for (int i = 0; i < bits; i++) {
+                if ((used & (1 << i)) == 0 && n-- == 0) {
+                    pick = i;
+                    break;
+                }
+            }
+        } else if (count > 1 && lastPortrait >= 0) {
+            pick = (lastPortrait + 1 + random.nextInt(count - 1)) % count;
+        } else {
+            pick = random.nextInt(count);
+        }
+        lastPortrait = pick;
+        return pick;
+    }
+
+    private static int usedBy(Apparition[] group, Apparition self) {
+        int used = 0;
+        for (Apparition other : group) {
+            if (other != self && other.kind == FACE && other.phase != HIDDEN) {
+                used |= 1 << (other.sprite % 30);
+            }
+        }
+        return used;
     }
 
     private void spawnRegular(Apparition a) {
@@ -368,27 +605,38 @@ final class MainMenuAnimationManager {
             a.wait = 1000.0F;
             return;
         }
-        a.sprite = random.nextInt(count);
+        a.sprite = a.kind == FACE ? pickPortrait(a) : random.nextInt(count);
         a.mirror = random.nextBoolean();
         a.eventSpawned = false;
         a.opening = false;
+        a.closeUp = false;
         a.open = 1.0F;
         a.blink = -1.0F;
         a.nextBlink = MenuMath.range(random, 1.0F, 6.0F);
         a.tear = 0.0F;
         a.flicker = 0.0F;
+        a.growth = 0.0F;
+        a.scale = 1.0F;
+        a.age = 0.0F;
+        boolean backdrop = layout == Layout.BACKDROP;
         switch (a.kind) {
             case FACE -> {
-                a.size = MenuMath.range(random, 0.38F, 0.70F) * (mood.stage >= 5 ? 1.15F : 1.0F);
-                a.maxAlpha = mood.faceAlpha * MenuMath.range(random, 0.65F, 1.0F);
+                a.size = MenuMath.range(random, mood.faceSizeMin, mood.faceSizeMax) * (backdrop ? 0.9F : 1.0F);
+                a.maxAlpha = mood.faceAlpha * MenuMath.range(random, 0.75F, 1.0F) * (backdrop ? BACKDROP_ALPHA : 1.0F);
                 a.glow = random.nextFloat() < 0.1F ? 0.0F : MenuMath.range(random, 0.8F, 1.2F);
-                placeAvoiding(a, 0.40F, 1.02F, 0.15F, 0.85F);
+                // from Stage 3 on they come closer while they watch
+                a.growth = mood.stage >= 3 && !backdrop ? MenuMath.range(random, 0.0F, 0.04F * (mood.stage - 2)) : 0.0F;
+                placeFace(a);
             }
             case EYES -> {
                 a.size = MenuMath.range(random, 0.022F, 0.055F);
-                a.maxAlpha = mood.eyeAlpha * MenuMath.range(random, 0.6F, 1.0F);
+                a.maxAlpha = mood.eyeAlpha * MenuMath.range(random, 0.6F, 1.0F) * (backdrop ? 0.6F : 1.0F);
                 a.glow = 1.0F;
-                placeAvoiding(a, 0.38F, 0.98F, 0.06F, 0.94F);
+                if (backdrop) {
+                    placeAtEdge(a, 0.02F, 0.16F, 0.06F, 0.94F);
+                } else {
+                    placeAvoiding(a, 0.38F, 0.98F, 0.06F, 0.94F);
+                }
             }
             case MOUTH -> {
                 a.size = MenuMath.range(random, 0.07F, 0.15F);
@@ -409,6 +657,9 @@ final class MainMenuAnimationManager {
         if (a.kind == SILHOUETTE) {
             a.vx = MenuMath.range(random, -0.002F, 0.002F);
             a.vy = 0.0F;
+        } else if (a.kind == FACE) {
+            a.vx = MenuMath.range(random, -0.006F, 0.006F);
+            a.vy = MenuMath.range(random, -0.004F, 0.004F);
         } else {
             a.vx = MenuMath.range(random, -0.010F, 0.010F);
             a.vy = MenuMath.range(random, -0.006F, 0.006F);
@@ -416,25 +667,113 @@ final class MainMenuAnimationManager {
         // how it shows itself
         float r = random.nextFloat();
         boolean gentle = mood.flashing < 0.3F;
-        if (r < 0.2F && a.kind != SILHOUETTE) {
+        if (a.kind == FACE && (mood.gentleFaces || backdrop)) {
+            // barely there: it fades in and out of the dark, slowly
+            a.inTime = MenuMath.range(random, 6.0F, 9.0F);
+            a.holdTime = MenuMath.range(random, 8.0F, 14.0F);
+            a.outTime = MenuMath.range(random, 6.0F, 9.0F);
+        } else if (r < 0.18F && a.kind != SILHOUETTE) {
             // only for a moment
             a.inTime = gentle ? 0.6F : MenuMath.range(random, 0.12F, 0.3F);
             a.holdTime = MenuMath.range(random, 0.25F, 0.8F);
             a.outTime = MenuMath.range(random, 1.2F, 2.5F);
             a.maxAlpha = Math.min(1.0F, a.maxAlpha * 1.25F);
-        } else if (r < 0.3F) {
+        } else if (r < 0.4F) {
             // lingers
-            a.inTime = MenuMath.range(random, 4.0F, 7.0F);
+            a.inTime = MenuMath.range(random, 3.0F, 6.0F);
             a.holdTime = MenuMath.range(random, 10.0F, 18.0F);
-            a.outTime = MenuMath.range(random, 4.0F, 6.0F);
+            a.outTime = MenuMath.range(random, 3.0F, 5.0F);
         } else {
             a.inTime = MenuMath.range(random, 1.6F, 4.0F);
-            a.holdTime = MenuMath.range(random, 3.0F, 9.0F);
-            a.outTime = random.nextFloat() < 0.15F && !gentle ? 0.05F : MenuMath.range(random, 1.5F, 4.0F);
+            a.holdTime = MenuMath.range(random, 4.0F, 10.0F);
+            a.outTime = random.nextFloat() < 0.12F && !gentle ? 0.05F : MenuMath.range(random, 1.5F, 4.0F);
         }
         a.phase = IN;
         a.t = 0.0F;
         a.alpha = 0.0F;
+    }
+
+    private void spawnDominant(Apparition a) {
+        a.kind = FACE;
+        a.sprite = pickPortrait(a);
+        a.mirror = random.nextBoolean();
+        a.eventSpawned = false;
+        a.opening = false;
+        a.closeUp = false;
+        a.still = false;
+        a.open = 1.0F;
+        a.blink = -1.0F;
+        a.nextBlink = MenuMath.range(random, 2.0F, 6.0F);
+        a.tear = 0.0F;
+        a.flicker = 0.0F;
+        a.age = 0.0F;
+        a.scale = 1.0F;
+        a.size = mood.dominantSize * MenuMath.range(random, 0.95F, 1.05F);
+        a.growth = MenuMath.range(random, 0.10F, 0.16F);
+        a.x = MenuMath.range(random, 0.56F, 0.66F);
+        a.y = MenuMath.range(random, 0.48F, 0.56F);
+        a.vx = MenuMath.range(random, -0.003F, 0.003F);
+        a.vy = 0.0F;
+        a.maxAlpha = mood.dominantAlpha;
+        a.glow = 1.0F;
+        a.inTime = MenuMath.range(random, 7.0F, 11.0F);
+        a.holdTime = MenuMath.range(random, 14.0F, 26.0F);
+        a.outTime = MenuMath.range(random, 6.0F, 10.0F);
+        a.phase = IN;
+        a.t = 0.0F;
+        a.alpha = 0.0F;
+    }
+
+    /** Main menu: right of the buttons, as far from the other faces as possible. Other screens: at the edges. */
+    private void placeFace(Apparition a) {
+        if (layout == Layout.BACKDROP) {
+            placeAtEdge(a, -0.03F, 0.14F, 0.32F, 0.70F);
+            return;
+        }
+        float minX = mood.gentleFaces ? 0.68F : 0.54F;
+        float maxX = mood.gentleFaces ? 0.90F : 0.96F;
+        float bestX = MenuMath.range(random, minX, maxX);
+        float bestY = MenuMath.range(random, 0.30F, 0.70F);
+        float bestScore = -1.0F;
+        for (int attempt = 0; attempt < 8; attempt++) {
+            float x = MenuMath.range(random, minX, maxX);
+            float y = MenuMath.range(random, 0.30F, 0.70F);
+            float score = Float.MAX_VALUE;
+            for (Apparition other : faces) {
+                if (other == a || other.phase == HIDDEN) {
+                    continue;
+                }
+                float dx = (other.x - x) * aspect;
+                float dy = other.y - y;
+                score = Math.min(score, dx * dx + dy * dy);
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                bestX = x;
+                bestY = y;
+            }
+        }
+        a.x = bestX;
+        a.y = bestY;
+    }
+
+    /** Left or right edge band (x range given for the left band; the right band mirrors it). */
+    private void placeAtEdge(Apparition a, float minX, float maxX, float minY, float maxY) {
+        int left = 0;
+        int right = 0;
+        for (Apparition other : a.kind == FACE ? faces : eyes) {
+            if (other != a && other.phase != HIDDEN) {
+                if (other.x < 0.5F) {
+                    left++;
+                } else {
+                    right++;
+                }
+            }
+        }
+        boolean onLeft = left == right ? random.nextBoolean() : left < right;
+        float x = MenuMath.range(random, minX, maxX);
+        a.x = onLeft ? x : 1.0F - x;
+        a.y = MenuMath.range(random, minY, maxY);
     }
 
     /** Picks the candidate position farthest from everything else that is visible. */
@@ -467,7 +806,7 @@ final class MainMenuAnimationManager {
     }
 
     // ---------------------------------------------------------------------------------------
-    // events
+    // events (main menu)
 
     private Apparition freeExtra() {
         for (Apparition a : extras) {
@@ -489,7 +828,7 @@ final class MainMenuAnimationManager {
         }
         boolean gentle = mood.flashing < 0.3F;
         a.kind = kind;
-        a.sprite = random.nextInt(count);
+        a.sprite = kind == FACE ? pickPortrait(a) : random.nextInt(count);
         a.mirror = random.nextBoolean();
         a.x = x;
         a.y = y;
@@ -502,6 +841,7 @@ final class MainMenuAnimationManager {
         a.outTime = gentle ? Math.max(0.8F, out) : out;
         a.phase = IN;
         a.t = 0.0F;
+        a.age = 0.0F;
         a.alpha = 0.0F;
         a.flicker = 0.0F;
         a.tear = 0.0F;
@@ -512,6 +852,9 @@ final class MainMenuAnimationManager {
         a.opening = false;
         a.eventSpawned = true;
         a.still = false;
+        a.closeUp = false;
+        a.growth = 0.0F;
+        a.scale = 1.0F;
         return a;
     }
 
@@ -520,7 +863,35 @@ final class MainMenuAnimationManager {
         float x = MenuMath.range(random, x0 + (x1 - x0) * 0.2F, x0 + (x1 - x0) * 0.8F);
         float y = (y0 + y1) * 0.5F;
         float size = MenuMath.clamp((y1 - y0) * 1.6F, 0.30F, 0.70F);
-        return summon(FACE, x, y, size, Math.min(0.5F, mood.faceAlpha * 1.6F), 0.25F, MenuMath.range(random, 0.5F, 1.2F), 1.4F) != null;
+        return summon(FACE, x, y, size, Math.min(0.5F, mood.faceAlpha * 1.4F), 0.25F, MenuMath.range(random, 0.5F, 1.2F), 1.4F) != null;
+    }
+
+    /**
+     * A sudden close-up: a face right in front of the player, large, for a moment. Only when
+     * intense effects are allowed; with flashing turned down it fades instead of cutting in.
+     */
+    boolean closeUp() {
+        if (mood == null || !mood.intense || !art.hasPortraits()) {
+            return false;
+        }
+        boolean gentle = mood.flashing < 0.3F;
+        float in = gentle ? 1.2F : MenuMath.range(random, 0.06F, 0.14F);
+        float out = gentle ? 1.6F : random.nextBoolean() ? 0.05F : MenuMath.range(random, 0.4F, 0.8F);
+        Apparition a = summon(FACE, MenuMath.range(random, 0.58F, 0.70F), MenuMath.range(random, 0.46F, 0.56F),
+                MenuMath.range(random, 1.45F, 1.70F), mood.closeUpAlpha, in, MenuMath.range(random, 0.5F, 1.1F), out);
+        if (a == null) {
+            return false;
+        }
+        a.inTime = in;
+        a.outTime = out;
+        a.closeUp = true;
+        a.growth = 0.05F;
+        a.vx = 0.0F;
+        if (!gentle) {
+            a.tear = 1.0F;
+            a.tearSeed = random.nextLong();
+        }
+        return true;
     }
 
     /** An eye opens in the dark for a moment. */
@@ -575,6 +946,10 @@ final class MainMenuAnimationManager {
                     a.tearSeed = random.nextLong();
                 }
             }
+        }
+        if (dominant.phase != HIDDEN) {
+            dominant.tear = 1.0F;
+            dominant.tearSeed = random.nextLong();
         }
     }
 }

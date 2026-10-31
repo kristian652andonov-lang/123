@@ -65,7 +65,10 @@ final class StrangeSignBuilder {
         ServerPlayer player = req.player();
         int attempts = req.attempts(5);
         for (int i = 0; i < attempts; i++) {
-            BlockPos ground = LocationFinder.findGround(level, player, random, req.minDistance(6.0, 4.0), 14.0,
+            // In the showcase it stands close in front, near enough to read.
+            double min = req.showcase() ? 5.0 : req.minDistance(6.0, 4.0);
+            double max = req.showcase() ? 10.0 : 14.0;
+            BlockPos ground = LocationFinder.findGround(level, player, random, min, max,
                     req.view(LocationFinder.View.BEHIND), 4, pos -> true);
             if (ground == null) {
                 continue;

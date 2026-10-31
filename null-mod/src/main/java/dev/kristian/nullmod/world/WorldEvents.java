@@ -25,8 +25,8 @@ public final class WorldEvents {
         NullEventDefinition.builder("corruption_patch")
                 .stages(CorruptionStage.START, CorruptionStage.NULL)
                 .weight(NullEventDefinition.COMMON)
-                // Stage 1 corruption is extremely rare; it becomes ordinary later.
-                .stageWeights(15, 60, 100, 100, 70)
+                // Stage 1 corruption is rare (and only a block or three); it becomes ordinary later.
+                .stageWeights(25, 60, 100, 100, 70)
                 .cooldown(Ticks.minutes(5))
                 .globalCooldown(Ticks.minutes(1))
                 .duration(20)

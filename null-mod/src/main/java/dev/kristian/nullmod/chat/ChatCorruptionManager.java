@@ -14,6 +14,7 @@ import dev.kristian.nullmod.core.CorruptionSystem;
 import dev.kristian.nullmod.core.WorldMemory;
 import dev.kristian.nullmod.entity.UsernameGenerator;
 import dev.kristian.nullmod.entity.fakeplayer.FakePlayerManager;
+import dev.kristian.nullmod.event.EventPacing;
 import java.time.LocalTime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -86,9 +87,16 @@ public final class ChatCorruptionManager implements CorruptionSystem {
     private static final long SHORT_LINE_COOLDOWN = 20L * 30L;
     private static final long DIALOGUE_COOLDOWN = 20L * 60L * 20L;
 
-    /** Average seconds between ambient lines for one player (personal) and for one dimension, by stage. */
-    private static final float[] PERSONAL_SECONDS = {0.0F, 1800.0F, 720.0F, 300.0F, 150.0F};
-    private static final float[] DIMENSION_SECONDS = {0.0F, 3000.0F, 1200.0F, 420.0F, 90.0F};
+    /**
+     * Average seconds between ambient lines for one player (personal) and for one dimension, by
+     * stage 1-6 (0 = none). About 2.3x (Stage 2) to 1.5x (Stage 5) as often as before the pacing
+     * was raised (personal 1800/720/300/150 s, dimension 3000/1200/420/90 s). In the wheat field
+     * of Stage 6 the crowd is gone: only a rare line for one player, nothing for everyone.
+     */
+    private static final float[] PERSONAL_SECONDS = {0.0F, 780.0F, 340.0F, 150.0F, 100.0F, 420.0F};
+    private static final float[] DIMENSION_SECONDS = {0.0F, 1300.0F, 570.0F, 210.0F, 60.0F, 0.0F};
+    /** Ambient lines are never closer together than this (5 s), whatever the settings. */
+    private static final long MIN_AMBIENT_GAP_TICKS = 100L;
     /** Corruption strength at the start of each stage, and how much it grows through the stage. */
     private static final float[] STRENGTH = {0.0F, 0.1F, 0.22F, 0.38F, 0.55F};
     private static final float[] STRENGTH_GROWTH = {0.0F, 0.06F, 0.1F, 0.12F, 0.3F};
@@ -312,14 +320,18 @@ public final class ChatCorruptionManager implements CorruptionSystem {
         }
     }
 
+    /** The wait until the next ambient line; "never" (far in the future) where the table has 0. */
     private long delay(float[] table, CorruptionContext ctx, double frequency) {
-        float base = table[ctx.stage().tableIndex()];
+        float base = table[Math.min(ctx.stage().number(), table.length) - 1];
+        if (base <= 0.0F) {
+            return Long.MAX_VALUE / 8L;
+        }
         if (ctx.stage() == CorruptionStage.NULL) {
             // Towards saturation the final stage gets more and more chaotic.
             base *= 1.0F - 0.6F * ctx.stageProgress();
         }
         float jitter = 0.5F + random.nextFloat();
-        return Math.max(100L, (long) (base * jitter * 20.0F / Math.max(0.05, frequency)));
+        return EventPacing.scale(base * jitter * 20.0, Math.max(0.05, frequency), EventPacing.speedFactor(ctx), MIN_AMBIENT_GAP_TICKS);
     }
 
     private static boolean eligible(ServerPlayer player) {

@@ -61,7 +61,8 @@ final class WrongBuildingBuilder {
             if (variant == Variant.UNDERGROUND_HOUSE && !natural) {
                 variant = Variant.DOOR_INTO_WALL;
             }
-            BlockPos ground = LocationFinder.findGround(level, req.player(), random, req.minDistance(50.0, 24.0), 110.0,
+            double min = req.minDistance(50.0, 24.0);
+            BlockPos ground = LocationFinder.findGround(level, req.player(), random, min, req.maxDistance(110.0, min),
                     req.view(LocationFinder.View.HIDDEN), 4, pos -> true);
             if (ground == null) {
                 continue;

@@ -1,0 +1,101 @@
+{
+  "stalker.door_creak": {
+    "subtitle": "subtitles.null.stalker.door_creak",
+    "sounds": [
+      {
+        "name": "null:stalkers/door_creak_1"
+      },
+      {
+        "name": "null:stalkers/door_creak_2"
+      },
+      {
+        "name": "null:stalkers/door_creak_3"
+      },
+      {
+        "name": "null:stalkers/door_creak_4"
+      }
+    ]
+  },
+  "stalker.footsteps": {
+    "subtitle": "subtitles.null.stalker.footsteps",
+    "sounds": [
+      {
+        "name": "null:stalkers/footsteps_1"
+      },
+      {
+        "name": "null:stalkers/footsteps_2"
+      },
+      {
+        "name": "null:stalkers/footsteps_3"
+      },
+      {
+        "name": "null:stalkers/footsteps_4"
+      }
+    ]
+  },
+  "stalker.dig": {
+    "subtitle": "subtitles.null.stalker.dig",
+    "sounds": [
+      {
+        "name": "null:stalkers/dig_1"
+      },
+      {
+        "name": "null:stalkers/dig_2"
+      },
+      {
+        "name": "null:stalkers/dig_3"
+      },
+      {
+        "name": "null:stalkers/dig_4"
+      }
+    ]
+  },
+  "stalker.breath_glass": {
+    "subtitle": "subtitles.null.stalker.breath_glass",
+    "sounds": [
+      {
+        "name": "null:stalkers/breath_glass_1"
+      },
+      {
+        "name": "null:stalkers/breath_glass_2"
+      },
+      {
+        "name": "null:stalkers/breath_glass_3"
+      }
+    ]
+  },
+  "stalker.glass_tap": {
+    "subtitle": "subtitles.null.stalker.glass_tap",
+    "sounds": [
+      {
+        "name": "null:stalkers/glass_tap_1"
+      },
+      {
+        "name": "null:stalkers/glass_tap_2"
+      },
+      {
+        "name": "null:stalkers/glass_tap_3"
+      }
+    ]
+  },
+  "stalker.runner_footsteps": {
+    "subtitle": "subtitles.null.stalker.runner_footsteps",
+    "sounds": [
+      {
+        "name": "null:stalkers/runner_footsteps_1"
+      },
+      {
+        "name": "null:stalkers/runner_footsteps_2"
+      },
+      {
+        "name": "null:stalkers/runner_footsteps_3"
+      },
+      {
+        "name": "null:stalkers/runner_footsteps_4"
+      },
+      {
+        "name": "null:stalkers/runner_footsteps_5"
+      }
+    ]
+  }
+}

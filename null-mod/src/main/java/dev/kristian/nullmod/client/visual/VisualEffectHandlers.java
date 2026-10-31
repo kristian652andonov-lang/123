@@ -56,6 +56,9 @@ final class VisualEffectHandlers {
                 p -> SilhouetteRenderer.spawn(p.intensity(), p.duration(), p.seed(), false));
         ClientEffects.register("visual.distant_movement",
                 p -> SilhouetteRenderer.spawn(p.intensity(), p.duration(), p.seed(), true));
+        // The NULL stage's runner: it comes at the player at a sprint (a few slow steps without intense effects).
+        ClientEffects.register("visual.silhouette_runner",
+                p -> SilhouetteRenderer.spawnRunner(p.intensity(), p.duration(), p.seed()));
         ClientEffects.register("visual.fake_disconnect", p -> FakeDisconnectScreen.request(p.duration()));
 
         ClientEffects.register("block.black", ClientBlockGlitchManager::black);

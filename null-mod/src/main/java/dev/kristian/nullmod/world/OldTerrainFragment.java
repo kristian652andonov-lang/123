@@ -33,7 +33,8 @@ public final class OldTerrainFragment {
         RandomSource random = req.random();
         int attempts = req.attempts(4);
         for (int i = 0; i < attempts; i++) {
-            BlockPos center = LocationFinder.findGround(level, req.player(), random, req.minDistance(40.0, 20.0), 110.0,
+            double min = req.minDistance(40.0, 20.0);
+            BlockPos center = LocationFinder.findGround(level, req.player(), random, min, req.maxDistance(110.0, min),
                     req.view(LocationFinder.View.HIDDEN), 4, pos -> true);
             if (center == null) {
                 continue;

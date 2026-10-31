@@ -1,0 +1,17 @@
+{
+  "null.configuration.mobs": "Corrupted and parasite mobs",
+  "null.config.mobs_enabled": "Corrupted and parasite mobs",
+  "null.config.mobs_corrupted_frequency": "How often mobs turn corrupted",
+  "null.config.mobs_parasite_frequency": "How often mobs become parasite hosts",
+  "null.config.mobs_parasite_spreading": "Parasites spread to other mobs",
+  "null.config.mobs_max_per_area": "Most variant mobs around one player",
+  "null.config.mobs_max_per_world": "Most variant mobs loaded in the world",
+  "null.config.mobs_denylist": "Mobs that never change (entity ids)",
+  "null.command.mob.corrupted": "%s mob(s) turned corrupted. Left alone: %s.",
+  "null.command.mob.parasite": "%s mob(s) became parasite hosts. Left alone: %s.",
+  "null.command.mob.cleared": "%s mob(s) are ordinary again.",
+  "null.command.mob.unchanged": "Nothing changed: they already are.",
+  "null.command.mob.refused": "None of them can change. Players, NULL's own creatures, bosses and excluded mobs (#null:variant_excluded, mobs.denylist) are always left alone. Left alone: %s.",
+  "null.command.mob.no_target": "No mob found. Look at one within 32 blocks, stand within 16 blocks of one, or give targets.",
+  "null.command.mob.disabled": "Corrupted and parasite mobs are switched off in this world's config (mobs.enabled)."
+}

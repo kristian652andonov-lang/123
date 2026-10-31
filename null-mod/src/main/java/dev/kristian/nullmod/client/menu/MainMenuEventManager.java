@@ -6,10 +6,11 @@ import net.minecraft.Util;
 
 /**
  * Random things that happen while the menu is open, scaled by the {@link MenuMood}: faces
- * appearing behind the title, eyes opening, mouths, silhouettes behind the buttons, the
- * background darkening, the logo distorting, red letters, buttons showing the wrong words or
- * flickering, the title turning into something else at Stage 5, whispers, dim flashes and torn
- * scan lines - and, very rarely when the menu opens, "WE HAVE BEEN WAITING.".
+ * appearing behind the title, sudden close-ups of a face (from Stage 3, only when intense effects
+ * are allowed), eyes opening, mouths, silhouettes behind the buttons, the background darkening,
+ * the logo distorting, red letters, buttons showing the wrong words or flickering, the title
+ * turning into something else from Stage 5, whispers, dim flashes and torn scan lines - and, very
+ * rarely when the menu opens, "WE HAVE BEEN WAITING.".
  * Nothing here ever blocks a button for long or changes what a button does.
  */
 final class MainMenuEventManager {
@@ -22,13 +23,17 @@ final class MainMenuEventManager {
     private static final int SILHOUETTE = 4;
     private static final int DISTORT = 5;
     private static final int STATIC = 6;
-    /** Background event weights per stage: face, eye, mouth, darken, silhouette, distort, static. */
+    /**
+     * Background event weights per stage (STATIC to HARVEST): face, eye, mouth, darken, silhouette,
+     * distort, static. Stage 1 keeps to its one slow face.
+     */
     private static final float[][] WEIGHTS = {
-            {3.0F, 4.0F, 0.0F, 1.0F, 0.0F, 1.0F, 1.0F},
+            {0.0F, 4.0F, 0.0F, 1.0F, 0.0F, 1.0F, 1.0F},
             {3.0F, 4.0F, 1.0F, 2.0F, 0.0F, 2.0F, 2.0F},
             {3.0F, 3.0F, 2.0F, 2.0F, 1.0F, 2.0F, 2.0F},
             {3.0F, 3.0F, 3.0F, 3.0F, 3.0F, 3.0F, 2.0F},
             {3.0F, 3.0F, 3.0F, 3.0F, 3.0F, 3.0F, 3.0F},
+            {4.0F, 3.0F, 3.0F, 3.0F, 3.0F, 3.0F, 3.0F},
     };
     private static final float WAIT_TEXT_IN = 0.35F;
     private static final float WAIT_TEXT_FULL = 0.8F;
@@ -55,6 +60,7 @@ final class MainMenuEventManager {
     private float nextFlash;
     private float nextTear;
     private float nextBackgroundFlicker;
+    private float nextCloseUp;
 
     private float darkenTime = -1.0F;
     private float darkenIn;
@@ -114,6 +120,7 @@ final class MainMenuEventManager {
         nextFlash = MenuMath.nextInterval(random, mood.flashes);
         nextTear = MenuMath.nextInterval(random, tearRate());
         nextBackgroundFlicker = MenuMath.nextInterval(random, mood.backgroundFlickers);
+        nextCloseUp = 10.0F + MenuMath.nextInterval(random, mood.closeUps);
 
         if (fresh && mood.waitingChance > 0.0F && random.nextFloat() < mood.waitingChance) {
             long now = Util.getMillis();
@@ -191,6 +198,10 @@ final class MainMenuEventManager {
             bgFlickerLength = MenuMath.range(random, 0.08F, 0.28F);
             bgFlickerSeed = random.nextLong();
             nextBackgroundFlicker = MenuMath.nextInterval(random, mood.backgroundFlickers);
+        }
+        if ((nextCloseUp -= dt) <= 0.0F) {
+            menu.animation().closeUp();
+            nextCloseUp = MenuMath.nextInterval(random, mood.closeUps);
         }
     }
 
