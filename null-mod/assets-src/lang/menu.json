@@ -3,5 +3,6 @@
   "null.menu.wrong.singleplayer": "SINGLEPLAYER?",
   "null.menu.wrong.multiplayer": "MULTIPLAYER?",
   "null.menu.wrong.options": "SETTINGS LOST",
-  "null.menu.wrong.quit": "LEAVE?"
+  "null.menu.wrong.quit": "LEAVE?",
+  "null.menu.cant_quit": "You can't quit."
 }

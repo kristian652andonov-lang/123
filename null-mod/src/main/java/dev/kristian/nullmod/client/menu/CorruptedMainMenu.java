@@ -259,7 +259,7 @@ public final class CorruptedMainMenu extends Screen {
                 () -> minecraft.setScreen(new OptionsScreen(this, minecraft.options)));
         NullMenuButton quit = new NullMenuButton(marginX, buttonsY + step * 3, buttonWidth, buttonHeight,
                 Component.translatable("menu.quit"), Component.translatable("null.menu.wrong.quit"), this,
-                () -> minecraft.stop());
+                () -> QuitRefusal.attempt(this, minecraft::stop));
         mainButtons.add(singleplayer);
         mainButtons.add(multiplayer);
         mainButtons.add(options);

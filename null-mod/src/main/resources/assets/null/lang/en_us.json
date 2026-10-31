@@ -205,6 +205,7 @@
   "null.configuration.visual": "Visual",
   "null.configuration.world": "World changes",
   "null.desktop.footer": "NULL · Minecraft mod · click to close",
+  "null.menu.cant_quit": "You can't quit.",
   "null.menu.settings": "NULL settings",
   "null.menu.wrong.multiplayer": "MULTIPLAYER?",
   "null.menu.wrong.options": "SETTINGS LOST",

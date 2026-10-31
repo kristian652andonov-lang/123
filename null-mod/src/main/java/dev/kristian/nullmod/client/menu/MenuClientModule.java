@@ -43,6 +43,7 @@ public final class MenuClientModule {
         gameBus.addListener(MenuClientModule::onClientTick);
         modBus.addListener(MenuClientModule::onRegisterReloadListeners);
         NullScreenLook.init(gameBus);
+        QuitRefusal.init(gameBus);
     }
 
     /** The menu was removed: free its textures after {@code delayMs} unless it comes back first. */
