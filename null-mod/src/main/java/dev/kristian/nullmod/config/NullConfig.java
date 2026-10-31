@@ -59,13 +59,13 @@ public final class NullConfig {
         PROGRESSION_SPEED = b.comment("Multiplier for how fast corruption time passes. Combined with /null speed.")
                 .translation("null.config.progression_speed")
                 .defineInRange("speed", 1.0, 0.0, 100.0);
-        STAGE_2_MINUTES = b.comment("Minutes of corruption time before Stage 2 (UNDER MIDDLE).")
+        STAGE_2_MINUTES = b.comment("Minutes of corruption time before Stage 2 (FRACTURE).")
                 .translation("null.config.stage_2_minutes")
                 .defineInRange("stage2Minutes", 30.0, 0.5, 100000.0);
-        STAGE_3_MINUTES = b.comment("Minutes of corruption time before Stage 3 (MIDDLE).")
+        STAGE_3_MINUTES = b.comment("Minutes of corruption time before Stage 3 (INFESTATION).")
                 .translation("null.config.stage_3_minutes")
                 .defineInRange("stage3Minutes", 90.0, 1.0, 100000.0);
-        STAGE_4_MINUTES = b.comment("Minutes of corruption time before Stage 4 (ABOVE MIDDLE).")
+        STAGE_4_MINUTES = b.comment("Minutes of corruption time before Stage 4 (VISITATION).")
                 .translation("null.config.stage_4_minutes")
                 .defineInRange("stage4Minutes", 180.0, 1.5, 100000.0);
         STAGE_5_MINUTES = b.comment("Minutes of corruption time before Stage 5 (NULL).")

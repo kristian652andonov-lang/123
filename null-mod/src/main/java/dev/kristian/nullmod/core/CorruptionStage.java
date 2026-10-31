@@ -4,14 +4,16 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 
 /**
- * The five stages of NULL. Stages only ever move forward on their own; an administrator
- * can move them in either direction with {@code /null stage}.
+ * The five stages of NULL: STATIC, FRACTURE, INFESTATION, VISITATION and NULL. Stages only
+ * ever move forward on their own; an administrator can move them in either direction with
+ * {@code /null stage}. The constant names and ids are the original ones and stay as they are,
+ * because saved worlds and configs refer to them.
  */
 public enum CorruptionStage {
-    START(1, "start", "START"),
-    UNDER_MIDDLE(2, "under_middle", "UNDER MIDDLE"),
-    MIDDLE(3, "middle", "MIDDLE"),
-    ABOVE_MIDDLE(4, "above_middle", "ABOVE MIDDLE"),
+    START(1, "start", "STATIC"),
+    UNDER_MIDDLE(2, "under_middle", "FRACTURE"),
+    MIDDLE(3, "middle", "INFESTATION"),
+    ABOVE_MIDDLE(4, "above_middle", "VISITATION"),
     NULL(5, "null", "NULL");
 
     private static final CorruptionStage[] VALUES = values();
@@ -38,7 +40,7 @@ public enum CorruptionStage {
         return id;
     }
 
-    /** Upper-case name as the specification writes it, e.g. "UNDER MIDDLE". */
+    /** Upper-case name, e.g. "FRACTURE". */
     public String title() {
         return title;
     }
