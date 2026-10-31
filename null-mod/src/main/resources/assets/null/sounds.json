@@ -1002,6 +1002,12 @@
       },
       {
         "name": "null:it/step_4"
+      },
+      {
+        "name": "null:it/step_5"
+      },
+      {
+        "name": "null:it/step_6"
       }
     ]
   },

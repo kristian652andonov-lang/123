@@ -5,10 +5,12 @@ Writes src/main/resources/assets/null/sounds/it/<name>[_<n>].ogg (mono, 44.1 kHz
 ffmpeg/libvorbis in bit-exact mode, so a re-run produces identical files) and the event fragment
 assets-src/sounds/it.json; then run tools/merge_sounds.py. Every variant has its own fixed seed.
 
-  it.step     an enormous footfall: a thud felt more than heard, earth and stalks crushed, a bone clack
+  it.step     an enormous footfall, foot or hand: a ground-shaking thud (body under 120 Hz), a wet heavy
+              impact, a slight flesh slap, earth and wheat crushed, a short dark tail. Short on purpose:
+              at a gallop they come eight to the second, so they must not smear into each other
   it.howl     long and far away as it arrives: a rough, inhuman voice through a huge empty space
   it.breath   wet breathing close by: a gurgling inhale, a rattling exhale
-  it.click    bones clicking and joints cracking
+  it.click    a bone clicking or a joint cracking (rare and faint now; movement is all footfalls)
   it.scream   at the window: a harsh, broken, layered scream
   it.scrape   bone blades dragged over wood and glass
   it.grab     the seize: a rush of air, a wet slap, a squeeze
@@ -246,22 +248,65 @@ def finish(x, peak_db=PEAK_DB, tail=0.05):
 
 # ====================================================================== the sounds
 
+def _unit(x):
+    return x / (np.max(np.abs(x)) + 1e-12)
+
+
+def _rms(x):
+    return np.sqrt(np.mean(x ** 2)) + 1e-12
+
+
+def _level(x):
+    """x scaled to unit rms."""
+    return x / _rms(x)
+
+
 def step(rng):
-    n = samples(1.6)
-    t = secs(n)
-    hit = samples(0.01)
-    thud = lowpass(coloured(rng, n, -2.0), 110.0, 3) * decay(n, 0.16, 0.004)
-    sub = lowpass(coloured(rng, n, -2.0), 45.0, 3) * decay(n, 0.42, 0.01)
-    rumble = lowpass(coloured(rng, n, -2.0), 160.0, 2) * envelope(n, [(0, 0), (0.03, 1), (0.25, 0.5), (1.5, 0)])
-    earth = crackle(rng, n, 2400.0, envelope(n, [(0, 0), (0.008, 1), (0.08, 0.6), (0.3, 0.15), (0.6, 0)]), 500.0, 5000.0)
-    stalks = crackle(rng, n, 700.0, envelope(n, [(0, 0), (0.02, 1), (0.25, 0.4), (0.5, 0)]), 1800.0, 8000.0)
-    clack = clicks(rng, n, [0.004 + rng.uniform(0, 0.012)], (500, 1600), 3, (0.006, 0.02))
-    x = 1.0 * thud / np.max(np.abs(thud)) + 0.9 * sub / np.max(np.abs(sub)) + 0.5 * rumble / np.max(np.abs(rumble))
-    x += 0.32 * earth + 0.16 * stalks + 0.22 * clack / (np.max(np.abs(clack)) + 1e-12)
-    x = np.concatenate([np.zeros(hit), x])[:n]
-    x = saturate(x / np.max(np.abs(x)), 1.6)
-    x = reverb(rng, x, 1.1, 0.25, size=1.5, damping=1200.0)
-    return finish(x)
+    """One footfall of something enormous, a foot or a hand. Noise only, so nothing in it is a
+    tone and nothing sweeps: sub-bass shake and thud (everything below ~120 Hz carries the weight),
+    a knock above them for small speakers, a wet squelch with bubbles popping under it, a slight
+    flesh slap, then earth and wheat crunching under the weight. Ends in a short dark tail."""
+    n = samples(0.8)
+    w = rng.uniform(0.85, 1.2)  # how much weight this one carries
+    # The ground shake and the body of the blow, both under 120 Hz.
+    sub = lowpass(highpass(coloured(rng, n, -1.5), 28.0, 2), 68.0, 3) * decay(n, 0.12 * w, 0.006)
+    thud = lowpass(highpass(coloured(rng, n, -1.0), 44.0, 2), 112.0 + 14.0 * (w - 1.0), 3) * decay(n, 0.07 * w, 0.0025)
+    # The chest of the blow, a little higher: a knock, never a pitch.
+    knock = bandpass(coloured(rng, n, -1.0), 170.0, 0.9) * decay(n, 0.03, 0.002)
+    # Wet: a squelch whose cutoff falls as it settles, and bubbles popping under it.
+    squelch = coloured(rng, n, -1.0) * envelope(n, [(0, 0), (0.003, 1.0), (0.035, 0.7), (0.11, 0.0)])
+    squelch = stft_shape(squelch, lambda tt, f: 1.0 / np.sqrt(1.0 + (f / (250.0 + 1700.0 * np.exp(-tt / 0.03))) ** 4))
+    bubbles = np.zeros(n)
+    for _ in range(int(rng.integers(2, 5))):
+        at = samples(rng.uniform(0.012, 0.13))
+        length = samples(0.05)
+        pop = bandpass(rng.standard_normal(length), rng.uniform(180.0, 520.0), 1.6) * decay(length, rng.uniform(0.008, 0.02), 0.001)
+        bubbles[at:at + length] += rng.uniform(0.4, 1.0) * _unit(pop)
+    # A slight slap of flesh on the ground.
+    slap = bandpass(coloured(rng, n, 0.0), 2300.0, 0.8) * decay(n, 0.006, 0.0005)
+    # Earth and dry wheat crushed: dense crackle, and single crunches thinning out.
+    earth = crackle(rng, n, 2600.0, envelope(n, [(0, 0), (0.006, 1), (0.07, 0.65), (0.22, 0.2), (0.4, 0)]), 380.0, 4200.0)
+    stalks = crackle(rng, n, 1100.0, envelope(n, [(0.0, 0), (0.025, 1), (0.16, 0.55), (0.34, 0)]), 1600.0, 7500.0)
+    crunch = np.zeros(n)
+    for at in np.sort(rng.exponential(0.07, int(rng.integers(7, 12)))):
+        if at > 0.32:
+            continue
+        start = samples(0.012 + at)
+        length = min(n - start, samples(0.012))
+        burst = highpass(rng.standard_normal(length), rng.uniform(700.0, 1800.0), 1) * np.exp(-secs(length) / rng.uniform(0.002, 0.005))
+        crunch[start:start + length] += rng.uniform(0.3, 1.0) * np.exp(-at / 0.18) * burst
+    # Levels by loudness (rms), so every variant has the same balance: the body under 120 Hz carries
+    # about three quarters of the energy, the rest is the wet, the slap and the crushing on top.
+    body = 0.8 * _level(thud) + 0.6 * _level(sub)
+    x = body / _rms(body)
+    x += 0.38 * _level(knock) + 0.3 * _level(squelch) + 0.16 * _level(bubbles) + 0.13 * _level(slap)
+    x += 0.27 * _level(earth) + 0.16 * _level(stalks) + 0.22 * _level(crunch)
+    x = np.concatenate([np.zeros(samples(0.006)), x])[:n]
+    # Saturate by loudness, not by the highest spike, so the crunches cannot take the weight out of the thud.
+    x = saturate(x / (4.5 * _rms(x)), 1.8)
+    x = reverb(rng, x, 0.42, 0.2, size=1.0, damping=800.0)
+    x = lowpass(x, 6500.0, 1)
+    return finish(x, tail=0.1)
 
 
 def howl(rng):
@@ -448,7 +493,7 @@ def retreat(rng):
 
 SOUNDS = [
     # event, generator, variants, seed base
-    ("it.step", step, 4, 0x5354),
+    ("it.step", step, 6, 0x5354),
     ("it.howl", howl, 2, 0x484F),
     ("it.breath", breath, 3, 0x4252),
     ("it.click", click, 4, 0x434C),

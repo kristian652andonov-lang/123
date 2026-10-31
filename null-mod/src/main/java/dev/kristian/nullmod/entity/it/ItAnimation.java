@@ -61,6 +61,13 @@ public final class ItAnimation {
     public double faceY;
     public double faceZ;
     public boolean faceKnown;
+    /**
+     * Where its eyes were when it was last drawn (world): the point between them (0..2), the unit
+     * vector from one to the other (3..5) and the unit vector they look along (6..8). Read by the
+     * glow that is seen from far away.
+     */
+    public final double[] eye = new double[9];
+    public boolean eyeKnown;
 
     ItAnimation() {
     }

@@ -664,4 +664,20 @@ final class ItModel extends HierarchicalModel<ItEntity> {
         out[1] = origin[1] + rot[4] * -4.0F + rot[5] * -7.0F;
         out[2] = origin[2] + rot[7] * -4.0F + rot[8] * -7.0F;
     }
+
+    /**
+     * The frame of its eyes, as posed right now, in model space (point in pixels, directions
+     * unit): the point between them (0..2), the direction from one eye to the other (3..5) and
+     * the direction they look along (6..8). The renderer turns it into world space for the glow
+     * that is seen from far away.
+     */
+    void eyeFrame(float[] out) {
+        faceCenter(out);
+        out[3] = rot[0];
+        out[4] = rot[3];
+        out[5] = rot[6];
+        out[6] = -rot[2];
+        out[7] = -rot[5];
+        out[8] = -rot[8];
+    }
 }
