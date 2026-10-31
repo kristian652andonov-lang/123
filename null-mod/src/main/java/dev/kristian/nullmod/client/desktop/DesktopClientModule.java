@@ -37,6 +37,7 @@ public final class DesktopClientModule {
 
     public static void init(IEventBus modBus, IEventBus gameBus) {
         DesktopProbe.prepareEarly();
+        InGameDesktopWindows.init(modBus, gameBus);
         gameBus.addListener(DesktopClientModule::onClientTick);
         gameBus.addListener(DesktopClientModule::onLoggingOut);
         gameBus.addListener(DesktopClientModule::onGameShuttingDown);

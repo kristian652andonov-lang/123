@@ -63,7 +63,15 @@ final class DesktopWindowManager {
      * the oldest window makes room when the limit is reached; otherwise the request is dropped.
      */
     static void show(DesktopWindowSpec spec, boolean replaceOldest) {
-        if (shutDown || broken) {
+        if (shutDown) {
+            return;
+        }
+        if (InGameDesktopWindows.fullscreen()) {
+            // A full-screen game hides every other window: show it inside the game instead.
+            InGameDesktopWindows.show(spec);
+            return;
+        }
+        if (broken) {
             return;
         }
         installShutdownHook();
@@ -79,6 +87,7 @@ final class DesktopWindowManager {
 
     /** Closes every window at once; requests still on their way are dropped too. */
     static void closeAll() {
+        InGameDesktopWindows.closeAll();
         EPOCH.incrementAndGet();
         if (OPEN.get() <= 0) {
             return;
