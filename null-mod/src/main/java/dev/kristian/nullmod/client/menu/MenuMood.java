@@ -23,7 +23,8 @@ final class MenuMood {
     private static final float[] FACE_DELAY = {9.0F, 7.0F, 6.0F, 4.5F, 3.5F, 2.8F};
     private static final float[] FOLLOW = {0.0F, 0.45F, 0.65F, 0.80F, 1.0F, 1.0F};
     private static final float[] GLINT = {0.55F, 0.65F, 0.75F, 0.85F, 0.95F, 1.0F};
-    private static final float[] DOMINANT_ALPHA = {0.0F, 0.0F, 0.0F, 0.0F, 0.22F, 0.30F};
+    // No dominant face: the faces come one after another, each somewhere else.
+    private static final float[] DOMINANT_ALPHA = {0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F};
     private static final float[] DOMINANT_SIZE = {0.0F, 0.0F, 0.0F, 0.0F, 1.30F, 1.42F};
     private static final float[] CLOSE_UPS = {0.0F, 0.0F, 0.25F, 0.40F, 0.60F, 0.90F};
     private static final float[] CLOSE_UP_ALPHA = {0.0F, 0.0F, 0.40F, 0.48F, 0.56F, 0.64F};

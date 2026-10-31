@@ -128,6 +128,9 @@ final class MainMenuAnimationManager {
     private float time;
     private float aspect = 16.0F / 9.0F;
     private int lastPortrait = -1;
+    /** Where the last face appeared, so the next one shows up somewhere else. */
+    private float lastFaceX = -1.0F;
+    private float lastFaceY = -1.0F;
     private float gazeX = 0.5F;
     private float gazeY = 0.45F;
     private float targetX = 0.5F;
@@ -402,6 +405,11 @@ final class MainMenuAnimationManager {
                     continue;
                 }
                 a.wait -= dt;
+                if (group == faces && a.wait <= 0.0F && anotherFaceShowing(a)) {
+                    // one after another: wait until the face that is showing starts to fade
+                    a.wait = MenuMath.range(random, 0.4F, 1.2F);
+                    continue;
+                }
                 if (a.wait <= 0.0F) {
                     spawnRegular(a);
                 }
@@ -733,12 +741,17 @@ final class MainMenuAnimationManager {
         float minX = mood.gentleFaces ? 0.68F : 0.54F;
         float maxX = mood.gentleFaces ? 0.90F : 0.96F;
         float bestX = MenuMath.range(random, minX, maxX);
-        float bestY = MenuMath.range(random, 0.30F, 0.70F);
+        float bestY = MenuMath.range(random, 0.18F, 0.82F);
         float bestScore = -1.0F;
-        for (int attempt = 0; attempt < 8; attempt++) {
+        for (int attempt = 0; attempt < 12; attempt++) {
             float x = MenuMath.range(random, minX, maxX);
-            float y = MenuMath.range(random, 0.30F, 0.70F);
+            float y = MenuMath.range(random, 0.18F, 0.82F);
             float score = Float.MAX_VALUE;
+            if (lastFaceX >= 0.0F) {
+                float lx = (lastFaceX - x) * aspect;
+                float ly = lastFaceY - y;
+                score = lx * lx + ly * ly;
+            }
             for (Apparition other : faces) {
                 if (other == a || other.phase == HIDDEN) {
                     continue;
@@ -755,6 +768,18 @@ final class MainMenuAnimationManager {
         }
         a.x = bestX;
         a.y = bestY;
+        lastFaceX = bestX;
+        lastFaceY = bestY;
+    }
+
+    /** True while another face is fading in or fully showing (one fading out does not count). */
+    private boolean anotherFaceShowing(Apparition self) {
+        for (Apparition other : faces) {
+            if (other != self && (other.phase == IN || other.phase == HOLD)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Left or right edge band (x range given for the left band; the right band mirrors it). */
