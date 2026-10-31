@@ -35,10 +35,10 @@ backwards on their own, and are saved with the world.
 
 | Stage | Default time | What happens |
 |---|---|---|
-| 1 · START | immediately | Something is wrong. Black and missing-texture blocks, blocks that blink out, wrong textures on trees, brief chunk flicker, a sky that flickers for a frame, static and footsteps you can't place. |
-| 2 · UNDER MIDDLE | 30 min | Reality is breaking. Camera shakes, screen distortion, freezes and blackouts, the sky changes colour, outdated-looking terrain fragments and floating islands appear, the moon starts to crack. |
-| 3 · MIDDLE | 90 min | NULLROOT: black parasitic plants grow out of corrupted ground, walls and cave ceilings. Some only watch. Some reach for you. |
-| 4 · ABOVE MIDDLE | 180 min | The Visitors: player-shaped things with old usernames that stand and stare, follow, or appear behind you. Bedrock hangs in the sky; abandoned villages, wrong buildings and corridors to nowhere appear. |
+| 1 · STATIC | immediately | Something is wrong. Black and missing-texture blocks, blocks that blink out, wrong textures on trees, brief chunk flicker, a sky that flickers for a frame, static and footsteps you can't place. |
+| 2 · FRACTURE | 30 min | Reality is breaking. Camera shakes, screen distortion, freezes and blackouts, the sky changes colour, outdated-looking terrain fragments and floating islands appear, the moon starts to crack. |
+| 3 · INFESTATION | 90 min | NULLROOT: black parasitic plants grow out of corrupted ground, walls and cave ceilings. Some only watch. Some reach for you. |
+| 4 · VISITATION | 180 min | The Visitors: player-shaped things with old usernames that stand and stare, follow, or appear behind you. Bedrock hangs in the sky; abandoned villages, wrong buildings and corridors to nowhere appear. |
 | 5 · NULL | 300 min | The world stops. Everything goes quiet and dark, and you wake up in NULL — an endless glowing geometric structure. The player list fills with players who are not there, and chat no longer makes sense. |
 
 Different regions of a world corrupt at different speeds.
@@ -54,14 +54,16 @@ Open **Mods → NULL → Config**, or the small **NULL** link on the corrupted m
   static, whispers, phantom footsteps, music distortion, wrong pitches and sudden silence.
 - **Main menu:** the corrupted menu can be switched off to get the vanilla menu back;
   animation and glitch strength; menu sounds.
-- **Desktop interference** (on by default, see below).
+- **Desktop interference** (off by default, see below).
 
 All settings are saved in `config/null-client.toml`.
 
 ### Desktop interference
 
-NULL shows small black "error" windows on your desktop, outside the game window. It is **on by
-default** and can be switched off at any time in NULL's settings (every open window closes at once). Every window is labelled as
+NULL can show small black "error" windows on your desktop, outside the game window. This is
+**off until you turn it on and accept an explanation screen**. The acceptance belongs to the
+Minecraft account that gave it, so a copied or pre-made config file cannot switch it on for
+anyone else (only a one-way code is stored, in your own config file). Every window is labelled as
 coming from the NULL Minecraft mod, can be closed by clicking it or pressing Esc, closes on its
 own, never takes keyboard or mouse focus, never imitates real system or security dialogs, and
 never appears after Minecraft has closed. NULL does not change anything on your computer and

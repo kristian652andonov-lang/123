@@ -3,7 +3,9 @@ package dev.kristian.nullmod.network;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
@@ -32,6 +34,8 @@ public final class NullNetworking {
                 (payload, context) -> clientSink.fakePlayers(payload));
         registrar.playToClient(TransitionPayload.TYPE, TransitionPayload.STREAM_CODEC,
                 (payload, context) -> clientSink.transition(payload));
+        registrar.playToClient(MobVariantPayload.TYPE, MobVariantPayload.STREAM_CODEC,
+                (payload, context) -> clientSink.mobVariant(payload));
     }
 
     /**
@@ -44,6 +48,23 @@ public final class NullNetworking {
             return;
         }
         PacketDistributor.sendToPlayer(player, payload);
+    }
+
+    /**
+     * Sends a payload about an entity to every player close enough to be tracking it (its type's
+     * client tracking range), skipping players without NULL's channels like {@link #sendToPlayer}.
+     */
+    public static void sendToNear(Entity entity, CustomPacketPayload payload) {
+        if (!(entity.level() instanceof ServerLevel level)) {
+            return;
+        }
+        double range = Math.max(1, entity.getType().clientTrackingRange()) * 16.0;
+        double rangeSqr = range * range;
+        for (ServerPlayer player : level.players()) {
+            if (player.distanceToSqr(entity) <= rangeSqr) {
+                sendToPlayer(player, payload);
+            }
+        }
     }
 
     /** Starts a client effect for one player only. */
