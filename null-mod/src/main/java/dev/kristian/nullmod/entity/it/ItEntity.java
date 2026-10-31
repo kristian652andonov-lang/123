@@ -78,6 +78,8 @@ public class ItEntity extends PathfinderMob {
     public static final byte EVENT_SNAP = 118;
     /** It was stuck and is suddenly somewhere else. */
     public static final byte EVENT_BLINK = 119;
+    /** A short sniff at a house wall (client: a quick breath in, a twitch of the head). */
+    public static final byte EVENT_SNIFF = 120;
 
     public static final int PHASE_ARRIVING = 0;
     public static final int PHASE_CHASING = 1;
@@ -91,6 +93,11 @@ public class ItEntity extends PathfinderMob {
     public static final int ACTION_WINDOW = 2;
     public static final int ACTION_SCRAPE = 3;
     public static final int ACTION_STARE = 4;
+    /** Plans at a house (server only; the client sees WINDOW and STARE poses): sniff it, then scream and go. */
+    private static final int ACTION_SNIFF = 20;
+    private static final int ACTION_HOUSE_SCREAM = 21;
+    private static final int SNIFF_TICKS = 100;
+    private static final int HOUSE_SCREAM_TICKS = 75;
 
     public static final int KILL_NONE = 0;
     public static final int KILL_SEIZE = 1;
@@ -151,6 +158,8 @@ public class ItEntity extends PathfinderMob {
     @Nullable
     private BlockPos standFocus;
     private boolean arrived;
+    /** Failed attempts to reach a wall of the house to sniff (after three it screams from where it is). */
+    private int sniffTries;
     // the kill
     @Nullable
     private ServerPlayer victim;
@@ -647,7 +656,10 @@ public class ItEntity extends PathfinderMob {
             Vec3 center = room.enclosed() ? room.center() : player.position();
             orbitAngle = Math.atan2(this.getZ() - center.z, this.getX() - center.x);
             orbitDir = this.random.nextBoolean() ? 1 : -1;
-            plan(ACTION_CIRCLE, 60 + this.random.nextInt(80));
+            sniffTries = 0;
+            if (!planSniff(level, player)) {
+                plan(ACTION_CIRCLE, 40);
+            }
         }
     }
 
@@ -677,7 +689,8 @@ public class ItEntity extends PathfinderMob {
         }
         actionTicks++;
         switch (actionPlan) {
-            case ACTION_WINDOW, ACTION_SCRAPE -> atWall(level, target);
+            case ACTION_WINDOW, ACTION_SCRAPE, ACTION_SNIFF -> atWall(level, target);
+            case ACTION_HOUSE_SCREAM -> houseScream(level, target);
             case ACTION_STARE -> {
                 stopMoving();
                 setAction(ACTION_STARE);
@@ -729,28 +742,54 @@ public class ItEntity extends PathfinderMob {
         lookAt(target);
     }
 
-    /** Next thing to do at the house: a window, a wall, a long stare, or more circling. */
+    /** Next thing to do at the house: go and sniff it (after three failed tries it screams from where it is). */
     private void nextAction(ServerLevel level, ServerPlayer target) {
+        if (planSniff(level, target)) {
+            return;
+        }
+        if (++sniffTries >= 3) {
+            planHouseScream();
+        } else {
+            plan(ACTION_CIRCLE, 40);
+        }
+    }
+
+    /** Walks up to a window (or a wall) of the hidden player's house to sniff at it. */
+    private boolean planSniff(ServerLevel level, ServerPlayer target) {
         ItShelter.Room r = room;
         if (r == null || !r.enclosed()) {
-            plan(ACTION_CIRCLE, 60);
-            return;
+            return false;
         }
-        float roll = this.random.nextFloat();
-        if (roll < 0.45F && !r.windows().isEmpty() && planWall(level, r.windows(), ACTION_WINDOW, target)) {
-            return;
+        List<ItShelter.Opening> spots = !r.windows().isEmpty() ? r.windows() : r.walls();
+        if (spots.isEmpty() || !planWall(level, spots, ACTION_SNIFF, target)) {
+            return false;
         }
-        if (roll < 0.75F && !r.walls().isEmpty() && planWall(level, r.walls(), ACTION_SCRAPE, target)) {
-            return;
+        actionLength = SNIFF_TICKS;
+        return true;
+    }
+
+    private void planHouseScream() {
+        actionPlan = ACTION_HOUSE_SCREAM;
+        actionTicks = 0;
+        actionLength = HOUSE_SCREAM_TICKS;
+        arrived = true;
+    }
+
+    /** Rears back from the house and screams, long; then, with nobody left in the open, it leaves. */
+    private void houseScream(ServerLevel level, ServerPlayer target) {
+        stopMoving();
+        setAction(ACTION_STARE);
+        setFocus(null);
+        lookAt(target);
+        if (actionTicks == 2 || actionTicks == 36) {
+            level.broadcastEntityEvent(this, EVENT_SCREAM);
         }
-        if (roll < 0.9F) {
-            plan(ACTION_STARE, 40 + this.random.nextInt(50));
-            return;
+        if (actionTicks >= actionLength) {
+            reconsider(level);
+            if (phase() == PHASE_PROWLING) {
+                startLeaving(level);
+            }
         }
-        if (this.random.nextInt(3) == 0) {
-            orbitDir = -orbitDir;
-        }
-        plan(ACTION_CIRCLE, 60 + this.random.nextInt(100));
     }
 
     /** Picks an opening (the nearest of a few random ones) whose outside it can stand at. */
@@ -814,13 +853,17 @@ public class ItEntity extends PathfinderMob {
                 lookAt(target);
                 if (actionTicks > 240) {
                     // Could not get there.
-                    plan(ACTION_CIRCLE, 60);
+                    if (actionPlan == ACTION_SNIFF && ++sniffTries >= 3) {
+                        planHouseScream();
+                    } else {
+                        plan(ACTION_CIRCLE, 60);
+                    }
                 }
                 return;
             }
             arrived = true;
             actionTicks = 0;
-            setAction(actionPlan);
+            setAction(actionPlan == ACTION_SNIFF ? ACTION_WINDOW : actionPlan);
             setFocus(focusPos);
         }
         stopMoving();
@@ -829,6 +872,16 @@ public class ItEntity extends PathfinderMob {
         this.yBodyRot = yaw;
         Vec3 at = Vec3.atCenterOf(focusPos);
         this.getLookControl().setLookAt(at.x, at.y, at.z, 40.0F, 40.0F);
+        if (actionPlan == ACTION_SNIFF) {
+            int beat = actionTicks % 26;
+            if (beat == 3 || beat == 9 || beat == 15) {
+                level.broadcastEntityEvent(this, EVENT_SNIFF);
+            }
+            if (actionTicks >= actionLength) {
+                planHouseScream();
+            }
+            return;
+        }
         if (actionPlan == ACTION_WINDOW) {
             if (actionTicks == actionLength * 3 / 5 && this.random.nextInt(10) < 7) {
                 level.broadcastEntityEvent(this, EVENT_SCREAM);
@@ -1384,7 +1437,7 @@ public class ItEntity extends PathfinderMob {
 
     @Override
     public void handleEntityEvent(byte id) {
-        if (id >= EVENT_SCREAM && id <= EVENT_BLINK) {
+        if (id >= EVENT_SCREAM && id <= EVENT_SNIFF) {
             clientHook.handleEvent(this, id);
             return;
         }

@@ -1,5 +1,13 @@
 package dev.kristian.nullmod.field;
 
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
 import dev.kristian.nullmod.NullMod;
 import dev.kristian.nullmod.config.NullConfig;
 import dev.kristian.nullmod.core.CorruptionContext;
@@ -752,7 +760,29 @@ public final class FieldManager implements CorruptionSystem {
         if (state.is(BlockTags.BEDS) && !level.dimensionType().bedWorks()
                 || state.is(Blocks.RESPAWN_ANCHOR) && !level.dimensionType().respawnAnchorWorks()) {
             event.setUseBlock(TriState.FALSE);
+        } else if (state.getBlock() instanceof DoorBlock && FieldManager.locked(event.getPos(), state)) {
+            // Most of the houses are locked: the handle rattles and the door stays shut.
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.sidedSuccess(level.isClientSide()));
+            if (!level.isClientSide()) {
+                level.playSound(null, event.getPos(), SoundEvents.CHEST_LOCKED, SoundSource.BLOCKS, 1.0F, 0.6F);
+                event.getEntity().displayClientMessage(Component.translatable("null.field.locked").withStyle(ChatFormatting.DARK_RED), true);
+            }
         }
+    }
+
+    /**
+     * Whether a field house's door is locked: decided by the door's position alone, so the client
+     * and the server always agree (no door ever flickers open). {@link FieldTuning#LOCKED_PERCENT} of them are.
+     */
+    public static boolean locked(BlockPos pos, BlockState state) {
+        BlockPos base = state.hasProperty(BlockStateProperties.DOUBLE_BLOCK_HALF)
+                && state.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF) == DoubleBlockHalf.UPPER ? pos.below() : pos;
+        long h = base.getX() * 0x9E3779B97F4A7C15L ^ base.getZ() * 0xC2B2AE3D27D4EB4FL ^ base.getY() * 0x165667B19E3779F9L;
+        h ^= h >>> 31;
+        h *= 0xBF58476D1CE4E5B9L;
+        h ^= h >>> 29;
+        return Math.floorMod(h, 100L) < FieldTuning.LOCKED_PERCENT;
     }
 
     /** The wheat stays: nothing tramples the field's farmland (IT included). */

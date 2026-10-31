@@ -13,7 +13,7 @@ public final class FieldTuning {
     public static final int DAY_TICKS = Ticks.seconds(210);
     /** The sun shattering and the light dying. */
     public static final int SHATTER_TICKS = Ticks.seconds(5);
-    /** Default of {@code field.countdownSeconds}: the countdown "TIME UNTIL "IT" COMES". */
+    /** Night length the field's GameTests simulate (the game itself uses {@code field.nightCountdownSeconds}, 15 s). */
     public static final int NIGHT_TICKS = Ticks.seconds(75);
     /** Default of {@code field.huntSeconds}: how long IT hunts ({@code ItEntity.summon(..., huntTicks)}). */
     public static final int HUNT_TICKS = Ticks.seconds(100);
@@ -28,7 +28,9 @@ public final class FieldTuning {
     public static final int IT_MIN_DISTANCE = 48;
 
     /** Someone who comes back into an empty field at night gets at least this much countdown. */
-    public static final int REJOIN_MIN_COUNTDOWN = Ticks.seconds(20);
+    public static final int REJOIN_MIN_COUNTDOWN = Ticks.seconds(8);
+    /** Share of the field's house doors that are locked and never open, in percent. */
+    public static final int LOCKED_PERCENT = 60;
     /** The cycle is re-sent to everyone in the field this often (clients interpolate in between). */
     public static final int RESYNC_TICKS = Ticks.seconds(10);
     /** A player who joins while the field is where they belong is moved this long after joining. */
@@ -48,7 +50,7 @@ public final class FieldTuning {
         return Ticks.seconds(NullConfig.get(NullConfig.FIELD_DAY_SECONDS));
     }
 
-    /** The countdown, from the server config ({@code field.countdownSeconds}). */
+    /** The countdown, from the server config ({@code field.nightCountdownSeconds}). */
     public static int nightTicks() {
         return Ticks.seconds(NullConfig.get(NullConfig.FIELD_COUNTDOWN_SECONDS));
     }

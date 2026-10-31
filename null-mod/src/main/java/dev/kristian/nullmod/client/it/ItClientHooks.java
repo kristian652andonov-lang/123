@@ -258,6 +258,12 @@ final class ItClientHooks implements ItClientHook {
                     play(ItSounds.CLICK.get(), face(it, a), 0.9F, 0.75F, 44.0F);
                 }
             }
+            case ItEntity.EVENT_SNIFF -> {
+                a.jolt = Math.max(a.jolt, 0.2F);
+                if (!silent) {
+                    play(ItSounds.BREATH.get(), face(it, a), 0.8F, 1.5F + RANDOM.nextFloat() * 0.25F, 28.0F);
+                }
+            }
             case ItEntity.EVENT_BLINK -> {
                 // It is somewhere else now: no gait to carry over.
                 a.started = false;

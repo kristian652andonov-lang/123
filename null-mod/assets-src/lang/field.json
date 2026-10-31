@@ -16,5 +16,6 @@
   "subtitles.null.field.footsteps": "Enormous footsteps",
   "subtitles.null.field.drag": "Something is dragged through the wheat",
   "subtitles.null.field.breath": "Heavy breathing",
-  "subtitles.null.field.heartbeat": "Heartbeat"
+  "subtitles.null.field.heartbeat": "Heartbeat",
+  "null.field.locked": "It's locked."
 }

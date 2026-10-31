@@ -214,7 +214,7 @@ public final class NullConfig {
                 .defineInRange("daySeconds", 210, 30, 3600);
         FIELD_COUNTDOWN_SECONDS = b.comment("Seconds of the countdown \"TIME UNTIL \"IT\" COMES\" once the sun has shattered.")
                 .translation("null.config.field_countdown_seconds")
-                .defineInRange("countdownSeconds", 75, 10, 900);
+                .defineInRange("nightCountdownSeconds", 15, 5, 900);
         FIELD_HUNT_SECONDS = b.comment("Seconds IT hunts each night before it leaves and dawn comes.")
                 .translation("null.config.field_hunt_seconds")
                 .defineInRange("huntSeconds", 100, 20, 900);
