@@ -324,13 +324,6 @@ def square_raw(freq, n, sr=SR, duty=0.5):
     return np.where(ph < duty, 1.0, -1.0)
 
 
-def chirp_exp(n, f_start, f_end, tau, sr=SR):
-    """Frequency gliding exponentially from f_start towards f_end with time constant tau."""
-    t = tvec(n, sr)
-    f = f_end + (f_start - f_end) * np.exp(-t / tau)
-    return np.sin(phase_of(f, sr))
-
-
 # ---- nonlinear / digital ------------------------------------------------------------------
 
 def soft_clip(x, drive=1.0):
