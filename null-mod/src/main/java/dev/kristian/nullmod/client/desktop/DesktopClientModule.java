@@ -23,13 +23,15 @@ import net.neoforged.neoforge.event.GameShuttingDownEvent;
  *       ends any other way;</li>
  *   <li>client effect {@code desktop.message} for server events that want a window.</li>
  * </ul>
- * Nothing here touches AWT until the player has switched the feature on and agreed to it.
+ * Nothing here touches AWT until the feature is used; only the headless property is switched early
+ * (see {@link DesktopProbe#prepareEarly()}).
  */
 public final class DesktopClientModule {
     private DesktopClientModule() {
     }
 
     public static void init(IEventBus modBus, IEventBus gameBus) {
+        DesktopProbe.prepareEarly();
         // the consent only counts for the account that accepted it
         NullClientSettings.setAccountCode(DesktopInterferenceManager::accountCode);
         gameBus.addListener(DesktopClientModule::onClientTick);

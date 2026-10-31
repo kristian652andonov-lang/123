@@ -18,8 +18,8 @@ import java.util.concurrent.TimeUnit;
  * <ul>
  *   <li>macOS: unsupported (AWT and GLFW both want the main thread there).</li>
  *   <li>No display (no {@code DISPLAY} on Linux/BSD, or AWT reports headless): unsupported.</li>
- *   <li>Minecraft starts with {@code java.awt.headless=true}; as long as AWT has not read the
- *       property yet it is switched to {@code false} here, and put back when the check fails.</li>
+ *   <li>Minecraft starts with {@code java.awt.headless=true}; {@link #prepareEarly()} switches it to
+ *       {@code false} while the mod is constructed, before AWT can read it (AWT reads it once).</li>
  *   <li>Any error at all: unsupported. Nothing here ever propagates to the game.</li>
  * </ul>
  */
@@ -29,16 +29,43 @@ final class DesktopProbe {
     private DesktopProbe() {
     }
 
+    /**
+     * Called while the mod is constructed, before the game or other mods can touch AWT. Minecraft
+     * starts with {@code java.awt.headless=true}, and AWT reads that property only once: if anything
+     * initialises AWT before the property is switched back, desktop windows stay impossible for the
+     * whole session ("no desktop display"). So it is switched here, early, wherever a desktop can
+     * exist (Windows; Linux/BSD with an X display). Never on macOS, where AWT and GLFW conflict.
+     * Switching the property initialises nothing by itself.
+     */
+    static void prepareEarly() {
+        try {
+            if (DesktopInterferenceManager.isMac() || !displayPresent()) {
+                return;
+            }
+            String current = System.getProperty(HEADLESS_PROPERTY);
+            if (current != null && Boolean.parseBoolean(current.trim())) {
+                System.setProperty(HEADLESS_PROPERTY, "false");
+            }
+        } catch (RuntimeException e) {
+            NullMod.LOGGER.debug("NULL could not prepare desktop support: {}", e.toString());
+        }
+    }
+
+    private static boolean displayPresent() {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        if (os.startsWith("windows")) {
+            return true;
+        }
+        String display = System.getenv("DISPLAY");
+        return display != null && !display.isBlank();
+    }
+
     static Availability run() {
         if (DesktopInterferenceManager.isMac()) {
             return Availability.UNSUPPORTED_OS;
         }
-        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-        if (!os.startsWith("windows")) {
-            String display = System.getenv("DISPLAY");
-            if (display == null || display.isBlank()) {
-                return Availability.HEADLESS;
-            }
+        if (!displayPresent()) {
+            return Availability.HEADLESS;
         }
         String before = System.getProperty(HEADLESS_PROPERTY);
         boolean changed = false;
@@ -48,6 +75,11 @@ final class DesktopProbe {
                 changed = true;
             }
             if (GraphicsEnvironment.isHeadless()) {
+                if (!changed && before != null && !Boolean.parseBoolean(before.trim())) {
+                    // the property says "not headless" but AWT had already read the old value
+                    NullMod.LOGGER.warn("NULL desktop interference: Java's desktop support was started in headless mode before NULL"
+                            + " could switch it; add -Djava.awt.headless=false to the game's JVM arguments to use it");
+                }
                 restore(before, changed);
                 return Availability.HEADLESS;
             }

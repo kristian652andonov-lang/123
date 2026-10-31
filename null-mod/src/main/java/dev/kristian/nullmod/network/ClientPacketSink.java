@@ -20,7 +20,4 @@ public interface ClientPacketSink {
 
     default void transition(TransitionPayload payload) {
     }
-
-    default void mobVariant(MobVariantPayload payload) {
-    }
 }
